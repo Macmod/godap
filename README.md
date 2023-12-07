@@ -65,8 +65,8 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 # Acknowledgements
 
 * DACL parsing code was taken from these tools:
-- [ldapper](https://github.com/Synzack/ldapper)
-- [Darksteel](https://github.com/wjlab/Darksteel)
+** [ldapper](https://github.com/Synzack/ldapper)
+** [Darksteel](https://github.com/wjlab/Darksteel)
 
 # License
 
