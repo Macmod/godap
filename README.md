@@ -4,6 +4,16 @@
 
 `godap` is a complete TUI for LDAP written in Golang.
 
+# Screenshots
+
+![images/page1.png](images/page1.png)
+
+![images/page2.png](images/page2.png)
+
+![images/page3.png](images/page3.png)
+
+![images/page4.png](images/page4.png)
+
 # Features
 
 * Formats date/time, boolean and other categorical attributes into readable text
@@ -68,16 +78,6 @@ DACL parsing code was taken from these tools:
 
 * [ldapper](https://github.com/Synzack/ldapper)
 * [Darksteel](https://github.com/wjlab/Darksteel)
-
-# Screenshots
-
-![images/page1.png](images/page1.png)
-
-![images/page2.png](images/page2.png)
-
-![images/page3.png](images/page3.png)
-
-![images/page4.png](images/page4.png)
 
 # License
 
