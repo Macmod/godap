@@ -29,10 +29,31 @@ func InitGroupPage() {
         SetBorder(true)
 
     groupMembersPanel = tview.NewTable()
-    groupMembersPanel.SetTitle("Group Members").SetBorder(true)
+    groupMembersPanel.
+        SetSelectable(true, false).
+        SetTitle("Group Members").
+        SetBorder(true)
+
+    groupMembersPanel.SetSelectedFunc(func (row, col int) {
+        cell := groupMembersPanel.GetCell(row, col)
+        cellId, ok := cell.GetReference().(string)
+        if ok {
+            userNameInput.SetText(cellId)
+        }
+    })
 
     userGroupsPanel = tview.NewTable()
-    userGroupsPanel.SetTitle("User Groups").SetBorder(true)
+    userGroupsPanel.
+        SetSelectable(true, false).
+        SetTitle("User Groups").
+        SetBorder(true)
+    userGroupsPanel.SetSelectedFunc(func (row, col int) {
+        cell := userGroupsPanel.GetCell(row, col)
+        cellId, ok := cell.GetReference().(string)
+        if ok {
+            groupNameInput.SetText(cellId)
+        }
+    })
 
     groupPage = tview.NewFlex().
     AddItem(
@@ -70,15 +91,17 @@ func InitGroupPage() {
                         category = utils.EmojiMap["person"]
                     case "CN=Group":
                         category = utils.EmojiMap["group"]
+                    case "CN=Computer":
+                        category = utils.EmojiMap["computer"]
                     }
                 }
             } else {
                 category = "Unknown"
             }
 
-            groupMembersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName))
-            groupMembersPanel.SetCell(idx, 1, tview.NewTableCell(category))
-            groupMembersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN))
+            groupMembersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName).SetReference(entry.DN))
+            groupMembersPanel.SetCell(idx, 1, tview.NewTableCell(category).SetReference(entry.DN))
+            groupMembersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
         }
 
         updateLog("Group members query executed successfully", "green")
@@ -97,7 +120,7 @@ func InitGroupPage() {
             memberOf := entry.GetAttributeValues("memberOf")
 
             for idx, group := range memberOf {
-                userGroupsPanel.SetCell(idx, 0, tview.NewTableCell(group))
+                userGroupsPanel.SetCell(idx, 0, tview.NewTableCell(group).SetReference(group))
                 // Maybe: map DN and enrich with some attributes?
             }
         }
