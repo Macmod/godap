@@ -51,6 +51,8 @@ $ godap -username <username>@<domain> -password <password> -server <hostname or 
 * `-insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-ldaps` - Use LDAPS for initial connection (default: `false`)
 
+*PS.* To perform an `anonymous bind` due to library limitations it's necessary to specify an empty username and *a non-empty password* (example: `godap -server <myserver> -password anything`)
+
 ## Keybindings
 
 * Ctrl + `J` - Next panel

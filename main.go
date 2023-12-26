@@ -304,8 +304,8 @@ func main() {
     logPanel.SetTitle("Last Log")
     logPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
-    if ldapServer == "" || ldapUsername == "" || ldapPassword == "" {
-        fmt.Println("Error: server, username, and password are required.")
+    if ldapServer == "" {
+        fmt.Println("Error: a server is required.")
         flag.Usage()
         os.Exit(1)
     }
