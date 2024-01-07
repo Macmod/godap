@@ -2,10 +2,59 @@ package utils
 
 // Constants for userAccountControl flags
 const (
-	UAC_ACCOUNTDISABLE   = 0x0002
-	UAC_NORMAL_ACCOUNT   = 0x0200
-	UAC_PASSWORD_EXPIRED = 0x800000
+	UAC_SCRIPT                         = 0x00000001
+	UAC_ACCOUNTDISABLE                 = 0x00000002
+	UAC_HOMEDIR_REQUIRED               = 0x00000008
+	UAC_LOCKOUT                        = 0x00000010
+	UAC_PASSWD_NOTREQD                 = 0x00000020
+	UAC_PASSWD_CANT_CHANGE             = 0x00000040
+	UAC_ENCRYPTED_TEXT_PWD_ALLOWED     = 0x00000080
+	UAC_TEMP_DUPLICATE_ACCOUNT         = 0x00000100
+	UAC_NORMAL_ACCOUNT                 = 0x00000200
+	UAC_INTERDOMAIN_TRUST_ACCOUNT      = 0x00000800
+	UAC_WORKSTATION_TRUST_ACCOUNT      = 0x00001000
+	UAC_SERVER_TRUST_ACCOUNT           = 0x00002000
+	UAC_DONT_EXPIRE_PASSWORD           = 0x00010000
+	UAC_MNS_LOGON_ACCOUNT              = 0x00020000
+	UAC_SMARTCARD_REQUIRED             = 0x00040000
+	UAC_TRUSTED_FOR_DELEGATION         = 0x00080000
+	UAC_NOT_DELEGATED                  = 0x00100000
+	UAC_USE_DES_KEY_ONLY               = 0x00200000
+	UAC_DONT_REQ_PREAUTH               = 0x00400000
+	UAC_PASSWORD_EXPIRED               = 0x00800000
+	UAC_TRUSTED_TO_AUTH_FOR_DELEGATION = 0x01000000
+	UAC_PARTIAL_SECRETS_ACCOUNT        = 0x04000000
 )
+
+type flagDesc struct {
+	present    string
+	notPresent string
+}
+
+var UacFlags = map[int]flagDesc{
+	UAC_SCRIPT:                         flagDesc{"Script", ""},
+	UAC_ACCOUNTDISABLE:                 flagDesc{"Disabled", "Enabled"},
+	UAC_HOMEDIR_REQUIRED:               flagDesc{"HomeDirRequired", ""},
+	UAC_LOCKOUT:                        flagDesc{"LockedOut", ""},
+	UAC_PASSWD_NOTREQD:                 flagDesc{"PwdNotRequired", ""},
+	UAC_PASSWD_CANT_CHANGE:             flagDesc{"CannotChangePwd", ""},
+	UAC_ENCRYPTED_TEXT_PWD_ALLOWED:     flagDesc{"EncryptedTextPwdAllowed", ""},
+	UAC_TEMP_DUPLICATE_ACCOUNT:         flagDesc{"TmpDuplicateAccount", ""},
+	UAC_NORMAL_ACCOUNT:                 flagDesc{"NormalAccount", ""},
+	UAC_INTERDOMAIN_TRUST_ACCOUNT:      flagDesc{"InterdomainTrustAccount", ""},
+	UAC_WORKSTATION_TRUST_ACCOUNT:      flagDesc{"WorkstationTrustAccount", ""},
+	UAC_SERVER_TRUST_ACCOUNT:           flagDesc{"ServerTrustAccount", ""},
+	UAC_DONT_EXPIRE_PASSWORD:           flagDesc{"DoNotExpirePwd", ""},
+	UAC_MNS_LOGON_ACCOUNT:              flagDesc{"MNSLogonAccount", ""},
+	UAC_SMARTCARD_REQUIRED:             flagDesc{"SmartcardRequired", ""},
+	UAC_TRUSTED_FOR_DELEGATION:         flagDesc{"TrustedForDelegation", ""},
+	UAC_NOT_DELEGATED:                  flagDesc{"NotDelegated", ""},
+	UAC_USE_DES_KEY_ONLY:               flagDesc{"UseDESKeyOnly", ""},
+	UAC_DONT_REQ_PREAUTH:               flagDesc{"DoNotRequirePreauth", ""},
+	UAC_PASSWORD_EXPIRED:               flagDesc{"PwdExpired", "PwdNotExpired"},
+	UAC_TRUSTED_TO_AUTH_FOR_DELEGATION: flagDesc{"TrustedToAuthForDelegation", ""},
+	UAC_PARTIAL_SECRETS_ACCOUNT:        flagDesc{"PartialSecretsAccount", ""},
+}
 
 // Relative ID (RID) descriptions
 var RidMap = map[int]string{

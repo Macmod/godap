@@ -12,5 +12,4 @@
 * Feature: Pressing left key inside the tree should collapse the parent node
 * Feature: Some way to copy data from panels
 * Feature: Keybinding to export data
-* Feature: Map remaining important userAccountControl flags
 * Refactor code and improve modularization

@@ -3,9 +3,11 @@ package utils
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/go-ldap/ldap/v3"
+	"sort"
 	"strconv"
 	"time"
+
+	"github.com/go-ldap/ldap/v3"
 )
 
 func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
@@ -59,22 +61,23 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 
 			formattedEntries = []string{}
 
-			if uacInt&UAC_ACCOUNTDISABLE != 0 {
-				formattedEntries = append(formattedEntries, "Disabled")
-			} else {
-				formattedEntries = append(formattedEntries, "Enabled")
+			uacFlagKeys := make([]int, 0)
+			for k, _ := range UacFlags {
+				uacFlagKeys = append(uacFlagKeys, k)
 			}
+			sort.Ints(uacFlagKeys)
 
-			if uacInt&UAC_NORMAL_ACCOUNT != 0 {
-				formattedEntries = append(formattedEntries, "Normal")
-			} else {
-				formattedEntries = append(formattedEntries, "NotNormal")
-			}
-
-			if uacInt&UAC_PASSWORD_EXPIRED != 0 {
-				formattedEntries = append(formattedEntries, "PwdExpired")
-			} else {
-				formattedEntries = append(formattedEntries, "PwdNotExpired")
+			for _, flag := range uacFlagKeys {
+				curFlag := UacFlags[flag]
+				if uacInt&flag != 0 {
+					if curFlag.present != "" {
+						formattedEntries = append(formattedEntries, curFlag.present)
+					}
+				} else {
+					if curFlag.notPresent != "" {
+						formattedEntries = append(formattedEntries, curFlag.notPresent)
+					}
+				}
 			}
 		case "primaryGroupID":
 			rId, _ := strconv.Atoi(val)
