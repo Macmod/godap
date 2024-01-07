@@ -23,12 +23,12 @@ func LookupSID(conn *ldap.Conn, baseDN string, SID string) (resolvedSID string, 
 
 	result, err := conn.Search(searchReq)
 	if err != nil {
-        return "", err
+		return "", err
 	}
 
 	if len(result.Entries) > 0 {
 		resolvedSID = result.Entries[0].GetAttributeValues("sAMAccountName")[0]
-        return resolvedSID, nil
+		return resolvedSID, nil
 	}
 
 	return "", fmt.Errorf("No entries found")

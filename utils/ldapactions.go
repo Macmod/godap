@@ -1,14 +1,14 @@
 package utils
 
 import (
-    "fmt"
-    "github.com/go-ldap/ldap/v3"
-    "golang.org/x/text/encoding/unicode"
-    ber "github.com/go-asn1-ber/asn1-ber"
+	"fmt"
+	ber "github.com/go-asn1-ber/asn1-ber"
+	"github.com/go-ldap/ldap/v3"
+	"golang.org/x/text/encoding/unicode"
 )
 
 func LDAPDeleteObject(conn *ldap.Conn, targetDN string) error {
-    var err error
+	var err error
 
 	deleteRequest := ldap.NewDelRequest(targetDN, nil)
 
@@ -111,7 +111,7 @@ func LDAPChangePassword(conn *ldap.Conn, targetDN string, oldPassword string, ne
 */
 
 func LDAPAddAttribute(conn *ldap.Conn, targetDN string, attributeToAdd string, attributeValues []string) error {
-    var err error
+	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
 	modifyRequest.Add(attributeToAdd, attributeValues)
@@ -125,7 +125,7 @@ func LDAPAddAttribute(conn *ldap.Conn, targetDN string, attributeToAdd string, a
 }
 
 func LDAPModifyAttribute(conn *ldap.Conn, targetDN string, attributeToModify string, attributeValues []string) error {
-    var err error
+	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
 	modifyRequest.Replace(attributeToModify, attributeValues)
@@ -139,7 +139,7 @@ func LDAPModifyAttribute(conn *ldap.Conn, targetDN string, attributeToModify str
 }
 
 func LDAPDeleteAttribute(conn *ldap.Conn, targetDN string, attributeToDelete string) error {
-    var err error
+	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
 	modifyRequest.Delete(attributeToDelete, []string{})
