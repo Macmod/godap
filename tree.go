@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+
 	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
-	"strconv"
-	"strings"
 )
 
 var loadedDNs map[string]*ldap.Entry = make(map[string]*ldap.Entry)
@@ -31,6 +33,8 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 		}
 
 		loadedDNs[entry.DN] = entry
+
+		node.SetExpanded(false)
 		return node
 	} else {
 		return nil
@@ -39,7 +43,12 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 
 // Unloads child nodes and their attributes from the cache
 func unloadChildren(node *tview.TreeNode) {
-	children := node.GetChildren()
+	var children []*tview.TreeNode
+	node.Walk(func(node, parent *tview.TreeNode) bool {
+		children = append(children, node)
+		return true
+	})
+
 	for _, child := range children {
 		childDN := child.GetReference().(string)
 		delete(loadedDNs, childDN)
@@ -55,10 +64,16 @@ func loadChildren(node *tview.TreeNode) {
 		return
 	}
 
+	// Sort results to guarantee stable view
+	sort.Slice(entries, func(i int, j int) bool {
+		return entries[i].GetAttributeValue("name") < entries[j].GetAttributeValue("name")
+	})
+
 	attrsPanel.Clear()
 
 	for _, entry := range entries {
 		childNode := createTreeNodeFromEntry(entry)
+
 		attributes := entry.Attributes
 
 		row := 0
@@ -237,6 +252,12 @@ func renderPartialTree(conn *ldap.Conn, rootDN string, searchFilter string) *tvi
 	rootNode = tview.NewTreeNode(utils.EmojiMap["root"] + rootDN).
 		SetReference(rootDN).
 		SetSelectable(true)
+
+	// Sort results to guarantee stable view
+	sort.Slice(rootEntries, func(i int, j int) bool {
+		return rootEntries[i].GetAttributeValue("name") < rootEntries[j].GetAttributeValue("name")
+	})
+
 	for _, entry := range rootEntries {
 		node := createTreeNodeFromEntry(entry)
 		if node != nil {

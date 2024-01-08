@@ -23,7 +23,7 @@
 * Quick explorer that loads objects on demand
 * Recursive object search bundled with useful saved searches
 * Group members & user groups lookup
-* Supports basic attribute editing
+* Supports creation, editing and removal of objects and attributes
 * Basic DACL viewer
 
 # Installation
@@ -64,7 +64,8 @@ $ godap -username <username>@<domain> -password <password> -server <hostname or 
 * `r / R` - Reconnect to the server
 * `u / U` - Upgrade connection to use TLS (with StartTLS)
 * Ctrl + `e / E` - Edit the selected attribute of the selected object
-* Ctrl + `n / N` - Create a new attribute in the selected object
+* Ctrl + `n / N` (attributes panel) - Create a new attribute in the selected object
+* Ctrl + `n / N` (explorer panel) - Create a new object under the selected object
 * Ctrl + `p / P` - Change the password of the selected user
 * `Delete` - Deletes the selected object or attribute (after prompting for confirmation)
 * `q` - Exit the program

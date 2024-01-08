@@ -4,14 +4,15 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/Macmod/godap/utils"
-	"github.com/gdamore/tcell/v2"
-	"github.com/go-ldap/ldap/v3"
-	"github.com/rivo/tview"
 	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/Macmod/godap/utils"
+	"github.com/gdamore/tcell/v2"
+	"github.com/go-ldap/ldap/v3"
+	"github.com/rivo/tview"
 )
 
 var (

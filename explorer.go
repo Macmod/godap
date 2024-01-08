@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	"strconv"
 )
 
 var explorerPage *tview.Flex
@@ -84,8 +85,10 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 	switch event.Key() {
 	case tcell.KeyRight:
-		loadChildren(currentNode)
-		currentNode.SetExpanded(true)
+		if !currentNode.IsExpanded() {
+			loadChildren(currentNode)
+			currentNode.SetExpanded(true)
+		}
 	case tcell.KeyLeft:
 		currentNode.SetExpanded(false)
 		if !cacheEntries {
@@ -123,6 +126,60 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			})
 
 		app.SetRoot(promptModal, false).SetFocus(promptModal)
+	case tcell.KeyCtrlN:
+		baseDN := currentNode.GetReference().(string)
+		createObjectForm := tview.NewForm().
+			AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
+			AddInputField("Object Name", "", 0, nil, nil).
+			AddInputField("Parent DN", baseDN, 0, nil, nil)
+
+		createObjectForm.
+			AddButton("Create", func() {
+				// Note: It should be possible to walk upwards in the tree
+				//   to find the first place where it's possible to place the object
+				//   but it makes sense that the user should
+				//   have full control over this behavior
+				//   rather than automatically detecting
+				//   an appropriate DN
+
+				// pathToCurrent := treePanel.GetPath(currentNode)
+				// lastNode := len(pathToCurrent) - 1
+				// for nodeInPathIdx := range pathToCurrent {
+				//   currentNodeIdx := lastNode - nodeInPathIdx
+				// }
+
+				_, objectType := createObjectForm.GetFormItemByLabel("Object Type").(*tview.DropDown).GetCurrentOption()
+
+				objectName := createObjectForm.GetFormItemByLabel("Object Name").(*tview.InputField).GetText()
+
+				var err error = nil
+
+				switch objectType {
+				case "OrganizationalUnit":
+					err = utils.LDAPAddOrganizationalUnit(conn, objectName, baseDN)
+				case "Container":
+					err = utils.LDAPAddContainer(conn, objectName, baseDN)
+				case "User":
+					err = utils.LDAPAddUser(conn, objectName, baseDN)
+				case "Group":
+					err = utils.LDAPAddGroup(conn, objectName, baseDN)
+				case "Computer":
+					err = utils.LDAPAddComputer(conn, objectName, baseDN)
+				}
+
+				if err != nil {
+					updateLog(fmt.Sprintf("%s", err), "red")
+				} else {
+					updateLog("Object created successfully at: "+baseDN, "green")
+				}
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+			}).
+			AddButton("Cancel", func() {
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+			})
+
+		createObjectForm.SetTitle("Object Creator").SetBorder(true)
+		app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
 	}
 
 	return event

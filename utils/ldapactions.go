@@ -2,23 +2,12 @@ package utils
 
 import (
 	"fmt"
+	"strings"
+
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
 	"golang.org/x/text/encoding/unicode"
 )
-
-func LDAPDeleteObject(conn *ldap.Conn, targetDN string) error {
-	var err error
-
-	deleteRequest := ldap.NewDelRequest(targetDN, nil)
-
-	err = conn.Del(deleteRequest)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 // Reference: https://gist.github.com/Project0/61c13130563cf7f595e031d54fe55aab
 const (
@@ -61,6 +50,7 @@ func (c *ldapControlServerPolicyHints) String() string {
 	return "Enforce password history policies during password set: " + c.GetControlType()
 }
 
+// User Passwords
 func LDAPResetPassword(conn *ldap.Conn, objectDN string, newPassword string) error {
 	utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
 	pwdEncoded, err := utf16.NewEncoder().String(fmt.Sprintf("\"%s\"", newPassword))
@@ -110,6 +100,72 @@ func LDAPChangePassword(conn *ldap.Conn, targetDN string, oldPassword string, ne
 }
 */
 
+// Objects
+func LDAPDeleteObject(conn *ldap.Conn, targetDN string) error {
+	var err error
+
+	deleteRequest := ldap.NewDelRequest(targetDN, nil)
+
+	err = conn.Del(deleteRequest)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func LDAPAddGroup(conn *ldap.Conn, objectName string, parentDN string) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "group"})
+	addRequest.Attribute("cn", []string{objectName})
+	addRequest.Attribute("sAMAccountName", []string{objectName})
+
+	return conn.Add(addRequest)
+}
+
+func LDAPAddOrganizationalUnit(conn *ldap.Conn, objectName string, parentDN string) error {
+	addRequest := ldap.NewAddRequest("OU="+objectName+","+parentDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "organizationalUnit"})
+	addRequest.Attribute("ou", []string{objectName})
+
+	return conn.Add(addRequest)
+}
+
+func LDAPAddContainer(conn *ldap.Conn, objectName string, parentDN string) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "container"})
+
+	return conn.Add(addRequest)
+}
+
+func LDAPAddComputer(conn *ldap.Conn, objectName string, parentDN string) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "computer"})
+	addRequest.Attribute("cn", []string{objectName})
+	addRequest.Attribute("sAMAccountName", []string{objectName})
+
+	return conn.Add(addRequest)
+}
+
+func LDAPAddUser(conn *ldap.Conn, objectName string, parentDN string) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "person", "organizationalPerson", "user"})
+	addRequest.Attribute("cn", []string{objectName})
+	addRequest.Attribute("sAMAccountName", []string{objectName})
+	rootFQDN, err := FindRootFQDN(conn)
+
+	if err == nil {
+		userPrincipalName := fmt.Sprintf("%s@%s", objectName, strings.ToLower(rootFQDN))
+		addRequest.Attribute(
+			"userPrincipalName",
+			[]string{userPrincipalName},
+		)
+	}
+
+	return conn.Add(addRequest)
+}
+
+// Attributes
 func LDAPAddAttribute(conn *ldap.Conn, targetDN string, attributeToAdd string, attributeValues []string) error {
 	var err error
 
@@ -152,6 +208,7 @@ func LDAPDeleteAttribute(conn *ldap.Conn, targetDN string, attributeToDelete str
 	return nil
 }
 
+// Search
 func FindRootDN(conn *ldap.Conn) (string, error) {
 	searchRequest := ldap.NewSearchRequest(
 		"",
@@ -173,4 +230,29 @@ func FindRootDN(conn *ldap.Conn) (string, error) {
 	rootDN := searchResult.Entries[0].GetAttributeValue("namingContexts")
 
 	return rootDN, nil
+}
+
+func FindRootFQDN(conn *ldap.Conn) (string, error) {
+	searchRequest := ldap.NewSearchRequest(
+		"",
+		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
+		"(objectClass=*)",
+		[]string{"ldapServiceName"},
+		nil,
+	)
+
+	searchResult, err := conn.Search(searchRequest)
+	if err != nil {
+		return "", err
+	}
+
+	if len(searchResult.Entries) == 0 {
+		return "", fmt.Errorf("ldapServiceName attribute not found")
+	}
+
+	ldapSN := searchResult.Entries[0].GetAttributeValue("ldapServiceName")
+	ldapSNTokens := strings.Split(ldapSN, "@")
+	dnsRoot := ldapSNTokens[1]
+
+	return dnsRoot, nil
 }
