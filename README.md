@@ -34,24 +34,51 @@ go install github.com/Macmod/godap@latest
 
 # Usage
 
+**Bind with username and password**
+
 ```bash
-$ godap -username <username>@<domain> -password <password> -server <hostname or IP>
+$ godap <hostname or IP> -u <username>@<domain> -p <password>
 ```
 
-## Optional flags
+**Bind with an NTLM hash**
 
-* `-rootDN <distinguishedName>` - Initial root DN (default: automatic)
-* `-searchFilter <search filter>` - Initial LDAP search filter (default: `(objectClass=*)`)
-* `-emojis` - Prefix objects with emojis (default: `true`, to change use `-emojis=false`)
-* `-colors` - Colorize objects (default: `true`, to change use `-colors=false`)
-* `-expandAttrs` - Expand multi-value attributes (default: `true`, to change use `-expandAttrs=false`)
-* `-attrLimit` - Number of attribute values to render for multi-value attributes when `expandAttrs` is `true` (default: `20`)
-* `-formatAttrs` - Format attributes into human-readable values (default: `true`, to change use `-formatAttrs=false`)
-* `-cacheEntries` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
-* `-insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
-* `-ldaps` - Use LDAPS for initial connection (default: `false`)
+```bash
+$ godap <hostname or IP> -u <username>@<domain> -H <hash> [-d <domain>]
+```
 
-*PS.* To perform an `anonymous bind` due to library limitations it's necessary to specify an empty username and *a non-empty password* (example: `godap -server <myserver> -password anything`)
+**Anonymous Bind**
+
+```bash
+$ godap <hostname or IP> -p anything
+```
+
+**LDAPS/StartTLS**
+
+To use LDAPS for the initial connection (ignoring certificate validation) run:
+
+```bash
+$ godap <hostname or IP> [bind flags] -S -I -P 636
+```
+
+To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybinding inside godap. Note that you must have started godap with `-I` to use the upgrade command properly if the server certificate is not trusted by your client.
+
+## Flags
+
+* `-u`,`--username` - Username for bind
+* `-p`,`--password` - Password for bind
+* `-P`,`--port` - Custom port for the connection (default: `389`)
+* `-r`,`--rootDN <distinguishedName>` - Initial root DN (default: automatic)
+* `-f`,`--filter <search filter>` - Initial LDAP search filter (default: `(objectClass=*)`)
+* `-E`,`--emojis` - Prefix objects with emojis (default: `true`, to change use `-emojis=false`)
+* `-C`,`--colors` - Colorize objects (default: `true`, to change use `-colors=false`)
+* `-A`,`--expand` - Expand multi-value attributes (default: `true`, to change use `-expand=false`)
+* `-L`,`--limit` - Number of attribute values to render for multi-value attributes when `expandAttrs` is `true` (default: `20`)
+* `-F`,`--format` - Format attributes into human-readable values (default: `true`, to change use `-format=false`)
+* `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
+* `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
+* `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
+* `-d`,`--domain` - Domain for NTLM bind
+* `-H`,`--hashes` - Hashes for NTLM bind
 
 ## Keybindings
 

@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
-	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
-	"strings"
 )
 
 var groupPage *tview.Flex
@@ -73,7 +73,7 @@ func InitGroupPage() {
 	groupNameInput.SetDoneFunc(func(key tcell.Key) {
 		groupMembersPanel.Clear()
 
-		entries, err := queryGroupMembers(groupNameInput.GetText())
+		entries, err := lc.QueryGroupMembers(groupNameInput.GetText(), rootDN)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
@@ -110,7 +110,7 @@ func InitGroupPage() {
 	userNameInput.SetDoneFunc(func(key tcell.Key) {
 		userGroupsPanel.Clear()
 
-		entries, err := queryUserGroups(userNameInput.GetText())
+		entries, err := lc.QueryUserGroups(userNameInput.GetText(), rootDN)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
@@ -127,81 +127,6 @@ func InitGroupPage() {
 
 		updateLog("User groups query executed successfully", "green")
 	})
-}
-
-func queryGroupMembers(groupName string) (group []*ldap.Entry, err error) {
-	groupDNQuery := fmt.Sprintf("(&(objectCategory=group)(sAMAccountName=%s))", groupName)
-
-	groupDN := groupName
-	if !strings.Contains(groupName, ",") {
-		groupSearch := ldap.NewSearchRequest(
-			rootDN,
-			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-			groupDNQuery,
-			[]string{"distinguishedName"},
-			nil,
-		)
-
-		groupResult, err := conn.Search(groupSearch)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(groupResult.Entries) == 0 {
-			return nil, fmt.Errorf("Group '%s' not found", groupName)
-		}
-
-		groupDN = groupResult.Entries[0].GetAttributeValue("distinguishedName")
-	}
-
-	ldapQuery := fmt.Sprintf("(memberOf=%s)", groupDN)
-
-	search := ldap.NewSearchRequest(
-		rootDN,
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		ldapQuery,
-		[]string{"sAMAccountName", "objectCategory"},
-		nil,
-	)
-
-	result, err := conn.Search(search)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("Group '%s' not found", groupName)
-	}
-
-	return result.Entries, nil
-}
-
-func queryUserGroups(userName string) ([]*ldap.Entry, error) {
-	var ldapQuery string
-	if !strings.Contains(userName, ",") {
-		ldapQuery = fmt.Sprintf("(sAMAccountName=%s)", userName)
-	} else {
-		ldapQuery = fmt.Sprintf("(distinguishedName=%s)", userName)
-	}
-
-	search := ldap.NewSearchRequest(
-		rootDN,
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		ldapQuery,
-		[]string{"memberOf"},
-		nil,
-	)
-
-	result, err := conn.Search(search)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("User '%s' not found", userName)
-	}
-
-	return result.Entries, nil
 }
 
 func groupRotateFocus() {

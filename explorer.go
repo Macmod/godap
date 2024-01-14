@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -18,7 +17,7 @@ var searchFilterInput *tview.InputField
 func InitExplorerPage() {
 	treePanel = tview.NewTreeView()
 
-	rootNode = renderPartialTree(conn, rootDN, searchFilter)
+	rootNode = renderPartialTree(rootDN, searchFilter)
 	treePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 
 	attrsPanel = tview.NewTable()
@@ -101,7 +100,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddButtons([]string{"Yes", "No"}).
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				if buttonLabel == "Yes" {
-					err := utils.LDAPDeleteObject(conn, baseDN)
+					err := lc.DeleteObject(baseDN)
 					if err == nil {
 						delete(loadedDNs, baseDN)
 						updateLog("Object deleted: "+baseDN, "green")
@@ -156,15 +155,15 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 				switch objectType {
 				case "OrganizationalUnit":
-					err = utils.LDAPAddOrganizationalUnit(conn, objectName, baseDN)
+					err = lc.AddOrganizationalUnit(objectName, baseDN)
 				case "Container":
-					err = utils.LDAPAddContainer(conn, objectName, baseDN)
+					err = lc.AddContainer(objectName, baseDN)
 				case "User":
-					err = utils.LDAPAddUser(conn, objectName, baseDN)
+					err = lc.AddUser(objectName, baseDN)
 				case "Group":
-					err = utils.LDAPAddGroup(conn, objectName, baseDN)
+					err = lc.AddGroup(objectName, baseDN)
 				case "Computer":
-					err = utils.LDAPAddComputer(conn, objectName, baseDN)
+					err = lc.AddComputer(objectName, baseDN)
 				}
 
 				if err != nil {
@@ -203,7 +202,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddButtons([]string{"Yes", "No"}).
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				if buttonLabel == "Yes" {
-					err := utils.LDAPDeleteAttribute(conn, baseDN, attrName)
+					err := lc.DeleteAttribute(baseDN, attrName)
 					if err == nil {
 						delete(loadedDNs, baseDN)
 						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
@@ -238,7 +237,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				attrName := createAttrForm.GetFormItemByLabel("Attribute Name").(*tview.InputField).GetText()
 				attrVal := createAttrForm.GetFormItemByLabel("Attribute Value").(*tview.InputField).GetText()
 
-				err := utils.LDAPAddAttribute(conn, baseDN, attrName, []string{attrVal})
+				err := lc.AddAttribute(baseDN, attrName, []string{attrVal})
 				if err != nil {
 					updateLog(fmt.Sprint(err), "red")
 				} else {
@@ -325,7 +324,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddButton("Update", func() {
 				attrVals[selectedIndex] = writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
 
-				err := utils.LDAPModifyAttribute(conn, baseDN, attrName, attrVals)
+				err := lc.ModifyAttribute(baseDN, attrName, attrVals)
 				// TODO: Don't go back immediately so that the user can
 				// change multiple values at once
 				if err != nil {
@@ -355,7 +354,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddButton("Update", func() {
 				newPassword := changePasswordForm.GetFormItemByLabel("New Password").(*tview.InputField).GetText()
 
-				err := utils.LDAPResetPassword(conn, baseDN, newPassword)
+				err := lc.ResetPassword(baseDN, newPassword)
 				if err != nil {
 					updateLog(fmt.Sprint(err), "red")
 				} else {

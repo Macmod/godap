@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+
 	//"strconv"
 	//"strings"
 	"github.com/Macmod/godap/sdl"
@@ -54,10 +55,10 @@ func InitDaclPage() {
 		var hexSD string
 
 		user := userNameInputDacl.GetText()
-		hexSD, err = getSecurityDescriptor(conn, user)
+		hexSD, err = getSecurityDescriptor(lc.Conn, user)
 		if err == nil {
 			updateLog("DACL obtained for user '"+user+"'", "green")
-			readableAces := sdl.ParseSD(conn, rootDN, hexSD)
+			readableAces := sdl.ParseSD(lc.Conn, rootDN, hexSD)
 			for idx, val := range readableAces {
 				daclEntriesPanel.SetCell(idx+1, 0, tview.NewTableCell(val.SamAccountName))
 

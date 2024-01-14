@@ -1,13 +1,14 @@
 package main
 
 import (
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var (
@@ -88,7 +89,7 @@ func searchQueryDoneHandler(key tcell.Key) {
 	clear(searchLoadedDNs)
 
 	searchQuery := searchQueryPanel.GetText()
-	entries, _ := queryLDAP(conn, rootDN, searchQuery, ldap.ScopeWholeSubtree)
+	entries, _ := lc.Query(rootDN, searchQuery, ldap.ScopeWholeSubtree)
 
 	for _, entry := range entries {
 		if entry.DN == rootDN {

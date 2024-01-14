@@ -2,17 +2,15 @@ package main
 
 import (
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
-	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -20,6 +18,8 @@ var (
 	ldapPort     int
 	ldapUsername string
 	ldapPassword string
+	ntlmHash     string
+	ntlmDomain   string
 
 	emojis       bool
 	colors       bool
@@ -30,8 +30,10 @@ var (
 	ldaps        bool
 	searchFilter string
 	rootDN       string
-	conn         *ldap.Conn
-	err          error
+
+	tlsConfig *tls.Config
+	lc        *utils.LDAPConn
+	err       error
 
 	page       int
 	showHeader bool
@@ -55,74 +57,13 @@ var attrLimit int
 
 var pageCount = 4
 
-var insecureTlsConfig = &tls.Config{InsecureSkipVerify: true}
-
-var secureTlsConfig = &tls.Config{InsecureSkipVerify: false}
-
 var app = tview.NewApplication()
 
 var pages = tview.NewPages()
 
-func upgradeToTLS(conn *ldap.Conn, tlsConfig *tls.Config) (*ldap.Conn, error) {
-	if conn == nil {
-		return nil, fmt.Errorf("Current connection is invalid")
-	}
+var insecureTlsConfig = &tls.Config{InsecureSkipVerify: true}
 
-	err := conn.StartTLS(tlsConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-func connectLDAP(ldapServer string, ldapPort int, ldapUsername string, ldapPassword string) (*ldap.Conn, error) {
-	var conn *ldap.Conn
-	var err error
-
-	if ldaps {
-		tlsConfig := secureTlsConfig
-		if insecure {
-			tlsConfig = insecureTlsConfig
-		}
-
-		conn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort), tlsConfig)
-	} else {
-		conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort))
-	}
-
-	if err != nil {
-		updateLog(fmt.Sprint(err), "red")
-		return nil, err
-	}
-
-	err = conn.Bind(ldapUsername, ldapPassword)
-	if err != nil {
-		updateLog(fmt.Sprint(err), "red")
-		return nil, err
-	}
-
-	updateLog("Connection success", "green")
-	return conn, nil
-}
-
-func queryLDAP(conn *ldap.Conn, baseDN string, searchFilter string, scope int) ([]*ldap.Entry, error) {
-	searchRequest := ldap.NewSearchRequest(
-		baseDN,
-		scope, ldap.NeverDerefAliases, 0, 0, false,
-		searchFilter,
-		[]string{},
-		nil,
-	)
-
-	sr, err := conn.Search(searchRequest)
-	if err != nil {
-		updateLog(fmt.Sprint(err), "red")
-		return nil, err
-	}
-
-	return sr.Entries, nil
-}
+var secureTlsConfig = &tls.Config{InsecureSkipVerify: false}
 
 func updateStateBox(target *tview.TextView, control bool) {
 	if control {
@@ -212,10 +153,32 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			reloadAttributesPanel(node, cacheEntries)
 		}
 	case 'r', 'R':
-		if conn != nil {
-			conn.Close()
+		if lc.Conn != nil {
+			lc.Conn.Close()
 		}
-		conn, err = connectLDAP(ldapServer, ldapPort, ldapUsername, ldapPassword)
+		lc, err = utils.NewLDAPConn(
+			ldapServer, ldapPort,
+			ldaps, tlsConfig,
+		)
+
+		if err != nil {
+			updateLog(fmt.Sprint(err), "red")
+		} else {
+			updateLog("Connection success", "green")
+
+			if ntlmHash != "" {
+				err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+			} else {
+				err = lc.LDAPBind(ldapUsername, ldapPassword)
+			}
+
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog("Bind success", "green")
+			}
+		}
+
 		updateStateBox(tlsPanel, ldaps)
 		updateStateBox(statusPanel, err == nil)
 	case 'h', 'H':
@@ -250,12 +213,7 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		credsForm.SetTitle("Connection Config").SetBorder(true)
 		app.SetRoot(credsForm, true).SetFocus(credsForm)
 	case 'u', 'U':
-		tlsConfig := secureTlsConfig
-		if insecure {
-			tlsConfig = insecureTlsConfig
-		}
-
-		conn, err = upgradeToTLS(conn, tlsConfig)
+		err = lc.UpgradeToTLS(tlsConfig)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 		} else {
@@ -269,55 +227,45 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
-func main() {
-	flag.StringVar(&ldapServer, "server", "", "LDAP server address")
-	flag.IntVar(&ldapPort, "port", 389, "LDAP server port")
-	flag.StringVar(&ldapUsername, "username", "", "LDAP username")
-	flag.StringVar(&ldapPassword, "password", "", "LDAP password")
-	flag.StringVar(&rootDN, "rootDN", "", "Initial root DN")
-	flag.StringVar(&searchFilter, "searchFilter", "(objectClass=*)", "Initial LDAP search filter")
-	flag.BoolVar(&emojis, "emojis", true, "Prefix objects with emojis")
-	flag.BoolVar(&colors, "colors", true, "Colorize objects")
-	flag.BoolVar(&expandAttrs, "expandAttrs", true, "Expand multi-value attributes")
-	flag.IntVar(&attrLimit, "attrLimit", 20, "Number of attribute values to render for multi-value attributes when expandAttrs is set true")
-	flag.BoolVar(&formatAttrs, "formatAttrs", true, "Format attributes into human-readable values")
-	flag.BoolVar(&cacheEntries, "cacheEntries", false, "Keep loaded entries in memory while the program is open and don't query them again")
-	flag.BoolVar(&insecure, "insecure", false, "Skip TLS verification for LDAPS/StartTLS")
-	flag.BoolVar(&ldaps, "ldaps", false, "Use LDAPS for initial connection")
-	/*
-	   flag.Synonym("s", "server")
-	   flag.Synonym("p", "port")
-	   flag.Synonym("U", "username")
-	   flag.Synonym("P", "password")
-	   flag.Synonym("dn", "rootDN")
-	   flag.Synonym("f", "searchFilter")
-	   flag.Synonym("e", "emojis")
-	   flag.Synonym("c", "colors")
-	   flag.Synonym("ce", "cacheEntries")
-	   flag.Synonym("ea", "expandAttrs")
-	   flag.Synonym("fa", "formatAttrs")
-	*/
-
-	flag.Parse()
-
+func setupApp() {
 	logPanel = tview.NewTextView()
 	logPanel.SetTitle("Last Log")
 	logPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
-	if ldapServer == "" {
-		fmt.Println("Error: a server is required.")
-		flag.Usage()
-		os.Exit(1)
+	tlsConfig = secureTlsConfig
+	if insecure {
+		tlsConfig = insecureTlsConfig
 	}
 
-	conn, err = connectLDAP(ldapServer, ldapPort, ldapUsername, ldapPassword)
+	lc, err = utils.NewLDAPConn(
+		ldapServer, ldapPort,
+		ldaps, tlsConfig,
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
+
+	if ntlmHash != "" {
+		err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+	} else {
+		err = lc.LDAPBind(ldapUsername, ldapPassword)
+	}
+
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+	} else {
+		updateLog("Bind success", "green")
+	}
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+	} else {
+		updateLog("Bind success", "green")
+	}
+
+	defer lc.Conn.Close()
 
 	if rootDN == "" {
-		rootDN, err = utils.FindRootDN(conn)
+		rootDN, err = lc.FindRootDN()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -388,5 +336,38 @@ func main() {
 
 	if err := app.SetRoot(appPanel, true).SetFocus(treePanel).Run(); err != nil {
 		log.Fatal(err)
+	}
+
+}
+
+func main() {
+	rootCmd := &cobra.Command{
+		Use:   "godap",
+		Short: "A complete TUI for LDAP written in Golang.",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			ldapServer = args[0]
+			setupApp()
+		},
+	}
+
+	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port")
+	rootCmd.Flags().StringVarP(&ldapUsername, "username", "u", "", "LDAP username")
+	rootCmd.Flags().StringVarP(&ldapPassword, "password", "p", "", "LDAP password")
+	rootCmd.Flags().StringVarP(&ntlmDomain, "domain", "d", "", "Domain for NTLM bind")
+	rootCmd.Flags().StringVarP(&ntlmHash, "hashes", "H", "", "NTLM hash")
+	rootCmd.Flags().StringVarP(&rootDN, "rootDN", "r", "", "Initial root DN")
+	rootCmd.Flags().StringVarP(&searchFilter, "filter", "f", "(objectClass=*)", "Initial LDAP search filter")
+	rootCmd.Flags().BoolVarP(&emojis, "emojis", "E", true, "Prefix objects with emojis")
+	rootCmd.Flags().BoolVarP(&colors, "colors", "C", true, "Colorize objects")
+	rootCmd.Flags().BoolVarP(&formatAttrs, "format", "F", true, "Format attributes into human-readable values")
+	rootCmd.Flags().BoolVarP(&expandAttrs, "expand", "A", true, "Expand multi-value attributes")
+	rootCmd.Flags().IntVarP(&attrLimit, "limit", "L", 20, "Number of attribute values to render for multi-value attributes when -expand is set true")
+	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", false, "Keep loaded entries in memory while the program is open and don't query them again")
+	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
+	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 	}
 }

@@ -59,8 +59,9 @@ func unloadChildren(node *tview.TreeNode) {
 // Loads child nodes and their attributes directly from LDAP
 func loadChildren(node *tview.TreeNode) {
 	baseDN := node.GetReference().(string)
-	entries, err := queryLDAP(conn, baseDN, searchFilter, ldap.ScopeSingleLevel)
+	entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeSingleLevel)
 	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
 		return
 	}
 
@@ -117,8 +118,9 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 			return fmt.Errorf("Couldn't reload attributes: node not cached")
 		}
 	} else {
-		entries, err := queryLDAP(conn, baseDN, searchFilter, ldap.ScopeBaseObject)
+		entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeBaseObject)
 		if err != nil {
+			updateLog(fmt.Sprint(err), "red")
 			return err
 		}
 
@@ -242,10 +244,11 @@ func updateEmojis() {
 	})
 }
 
-func renderPartialTree(conn *ldap.Conn, rootDN string, searchFilter string) *tview.TreeNode {
-	rootEntries, err := queryLDAP(conn, rootDN, searchFilter, ldap.ScopeSingleLevel)
+func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
+	rootEntries, err := lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel)
 
 	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
 		return nil
 	}
 
@@ -273,6 +276,6 @@ func reloadPage() {
 
 	clear(loadedDNs)
 
-	rootNode = renderPartialTree(conn, rootDN, searchFilter)
+	rootNode = renderPartialTree(rootDN, searchFilter)
 	treePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 }
