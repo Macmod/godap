@@ -43,7 +43,7 @@ $ godap <hostname or IP> -u <username>@<domain> -p <password>
 **Bind with an NTLM hash**
 
 ```bash
-$ godap <hostname or IP> -u <username>@<domain> -H <hash> [-d <domain>]
+$ godap <hostname or IP> -u <username> -H <hash> [-d <domain>]
 ```
 
 **Anonymous Bind**
@@ -72,7 +72,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 * `-E`,`--emojis` - Prefix objects with emojis (default: `true`, to change use `-emojis=false`)
 * `-C`,`--colors` - Colorize objects (default: `true`, to change use `-colors=false`)
 * `-A`,`--expand` - Expand multi-value attributes (default: `true`, to change use `-expand=false`)
-* `-L`,`--limit` - Number of attribute values to render for multi-value attributes when `expandAttrs` is `true` (default: `20`)
+* `-L`,`--limit` - Number of attribute values to render for multi-value attributes when `-expand` is `true` (default: `20`)
 * `-F`,`--format` - Format attributes into human-readable values (default: `true`, to change use `-format=false`)
 * `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
