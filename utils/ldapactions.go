@@ -331,7 +331,8 @@ func (lc LDAPConn) AddComputer(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "computer"})
 	addRequest.Attribute("cn", []string{objectName})
-	addRequest.Attribute("sAMAccountName", []string{objectName})
+	addRequest.Attribute("sAMAccountName", []string{objectName + "$"})
+	addRequest.Attribute("userAccountControl", []string{"4096"})
 
 	return lc.Conn.Add(addRequest)
 }

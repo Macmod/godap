@@ -1,9 +1,10 @@
 # TODO (priority)
 
-* Bugfix: Reload objects automatically in explorer after manual changes
-* Bugfix: Pressing left key inside the tree should collapse the parent node
+* Feature: Menu to switch pages visually
+* Bugfix: Long operations blocking UI (e.g. reconnect/starttls)
 * Feature: Checkbox to set attribute value with hex instead of plain text
 * Feature: Way to add new attribute values into existing attributes
+* Bugfix: Pressing left key inside the tree should collapse the parent node
 * Feature: Kerberos authentication
 
 # TODO (later)

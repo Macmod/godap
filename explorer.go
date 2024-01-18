@@ -76,6 +76,43 @@ func InitExplorerPage() {
 	treePanel.SetChangedFunc(treePanelChangeHandler)
 }
 
+func expandTreeNode(node *tview.TreeNode) {
+	if !node.IsExpanded() {
+		loadChildren(node)
+		node.SetExpanded(true)
+	}
+}
+
+func collapseTreeNode(node *tview.TreeNode) {
+	node.SetExpanded(false)
+	if !cacheEntries {
+		unloadChildren(node)
+	}
+}
+
+func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
+	pathToCurrent := treePanel.GetPath(node)
+	parent := pathToCurrent[len(pathToCurrent)-2]
+	collapseTreeNode(parent)
+	expandTreeNode(parent)
+
+	return parent
+}
+
+func findLocationInSiblings(node *tview.TreeNode) int {
+	pathToCurrent := treePanel.GetPath(node)
+	parent := pathToCurrent[len(pathToCurrent)-2]
+	siblings := parent.GetChildren()
+
+	for idx, loopNode := range siblings {
+		if loopNode.GetReference().(string) == node.GetReference().(string) {
+			return idx
+		}
+	}
+
+	return -1
+}
+
 func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	currentNode := treePanel.GetCurrentNode()
 	if currentNode == nil {
@@ -84,15 +121,9 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 	switch event.Key() {
 	case tcell.KeyRight:
-		if !currentNode.IsExpanded() {
-			loadChildren(currentNode)
-			currentNode.SetExpanded(true)
-		}
+		expandTreeNode(currentNode)
 	case tcell.KeyLeft:
-		currentNode.SetExpanded(false)
-		if !cacheEntries {
-			unloadChildren(currentNode)
-		}
+		collapseTreeNode(currentNode)
 	case tcell.KeyDelete:
 		baseDN := currentNode.GetReference().(string)
 		promptModal := tview.NewModal().
@@ -105,18 +136,16 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 						delete(loadedDNs, baseDN)
 						updateLog("Object deleted: "+baseDN, "green")
 
-						pathToCurrent := treePanel.GetPath(currentNode)
-						parent := pathToCurrent[len(pathToCurrent)-2]
-						siblings := parent.GetChildren()
+						idx := findLocationInSiblings(currentNode)
 
-						var otherNodeToSelect *tview.TreeNode = parent
-						for idx, node := range siblings {
-							if node == currentNode && idx > 0 {
-								otherNodeToSelect = siblings[idx-1]
-							}
+						parent := reloadParentNode(currentNode)
+						otherNodeToSelect := parent
+
+						if idx > 0 {
+							siblings := parent.GetChildren()
+							otherNodeToSelect = siblings[idx-1]
 						}
 
-						parent.RemoveChild(currentNode)
 						treePanel.SetCurrentNode(otherNodeToSelect)
 					}
 				}
@@ -171,6 +200,14 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				} else {
 					updateLog("Object created successfully at: "+baseDN, "green")
 				}
+
+				reloadAttributesPanel(currentNode, cacheEntries)
+
+				// Not the best approach but for now it works :)
+				collapseTreeNode(currentNode)
+				expandTreeNode(currentNode)
+				treePanel.SetCurrentNode(currentNode)
+
 				app.SetRoot(appPanel, true).SetFocus(treePanel)
 			}).
 			AddButton("Cancel", func() {
@@ -203,14 +240,13 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				if buttonLabel == "Yes" {
 					err := lc.DeleteAttribute(baseDN, attrName)
-					if err == nil {
+					if err != nil {
+						updateLog(fmt.Sprint(err), "red")
+					} else {
 						delete(loadedDNs, baseDN)
 						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
 
-						err = reloadAttributesPanel(currentNode, cacheEntries)
-						if err != nil {
-							updateLog(fmt.Sprint(err), "red")
-						}
+						reloadAttributesPanel(currentNode, cacheEntries)
 					}
 				}
 
@@ -244,10 +280,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					delete(loadedDNs, baseDN)
 					updateLog("Attribute added: "+attrName+" to "+baseDN, "green")
 
-					err = reloadAttributesPanel(currentNode, cacheEntries)
-					if err != nil {
-						updateLog(fmt.Sprint(err), "red")
-					}
+					reloadAttributesPanel(currentNode, cacheEntries)
 				}
 
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
@@ -329,7 +362,19 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				// change multiple values at once
 				if err != nil {
 					updateLog(fmt.Sprint(err), "red")
+				} else {
+					updateLog("Attribute updated: '"+attrName+"' from '"+baseDN+"'", "green")
 				}
+
+				idx := findLocationInSiblings(currentNode)
+
+				parent := reloadParentNode(currentNode)
+				siblings := parent.GetChildren()
+
+				treePanel.SetCurrentNode(siblings[idx])
+
+				reloadAttributesPanel(currentNode, cacheEntries)
+
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			}).
 			AddButton("Go Back", func() {
