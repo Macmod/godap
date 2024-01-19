@@ -26,6 +26,7 @@ var (
 	formatAttrs  bool
 	expandAttrs  bool
 	cacheEntries bool
+	pagingSize   uint32
 	insecure     bool
 	ldaps        bool
 	searchFilter string
@@ -158,7 +159,7 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		}
 		lc, err = utils.NewLDAPConn(
 			ldapServer, ldapPort,
-			ldaps, tlsConfig,
+			ldaps, tlsConfig, pagingSize,
 		)
 
 		if err != nil {
@@ -239,7 +240,7 @@ func setupApp() {
 
 	lc, err = utils.NewLDAPConn(
 		ldapServer, ldapPort,
-		ldaps, tlsConfig,
+		ldaps, tlsConfig, pagingSize,
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -364,6 +365,7 @@ func main() {
 	rootCmd.Flags().BoolVarP(&expandAttrs, "expand", "A", true, "Expand multi-value attributes")
 	rootCmd.Flags().IntVarP(&attrLimit, "limit", "L", 20, "Number of attribute values to render for multi-value attributes when -expand is set true")
 	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", false, "Keep loaded entries in memory while the program is open and don't query them again")
+	rootCmd.Flags().Uint32VarP(&pagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
 

@@ -77,6 +77,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 * `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
+* `-G`,`--paging` - Default paging size for regular queries
 * `-d`,`--domain` - Domain for NTLM bind
 * `-H`,`--hashes` - Hashes for NTLM bind
 

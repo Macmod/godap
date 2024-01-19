@@ -12,7 +12,8 @@ import (
 
 // Basic LDAP connection type
 type LDAPConn struct {
-	Conn *ldap.Conn
+	Conn       *ldap.Conn
+	PagingSize uint32
 }
 
 func (lc LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
@@ -28,7 +29,7 @@ func (lc LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	return nil
 }
 
-func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config) (*LDAPConn, error) {
+func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32) (*LDAPConn, error) {
 	var conn *ldap.Conn
 	var err error
 
@@ -43,7 +44,8 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 	}
 
 	return &LDAPConn{
-		Conn: conn,
+		Conn:       conn,
+		PagingSize: pagingSize,
 	}, nil
 }
 
@@ -67,7 +69,7 @@ func (lc LDAPConn) Query(baseDN string, searchFilter string, scope int) ([]*ldap
 		nil,
 	)
 
-	sr, err := lc.Conn.Search(searchRequest)
+	sr, err := lc.Conn.SearchWithPaging(searchRequest, lc.PagingSize)
 	if err != nil {
 		return nil, err
 	}
