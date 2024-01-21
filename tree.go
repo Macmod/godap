@@ -212,7 +212,12 @@ func getNodeName(entry *ldap.Entry) string {
 	var emojisPrefix string
 
 	objectClasses := entry.GetAttributeValues("objectClass")
+	isDomain := false
 	for _, objectClass := range objectClasses {
+		if objectClass == "domain" {
+			isDomain = true
+		}
+
 		if emoji, ok := utils.EmojiMap[objectClass]; ok {
 			classEmojisBuf.WriteString(emoji)
 		}
@@ -226,6 +231,17 @@ func getNodeName(entry *ldap.Entry) string {
 
 	if emojis {
 		return emojisPrefix + entry.GetAttributeValue("name")
+	}
+
+	dn := entry.GetAttributeValue("distinguishedName")
+
+	if isDomain {
+		return dn
+	} else {
+		dnParts := strings.Split(dn, ",")
+		if len(dnParts) > 0 {
+			return dnParts[0]
+		}
 	}
 
 	return entry.GetAttributeValue("name")
