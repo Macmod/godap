@@ -94,6 +94,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 * Ctrl + `e / E` - Edit the selected attribute of the selected object
 * Ctrl + `n / N` (attributes panel) - Create a new attribute in the selected object
 * Ctrl + `n / N` (explorer panel) - Create a new object under the selected object
+* Ctrl + `s / S` (explorer panel) - Save all loaded nodes in the selected subtree into a file
 * Ctrl + `p / P` - Change the password of the selected user
 * `Delete` - Deletes the selected object or attribute (after prompting for confirmation)
 * `q` - Exit the program

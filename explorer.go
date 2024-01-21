@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strconv"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
 )
 
@@ -216,6 +220,27 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 		createObjectForm.SetTitle("Object Creator").SetBorder(true)
 		app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
+	case tcell.KeyCtrlS:
+		exportMap := make(map[string]*ldap.Entry)
+		currentNode.Walk(func(node, parent *tview.TreeNode) bool {
+			nodeDN := node.GetReference().(string)
+			exportMap[nodeDN] = loadedDNs[nodeDN]
+			return true
+		})
+
+		jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+		unixTimestamp := time.Now().Unix()
+
+		outputFilename := fmt.Sprintf("%d_objects.json", unixTimestamp)
+
+		err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+		if err != nil {
+			updateLog(fmt.Sprintf("%s", err), "red")
+		} else {
+			updateLog("File '"+outputFilename+"' saved successfully!", "green")
+		}
 	}
 
 	return event

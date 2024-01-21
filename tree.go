@@ -42,17 +42,19 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 }
 
 // Unloads child nodes and their attributes from the cache
-func unloadChildren(node *tview.TreeNode) {
+func unloadChildren(parentNode *tview.TreeNode) {
 	var children []*tview.TreeNode
-	node.Walk(func(node, parent *tview.TreeNode) bool {
-		children = append(children, node)
+	parentNode.Walk(func(node, parent *tview.TreeNode) bool {
+		if node.GetReference() != parentNode.GetReference() {
+			children = append(children, node)
+		}
 		return true
 	})
 
 	for _, child := range children {
 		childDN := child.GetReference().(string)
 		delete(loadedDNs, childDN)
-		node.RemoveChild(child)
+		parentNode.RemoveChild(child)
 	}
 }
 
@@ -230,7 +232,8 @@ func getNodeName(entry *ldap.Entry) string {
 }
 
 func updateEmojis() {
-	treePanel.GetRoot().Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
+	rootNode := treePanel.GetRoot()
+	rootNode.Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
 		ref := node.GetReference()
 		if ref != nil {
 			entry, ok := loadedDNs[ref.(string)]
@@ -245,6 +248,17 @@ func updateEmojis() {
 }
 
 func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
+	rootEntry, err := lc.Query(rootDN, "(objectClass=*)", ldap.ScopeBaseObject)
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+		return nil
+	}
+
+	if len(rootEntry) != 1 {
+		updateLog("Root entry not found.", "red")
+		return nil
+	}
+
 	rootEntries, err := lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel)
 
 	if err != nil {
@@ -252,7 +266,8 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 		return nil
 	}
 
-	rootNode = tview.NewTreeNode(utils.EmojiMap["root"] + rootDN).
+	// Emojis
+	rootNode = tview.NewTreeNode(getNodeName(rootEntry[0])).
 		SetReference(rootDN).
 		SetSelectable(true)
 
