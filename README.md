@@ -24,6 +24,7 @@
 * Recursive object search bundled with useful saved searches
 * Group members & user groups lookup
 * Supports creation, editing and removal of objects and attributes
+* Supports exporting specific subtrees of the directory into JSON files
 * Basic DACL viewer
 
 # Installation
@@ -83,22 +84,24 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 
 ## Keybindings
 
-* Ctrl + `J` - Next panel
-* `f` / `F` - Toggle attribute formatting
-* `e` / `E` - Toggle emojis
-* `c` / `C` - Toggle colors
-* `a` / `A` - Toggle attribute expansion for multi-value attributes
-* `l / L` - Change current server address & credentials
-* `r / R` - Reconnect to the server
-* `u / U` - Upgrade connection to use TLS (with StartTLS)
-* Ctrl + `e / E` - Edit the selected attribute of the selected object
-* Ctrl + `n / N` (attributes panel) - Create a new attribute in the selected object
-* Ctrl + `n / N` (explorer panel) - Create a new object under the selected object
-* Ctrl + `s / S` (explorer panel) - Save all loaded nodes in the selected subtree into a file
-* Ctrl + `p / P` - Change the password of the selected user
-* `Delete` - Deletes the selected object or attribute (after prompting for confirmation)
-* `q` - Exit the program
-* `h` - Show/hide headers
+| Keybinding                        | Context                                                     | Action                                                   |
+| --------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| `Ctrl` + `J`                      | Global                                                      | Next panel                                                   |
+| `f` / `F`                         | Global                                                      | Toggle attribute formatting                                  |
+| `e` / `E`                         | Global                                                      | Toggle emojis                                                |
+| `c` / `C`                         | Global                                                      | Toggle colors                                                |
+| `a` / `A`                         | Global                                                      | Toggle attribute expansion for multi-value attributes        |
+| `l` / `L`                           | Global                                                      | Change current server address & credentials                  |
+| `r` / `R`                           | Global                                                      | Reconnect to the server                                       |
+| `u` / `U`                           | Global                                                      | Upgrade connection to use TLS (with StartTLS)                |
+| `Ctrl` + `e / E`                  | Attributes panel                                             | Edit the selected attribute of the selected object           |
+| `Ctrl` + `n / N` | Attributes panel                                             | Create a new attribute in the selected object                |
+| `Ctrl` + `n / N` | Explorer panel                                              | Create a new object under the selected object                 |
+| `Ctrl` + `s / S`  | Explorer panel                                              | Export all loaded nodes in the selected subtree into a JSON file   |
+| `Ctrl` + `p / P`                  | Explorer panel                              | Change the password of the selected user or computer account  |
+| `Delete`                          | Explorer/attributes panel        | Deletes the selected object or attribute                      |
+| `h` / `H`                               | Global                                                      | Show/hide headers                                             |
+| `q`                               | Global                                                      | Exit the program                                              |
 
 # Contributing
 
