@@ -35,7 +35,7 @@ func InitDaclPage() {
 	daclPage = tview.NewFlex().
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(userNameInputDacl, 0, 1, false).
+				AddItem(userNameInputDacl, 3, 0, false).
 				AddItem(daclEntriesPanel, 0, 8, false),
 			0, 1, false,
 		)

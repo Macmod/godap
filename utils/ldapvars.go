@@ -27,8 +27,8 @@ const (
 )
 
 type flagDesc struct {
-	present    string
-	notPresent string
+	Present    string
+	NotPresent string
 }
 
 var UacFlags = map[int]flagDesc{

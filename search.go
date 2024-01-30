@@ -69,7 +69,7 @@ func InitSearchPage() {
 		AddItem(
 			tview.NewFlex().
 				AddItem(searchQueryPanel, 0, 1, false),
-			0, 1, false,
+			3, 0, false,
 		).
 		AddItem(
 			tview.NewFlex().

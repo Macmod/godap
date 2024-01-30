@@ -25,6 +25,7 @@
 * Group members & user groups lookup
 * Supports creation, editing and removal of objects and attributes
 * Supports exporting specific subtrees of the directory into JSON files
+* Interactive userAccountControl editor
 * Basic DACL viewer
 
 # Installation
@@ -99,6 +100,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 | `Ctrl` + `n / N` | Explorer panel                                              | Create a new object under the selected object                 |
 | `Ctrl` + `s / S`  | Explorer panel                                              | Export all loaded nodes in the selected subtree into a JSON file   |
 | `Ctrl` + `p / P`                  | Explorer panel                              | Change the password of the selected user or computer account  |
+| `Ctrl` + `a / A`                  | Explorer panel                              | Update the userAccountControl attribute of the object interactively |
 | `Delete`                          | Explorer/attributes panel        | Deletes the selected object or attribute                      |
 | `h` / `H`                               | Global                                                      | Show/hide headers                                             |
 | `q`                               | Global                                                      | Exit the program                                              |

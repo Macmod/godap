@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"sort"
 	"strconv"
 	"time"
 
+	"github.com/Macmod/godap/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -58,7 +61,7 @@ func InitExplorerPage() {
 			tview.NewFlex().
 				AddItem(searchFilterInput, 0, 1, false).
 				AddItem(rootDNInput, 0, 1, false),
-			0, 1, false,
+			3, 0, false,
 		).
 		AddItem(treePanel, 0, 8, false)
 
@@ -82,6 +85,7 @@ func InitExplorerPage() {
 
 func expandTreeNode(node *tview.TreeNode) {
 	if !node.IsExpanded() {
+		//experiment: go loadChildren(node)
 		loadChildren(node)
 		node.SetExpanded(true)
 	}
@@ -127,7 +131,19 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyRight:
 		expandTreeNode(currentNode)
 	case tcell.KeyLeft:
-		collapseTreeNode(currentNode)
+		if currentNode.IsExpanded() { // Collapse current node
+			collapseTreeNode(currentNode)
+			treePanel.SetCurrentNode(currentNode)
+			return nil
+		} else { // Collapse parent node
+			pathToCurrent := treePanel.GetPath(currentNode)
+			if len(pathToCurrent) > 1 {
+				parentNode := pathToCurrent[len(pathToCurrent)-2]
+				collapseTreeNode(parentNode)
+				treePanel.SetCurrentNode(parentNode)
+			}
+			return nil
+		}
 	case tcell.KeyDelete:
 		baseDN := currentNode.GetReference().(string)
 		promptModal := tview.NewModal().
@@ -241,6 +257,79 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		} else {
 			updateLog("File '"+outputFilename+"' saved successfully!", "green")
 		}
+	case tcell.KeyCtrlA:
+		baseDN := currentNode.GetReference().(string)
+
+		updateUacForm := tview.NewForm()
+		updateUacForm.SetItemPadding(0)
+
+		var checkboxState int = 0
+		if loadedDNs[baseDN] != nil {
+			uacValue, err := strconv.Atoi(loadedDNs[baseDN].GetAttributeValue("userAccountControl"))
+			if err == nil {
+				checkboxState = uacValue
+			} else {
+				return nil
+			}
+		}
+
+		updateUacForm.
+			AddTextView("Raw UAC Value", strconv.Itoa(checkboxState), 0, 1, false, true)
+
+		uacValues := make([]int, 0)
+		for key, _ := range utils.UacFlags {
+			uacValues = append(uacValues, key)
+		}
+		sort.Ints(uacValues)
+
+		for _, val := range uacValues {
+			uacValue := val
+			updateUacForm.AddCheckbox(
+				utils.UacFlags[uacValue].Present,
+				checkboxState&uacValue != 0,
+				func(checked bool) {
+					if checked {
+						checkboxState |= uacValue
+					} else {
+						checkboxState &^= uacValue
+					}
+
+					uacPreview := updateUacForm.GetFormItemByLabel("Raw UAC Value").(*tview.TextView)
+					if uacPreview != nil {
+						uacPreview.SetText(strconv.Itoa(checkboxState))
+					}
+				},
+			)
+		}
+
+		updateUacForm.
+			AddButton("Update", func() {
+				strCheckboxState := strconv.Itoa(checkboxState)
+				err := lc.ModifyAttribute(baseDN, "userAccountControl", []string{strCheckboxState})
+
+				if err != nil {
+					updateLog(fmt.Sprintf("%s", err), "red")
+				} else {
+					updateLog("Object's UAC updated to "+strCheckboxState+" at: "+baseDN, "green")
+				}
+
+				idx := findLocationInSiblings(currentNode)
+
+				parent := reloadParentNode(currentNode)
+				siblings := parent.GetChildren()
+
+				reloadAttributesPanel(currentNode, cacheEntries)
+
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+
+				treePanel.SetCurrentNode(siblings[idx])
+			}).
+			AddButton("Cancel", func() {
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+			})
+
+		updateUacForm.SetTitle("userAccountControl Editor").SetBorder(true)
+		app.SetRoot(updateUacForm, true).SetFocus(updateUacForm)
 	}
 
 	return event
@@ -358,29 +447,56 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			return event
 		}
 
-		valIndices := []string{}
+		// Encode attribute values to hex
+		rawAttrVals := entry.GetRawAttributeValues(attrName)
 
+		var attrValsHex []string
+		for idx := range rawAttrVals {
+			hexEncoded := hex.EncodeToString(rawAttrVals[idx])
+			attrValsHex = append(attrValsHex, hexEncoded)
+		}
+
+		valIndices := []string{}
 		for idx := range attrVals {
 			valIndices = append(valIndices, strconv.Itoa(idx))
 		}
 
 		selectedIndex := 0
 
+		useHexEncoding := false
+
 		writeAttrValsForm = writeAttrValsForm.
 			AddTextView("Base DN", baseDN, 0, 1, false, true).
 			AddTextView("Attribute Name", attrName, 0, 1, false, true).
 			AddTextView("Current Value", attrVals[0], 0, 1, false, true).
+			AddTextView("Current Value (HEX)", attrValsHex[0], 0, 1, false, true).
 			AddDropDown("Value Index", valIndices, 0, func(option string, optionIndex int) {
 				selectedIndex = optionIndex
 				currentValItem := writeAttrValsForm.GetFormItemByLabel("Current Value").(*tview.TextView)
-				if currentValItem != nil {
+				currentValItemHex := writeAttrValsForm.GetFormItemByLabel("Current Value (HEX)").(*tview.TextView)
+				if currentValItem != nil && currentValItemHex != nil {
 					currentValItem.SetText(attrVals[selectedIndex])
+					currentValItemHex.SetText(attrValsHex[selectedIndex])
 				}
 			}).
 			AddInputField("New Value", "", 0, nil, nil).
+			AddCheckbox("Use HEX encoding", false, func(checked bool) {
+				useHexEncoding = checked
+			}).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
 			AddButton("Update", func() {
-				attrVals[selectedIndex] = writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
+				newValue := writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
+				if useHexEncoding {
+					newValueBytes, err := hex.DecodeString(newValue)
+					if err == nil {
+						newValue = string(newValueBytes)
+					} else {
+						updateLog(fmt.Sprint(err), "red")
+						return
+					}
+				}
+
+				attrVals[selectedIndex] = newValue
 
 				err := lc.ModifyAttribute(baseDN, attrName, attrVals)
 				// TODO: Don't go back immediately so that the user can

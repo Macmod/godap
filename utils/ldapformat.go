@@ -70,12 +70,12 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 			for _, flag := range uacFlagKeys {
 				curFlag := UacFlags[flag]
 				if uacInt&flag != 0 {
-					if curFlag.present != "" {
-						formattedEntries = append(formattedEntries, curFlag.present)
+					if curFlag.Present != "" {
+						formattedEntries = append(formattedEntries, curFlag.Present)
 					}
 				} else {
-					if curFlag.notPresent != "" {
-						formattedEntries = append(formattedEntries, curFlag.notPresent)
+					if curFlag.NotPresent != "" {
+						formattedEntries = append(formattedEntries, curFlag.NotPresent)
 					}
 				}
 			}

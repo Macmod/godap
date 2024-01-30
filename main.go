@@ -56,11 +56,13 @@ var (
 
 var attrLimit int
 
-var pageCount = 4
+var pageCount = 5
 
 var app = tview.NewApplication()
 
 var pages = tview.NewPages()
+
+var info = tview.NewTextView()
 
 var insecureTlsConfig = &tls.Config{InsecureSkipVerify: true}
 
@@ -83,6 +85,19 @@ func updateLog(msg string, color string) {
 	logPanel.SetText("[" + formattedTime + "] " + msg).SetTextColor(tcell.GetColor(color))
 }
 
+func setPageFocus() {
+	switch page {
+	case 0:
+		app.SetFocus(treePanel)
+	case 1:
+		app.SetFocus(searchTreePanel)
+	case 2:
+		app.SetFocus(groupMembersPanel)
+	case 3:
+		app.SetFocus(daclEntriesPanel)
+	}
+}
+
 func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	_, isTextArea := app.GetFocus().(*tview.TextArea)
 	_, isInputField := app.GetFocus().(*tview.InputField)
@@ -93,19 +108,7 @@ func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 	if event.Key() == tcell.KeyCtrlJ {
 		dstPage := (page + 1) % pageCount
-		pages.SwitchToPage(fmt.Sprintf("page-%d", dstPage))
-		switch dstPage {
-		case 0:
-			app.SetFocus(treePanel)
-		case 1:
-			app.SetFocus(searchTreePanel)
-		case 2:
-			app.SetFocus(groupMembersPanel)
-		case 3:
-			app.SetFocus(daclEntriesPanel)
-		}
-		page = dstPage
-
+		info.Highlight(strconv.Itoa(dstPage))
 		return nil
 	}
 
@@ -154,41 +157,44 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			reloadAttributesPanel(node, cacheEntries)
 		}
 	case 'r', 'R':
-		if lc.Conn != nil {
-			lc.Conn.Close()
-		}
-		lc, err = utils.NewLDAPConn(
-			ldapServer, ldapPort,
-			ldaps, tlsConfig, pagingSize,
-		)
-
-		if err != nil {
-			updateLog(fmt.Sprint(err), "red")
-		} else {
-			updateLog("Connection success", "green")
-
-			if ntlmHash != "" {
-				err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
-			} else {
-				err = lc.LDAPBind(ldapUsername, ldapPassword)
+		// TODO: Check possible race conditions
+		go func() {
+			if lc.Conn != nil {
+				lc.Conn.Close()
 			}
+			lc, err = utils.NewLDAPConn(
+				ldapServer, ldapPort,
+				ldaps, tlsConfig, pagingSize,
+			)
 
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 			} else {
-				updateLog("Bind success", "green")
-			}
-		}
+				updateLog("Connection success", "green")
 
-		updateStateBox(tlsPanel, ldaps)
-		updateStateBox(statusPanel, err == nil)
+				if ntlmHash != "" {
+					err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+				} else {
+					err = lc.LDAPBind(ldapUsername, ldapPassword)
+				}
+
+				if err != nil {
+					updateLog(fmt.Sprint(err), "red")
+				} else {
+					updateLog("Bind success", "green")
+				}
+			}
+
+			updateStateBox(tlsPanel, ldaps)
+			updateStateBox(statusPanel, err == nil)
+		}()
 	case 'h', 'H':
 		showHeader = !showHeader
 		if showHeader {
 			appPanel.RemoveItem(headerPanel)
 		} else {
 			appPanel.RemoveItem(pages)
-			appPanel.AddItem(headerPanel, 0, 1, false)
+			appPanel.AddItem(headerPanel, 3, 0, false)
 			appPanel.AddItem(pages, 0, 8, false)
 		}
 	case 'l', 'L':
@@ -214,15 +220,18 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		credsForm.SetTitle("Connection Config").SetBorder(true)
 		app.SetRoot(credsForm, true).SetFocus(credsForm)
 	case 'u', 'U':
-		err = lc.UpgradeToTLS(tlsConfig)
-		if err != nil {
-			updateLog(fmt.Sprint(err), "red")
-		} else {
-			updateLog("StartTLS request successful", "green")
-			updateStateBox(tlsPanel, true)
-		}
+		// TODO: Check possible race conditions
+		go func() {
+			err = lc.UpgradeToTLS(tlsConfig)
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog("StartTLS request successful", "green")
+				updateStateBox(tlsPanel, true)
+			}
 
-		updateStateBox(statusPanel, err == nil)
+			updateStateBox(statusPanel, err == nil)
+		}()
 	}
 
 	return event
@@ -277,11 +286,11 @@ func setupApp() {
 	tlsPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	statusPanel = tview.NewTextView()
-	statusPanel.SetTitle("Connection")
+	statusPanel.SetTitle("Conn")
 	statusPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	formatFlagPanel = tview.NewTextView()
-	formatFlagPanel.SetTitle("Formatting")
+	formatFlagPanel.SetTitle("Format")
 	formatFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	emojiFlagPanel = tview.NewTextView()
@@ -293,7 +302,7 @@ func setupApp() {
 	colorFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	expandFlagPanel = tview.NewTextView()
-	expandFlagPanel.SetTitle("ExpandAttrs")
+	expandFlagPanel.SetTitle("Expand")
 	expandFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	// Pages setup
@@ -301,6 +310,7 @@ func setupApp() {
 	InitSearchPage()
 	InitGroupPage()
 	InitDaclPage()
+	InitHelpPage()
 
 	pages.AddPage("page-0", explorerPage, true, true)
 
@@ -309,6 +319,28 @@ func setupApp() {
 	pages.AddPage("page-2", groupPage, true, false)
 
 	pages.AddPage("page-3", daclPage, true, false)
+
+	pages.AddPage("page-4", helpPage, true, false)
+
+	// IN PROGRESS
+	info.SetDynamicColors(true).
+		SetRegions(true).
+		SetWrap(false).
+		SetHighlightedFunc(func(added, removed, remaining []string) {
+			if len(added) > 0 {
+				pages.SwitchToPage("page-" + added[0])
+				page, _ = strconv.Atoi(added[0])
+				setPageFocus()
+			}
+		})
+
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 1, "0", "LDAP Explorer")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 2, "1", "Object Search")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 3, "2", "Groups")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 4, "3", "DACLs")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 5, "4", "Help")
+
+	info.Highlight("0")
 
 	headerPanel = tview.NewFlex().
 		AddItem(tlsPanel, 0, 1, false).
@@ -319,10 +351,10 @@ func setupApp() {
 		AddItem(emojiFlagPanel, 0, 1, false)
 
 	appPanel = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(logPanel, 0, 1, false).
-		AddItem(headerPanel, 0, 1, false).
+		AddItem(info, 1, 1, false).
+		AddItem(logPanel, 3, 0, false).
+		AddItem(headerPanel, 3, 0, false).
 		AddItem(pages, 0, 8, false)
-
 	appPanel.SetInputCapture(appPanelKeyHandler)
 
 	app.EnableMouse(true)

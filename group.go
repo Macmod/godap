@@ -58,13 +58,13 @@ func InitGroupPage() {
 	groupPage = tview.NewFlex().
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(groupNameInput, 0, 1, false).
+				AddItem(groupNameInput, 3, 0, false).
 				AddItem(groupMembersPanel, 0, 8, false),
 			0, 1, false,
 		).
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(userNameInput, 0, 1, false).
+				AddItem(userNameInput, 3, 0, false).
 				AddItem(userGroupsPanel, 0, 8, false),
 			0, 1, false,
 		)
