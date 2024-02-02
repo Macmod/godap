@@ -26,7 +26,8 @@
 * Supports creation, editing and removal of objects and attributes
 * Supports exporting specific subtrees of the directory into JSON files
 * Interactive userAccountControl editor
-* Basic DACL viewer
+* DACL viewer
+* SOCKS support
 
 # Installation
 
@@ -62,7 +63,19 @@ To use LDAPS for the initial connection (ignoring certificate validation) run:
 $ godap <hostname or IP> [bind flags] -S -I -P 636
 ```
 
-To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybinding inside godap. Note that you must have started godap with `-I` to use the upgrade command properly if the server certificate is not trusted by your client.
+To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybinding inside godap.
+
+Notice that, if the server certificate is not trusted by your client, you must either have started godap with `-I` to use the upgrade command properly or toggle the `IgnoreCert` checkbox using the `l` keybinding before upgrading.
+
+If LDAPS is available, you can also change the port using `l`, toggle the LDAPS checkbox, set the desired value for `IgnoreCert`, and reconnect with `r`.
+
+**SOCKS**
+
+To connect to LDAP through a SOCKS proxy include the flag `-x schema://ip:port`, where `schema` is one of `socks4`, `socks4a` or `socks5`.
+
+You can also change the address of your proxy using the `l` keybinding.
+
+Note that when using a proxy you might want to consider including the `-M` flag (enable cache) to avoid a terribly slow UI.
 
 ## Flags
 
@@ -82,6 +95,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 * `-G`,`--paging` - Default paging size for regular queries
 * `-d`,`--domain` - Domain for NTLM bind
 * `-H`,`--hashes` - Hashes for NTLM bind
+* `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 
 ## Keybindings
 
@@ -100,7 +114,7 @@ To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybin
 | `Ctrl` + `n / N` | Explorer panel                                              | Create a new object under the selected object                 |
 | `Ctrl` + `s / S`  | Explorer panel                                              | Export all loaded nodes in the selected subtree into a JSON file   |
 | `Ctrl` + `p / P`                  | Explorer panel                              | Change the password of the selected user or computer account  |
-| `Ctrl` + `a / A`                  | Explorer panel                              | Update the userAccountControl attribute of the object interactively |
+| `Ctrl` + `a / A`                  | Explorer panel                              | Update the userAccountControl of the object interactively |
 | `Delete`                          | Explorer/attributes panel        | Deletes the selected object or attribute                      |
 | `h` / `H`                               | Global                                                      | Show/hide headers                                             |
 | `q`                               | Global                                                      | Exit the program                                              |
@@ -111,7 +125,7 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 
 # Acknowledgements
 
-DACL parsing code was taken from these tools:
+DACL parsing code and SOCKS code were adapted from the tools below:
 
 * [ldapper](https://github.com/Synzack/ldapper)
 * [Darksteel](https://github.com/wjlab/Darksteel)

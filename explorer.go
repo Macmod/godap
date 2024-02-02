@@ -460,6 +460,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		for idx := range attrVals {
 			valIndices = append(valIndices, strconv.Itoa(idx))
 		}
+		valIndices = append(valIndices, "New")
 
 		selectedIndex := 0
 
@@ -472,11 +473,16 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddTextView("Current Value (HEX)", attrValsHex[0], 0, 1, false, true).
 			AddDropDown("Value Index", valIndices, 0, func(option string, optionIndex int) {
 				selectedIndex = optionIndex
+
 				currentValItem := writeAttrValsForm.GetFormItemByLabel("Current Value").(*tview.TextView)
 				currentValItemHex := writeAttrValsForm.GetFormItemByLabel("Current Value (HEX)").(*tview.TextView)
-				if currentValItem != nil && currentValItemHex != nil {
+
+				if selectedIndex < len(attrVals) {
 					currentValItem.SetText(attrVals[selectedIndex])
 					currentValItemHex.SetText(attrValsHex[selectedIndex])
+				} else {
+					currentValItem.SetText("")
+					currentValItemHex.SetText("")
 				}
 			}).
 			AddInputField("New Value", "", 0, nil, nil).
@@ -496,7 +502,11 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					}
 				}
 
-				attrVals[selectedIndex] = newValue
+				if selectedIndex < len(attrVals) {
+					attrVals[selectedIndex] = newValue
+				} else {
+					attrVals = append(attrVals, newValue)
+				}
 
 				err := lc.ModifyAttribute(baseDN, attrName, attrVals)
 				// TODO: Don't go back immediately so that the user can

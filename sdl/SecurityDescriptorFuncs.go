@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -63,7 +65,7 @@ func getOwner(header *HEADER, sd string) (ownerSID string) {
 	return
 }
 
-func GetGroup(header *HEADER, sd string) (groupSID string) {
+func getGroup(header *HEADER, sd string) (groupSID string) {
 	offset := hexToOffset(header.OffsetGroup)
 	groupHexSID := sd[offset : offset+56]
 	groupSID = convertSID(groupHexSID)
@@ -191,7 +193,217 @@ func hexToInt(hex string) (integer int) {
 	return
 }
 
-func ParseSD(conn *ldap.Conn, baseDN string, SD string) (acesList []ACESList) {
+func capitalize(str string) string {
+	runes := []rune(str)
+	if len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+	}
+	return string(runes)
+}
+
+func checkRightExact(mask int, right int) bool {
+	return mask&right == right
+}
+
+func checkRight(mask int, right int) bool {
+	return mask&right != 0
+}
+
+func combinePerms(rights []int, rightNames []string, mask int) string {
+	var combined []string
+
+	for idx, right := range rights {
+		if checkRightExact(mask, right) {
+			combined = append(combined, rightNames[idx])
+		}
+	}
+
+	return capitalize(strings.Join(combined, "/"))
+}
+
+// Reference:
+// http://www.selfadsi.org/deep-inside/ad-security-descriptors.htm
+// At the moment this is an experimental & testing accuracy of the parser is hard.
+// There are probably some bugs, bug they can be solved in the future :-)
+func AceMaskToText(mask int, guid string) ([]string, int) {
+	var (
+		classNeeded     bool
+		attributeNeeded bool
+		extendedNeeded  bool
+		validatedNeeded bool
+		objectclass     string
+		attribute       string
+		extended        string
+		validated       string
+		ok              bool
+		okClass         bool
+		okAttr          bool
+	)
+
+	classNeeded = checkRight(mask, accessRightsMap["RIGHT_DS_CREATE_CHILD"]) || checkRight(mask, accessRightsMap["RIGHT_DS_DELETE_CHILD"])
+	attributeNeeded = checkRight(mask, accessRightsMap["RIGHT_DS_READ_PROPERTY"]) || checkRight(mask, accessRightsMap["RIGHT_DS_WRITE_PROPERTY"])
+	extendedNeeded = checkRight(mask, accessRightsMap["RIGHT_DS_CONTROL_ACCESS"])
+	validatedNeeded = checkRight(mask, accessRightsMap["RIGHT_DS_SELF"])
+
+	if len(guid) > 0 {
+		ok = true
+		if classNeeded && attributeNeeded {
+			objectclass, okClass = classesGuidMap[guid]
+			attribute, okAttr = attributesGuidMap[guid]
+
+			if !okClass {
+				objectclass = "any class of"
+			} else if !okAttr {
+				attribute = "all properties"
+			}
+		} else if classNeeded {
+			objectclass, ok = classesGuidMap[guid]
+		} else if attributeNeeded {
+			attribute, ok = attributesGuidMap[guid]
+		} else if extendedNeeded {
+			extended, ok = controlAccessRightMap[guid]
+		} else if validatedNeeded {
+			validated, ok = attributesGuidMap[guid]
+			if !ok {
+				validated, ok = controlAccessRightMap[guid]
+			}
+		}
+
+		if !ok {
+			objectclass = guid
+			attribute = guid
+			extended = guid
+			validated = guid
+		}
+	} else {
+		objectclass = "all child"
+		attribute = "all properties"
+		extended = " all extended rights"
+		validated = "all validated rights"
+	}
+
+	if checkRightExact(mask, accessRightsMap["GENERIC_ALL"]) { // 0x000F01FF
+		return []string{"Full control"}, 3
+	}
+
+	var rightsSeverity int = 0
+	var readableRights []string
+
+	specificChildPermission := combinePerms(
+		[]int{
+			accessRightsMap["RIGHT_DS_CREATE_CHILD"], // 0x01
+			accessRightsMap["RIGHT_DS_DELETE_CHILD"], // 0x02
+		},
+		[]string{"create", "delete"},
+		mask,
+	)
+
+	specificPermission := combinePerms(
+		[]int{
+			accessRightsMap["RIGHT_DS_READ_PROPERTY"],  // 0x10
+			accessRightsMap["RIGHT_DS_WRITE_PROPERTY"], // 0x20
+		},
+		[]string{"read", "write"},
+		mask,
+	)
+
+	genericPermission := combinePerms(
+		[]int{
+			accessRightsMap["GENERIC_READ"],  // 0x00020094
+			accessRightsMap["GENERIC_WRITE"], // 0x00020028
+		},
+		[]string{"read", "write"},
+		mask,
+	)
+
+	changeRights := []string{
+		"GENERIC_WRITE", "RIGHT_DS_CREATE_CHILD",
+		"RIGHT_DS_DELETE_CHILD", "RIGHT_DS_WRITE_PROPERTY",
+	}
+
+	for _, changeRight := range changeRights {
+		if checkRightExact(mask, accessRightsMap[changeRight]) {
+			rightsSeverity = 1
+		}
+	}
+
+	if validatedNeeded || extendedNeeded {
+		rightsSeverity = 2
+	}
+
+	if genericPermission != "" {
+		readableRights = append(readableRights, genericPermission)
+	} else if specificPermission != "" {
+		readableRights = append(readableRights, specificPermission+" "+attribute)
+	} else if specificChildPermission != "" {
+		readableRights = append(readableRights, specificChildPermission+" "+objectclass+" objects")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_DS_LIST_CONTENTS"]) { // 0x04
+		readableRights = append(readableRights, "List contents")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_DS_SELF"]) { // 0x08
+		readableRights = append(readableRights, "Validated write "+validated)
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_DS_DELETE_TREE"]) { // 0x40
+		readableRights = append(readableRights, "Delete tree")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_DS_LIST_OBJECT"]) { // 0x80
+		readableRights = append(readableRights, "List object")
+	}
+
+	if specificPermission == "" && checkRight(mask, accessRightsMap["RIGHT_DS_CONTROL_ACCESS"]) { // 0x100
+		readableRights = append(readableRights, extended)
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_DELETE"]) { // 0x10000
+		readableRights = append(readableRights, "Delete")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_READ_CONTROL"]) { // 0x20000
+		readableRights = append(readableRights, "Read control")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_WRITE_DACL"]) { // 0x40000
+		readableRights = append(readableRights, "Write DACL")
+	}
+
+	if checkRight(mask, accessRightsMap["RIGHT_WRITE_OWNER"]) { // 80000
+		readableRights = append(readableRights, "Write owner")
+	}
+
+	return readableRights, rightsSeverity
+}
+
+func aceFlagsToText(flagsStr string, guidStr string) string {
+	propagationString := ""
+	flags := hexToInt(flagsStr)
+	objectClassStr := ""
+	if guidStr != "" {
+		objectClassStr = classesGuidMap[guidStr] + " "
+	}
+
+	if flags&aceFlagsMap["CONTAINER_INHERIT_ACE"] == 0 {
+		return "This object only"
+	}
+
+	if flags&aceFlagsMap["INHERIT_ONLY_ACE"] == 0 {
+		propagationString = "this object and "
+	}
+
+	if flags&aceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] == 0 {
+		propagationString += "all descendant " + objectClassStr + "objects"
+	} else {
+		propagationString += "descendant " + objectClassStr + "objects"
+	}
+
+	return capitalize(propagationString)
+}
+
+func ParseSD(conn *ldap.Conn, baseDN string, SD string) (acesList []ACESList, owner string) {
 	header := getHeader(SD)
 	ACLHeader := getACLHeader(SD)
 	DACL := getDACL(header, SD)
@@ -199,15 +411,15 @@ func ParseSD(conn *ldap.Conn, baseDN string, SD string) (acesList []ACESList) {
 	aceCount, _ := strconv.Atoi(hexToDecimalString(ACLHeader.ACECount))
 	rawACESList := make([]string, aceCount)
 
+	aclOwner := getOwner(header, SD)
+
 	for i := 0; i < aceCount; i++ {
 		rawACESList[i] = getACE(rawACES)
 		rawACES = rawACES[len(rawACESList[i]):]
 	}
 
-	abusableAces := []ACESList{}
+	translatedAces := []ACESList{}
 	for ace, _ := range rawACESList {
-		entry := ACESList{SamAccountName: "", GENERIC_ALL: false, GENERIC_WRITE: false, WRITE_OWNER: false, WRITE_DACL: false, FORCE_CHANGE_PASSWORD: false, ADD_MEMBER: false}
-
 		aceHeader := getACEHeader(rawACESList[ace])
 		aceType, _ := strconv.Atoi(aceHeader.ACEType)
 
@@ -216,79 +428,76 @@ func ParseSD(conn *ldap.Conn, baseDN string, SD string) (acesList []ACESList) {
 			if entry == aceType {
 				resolvedACEType = aceTypeMap[entry]
 			}
-
 		}
+
+		entry := ACESList{SamAccountName: "", Type: "", Inheritance: false, Scope: "This object only", Severity: 0}
 
 		switch resolvedACEType {
 		case "ACCESS_ALLOWED_ACE_TYPE":
 			ACE := new(ACCESS_ALLOWED_ACE)
 			ACE.parse(rawACESList[ace], baseDN, conn)
+
+			entry.Type = "Allow"
 			entry.SamAccountName = ACE.samAccountName
+			permissions := hexToInt(ACE.mask)
 
-			permissions, err := strconv.ParseInt(ACE.mask, 16, 64)
-			if err != nil {
-				fmt.Printf("ACE Mask Conversion Error, %s\n", err)
-			}
+			entry.RawMask = permissions
+			entry.Mask, entry.Severity = AceMaskToText(permissions, "")
 
-			if permissions&int64(accessRightsMap["RIGHT_DS_CREATE_CHILD"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_DELETE_CHILD"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_LIST_CONTENTS"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_WRITE_PROPERTY_EXTENDED"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_READ_PROPERTY"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_WRITE_PROPERTY"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_DELETE_TREE"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_LIST_OBJECT"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_CONTROL_ACCESS"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DELETE"]) > 0 && permissions&int64(accessRightsMap["RIGHT_READ_CONTROL"]) > 0 && permissions&int64(accessRightsMap["RIGHT_WRITE_DACL"]) > 0 && permissions&int64(accessRightsMap["RIGHT_WRITE_OWNER"]) > 0 {
-				entry.GENERIC_ALL = true
-			}
-
-			if permissions&int64(accessRightsMap["RIGHT_WRITE_DACL"]) > 0 {
-				entry.WRITE_DACL = true
-			}
-
-			if permissions&int64(accessRightsMap["RIGHT_WRITE_OWNER"]) > 0 {
-				entry.WRITE_OWNER = true
-			}
-
-			if permissions&int64(accessRightsMap["RIGHT_READ_CONTROL"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_WRITE_PROPERTY"]) > 0 && permissions&int64(accessRightsMap["RIGHT_DS_WRITE_PROPERTY_EXTENDED"]) > 0 {
-				entry.GENERIC_WRITE = true
-			}
-
-			inArray := false
-			for index := range abusableAces {
-				if entry.SamAccountName == abusableAces[index].SamAccountName {
-					inArray = true
-					abusableAces[index].GENERIC_ALL = entry.GENERIC_ALL
-					abusableAces[index].WRITE_DACL = entry.WRITE_DACL
-					abusableAces[index].WRITE_OWNER = entry.WRITE_OWNER
-					abusableAces[index].GENERIC_WRITE = entry.GENERIC_WRITE
-				}
-			}
-
-			if !inArray {
-				abusableAces = append(abusableAces, entry)
-			}
-
+			translatedAces = append(translatedAces, entry)
 		case "ACCESS_ALLOWED_OBJECT_ACE_TYPE":
 			ACE := new(ACCESS_ALLOWED_OBJECT_ACE)
 			ACE.parse(rawACESList[ace], baseDN, conn)
+
+			entry.Type = "Allow"
 			entry.SamAccountName = ACE.samAccountName
+			permissions := hexToInt(ACE.mask)
+			entry.RawMask = permissions
+			entry.Mask, entry.Severity = AceMaskToText(permissions, ACE.objectType)
 
-			if ACE.objectType == "00299570-246d-11d0-a768-00aa006e0529" {
-				entry.FORCE_CHANGE_PASSWORD = true
+			ACEFlags := hexToInt(ACE.header.ACEFlags)
+			if ACEFlags&aceFlagsMap["INHERITED_ACE"] != 0 {
+				entry.Inheritance = true
 			}
 
-			if ACE.objectType == "bf9679c0-0de6-11d0-a285-00aa003049e2" {
-				entry.ADD_MEMBER = true
+			entry.Scope = aceFlagsToText(ACE.header.ACEFlags, ACE.inheritedObjectType)
+
+			translatedAces = append(translatedAces, entry)
+		case "ACCESS_DENIED_ACE_TYPE":
+			ACE := new(ACCESS_DENIED_ACE)
+			ACE.parse(rawACESList[ace], baseDN, conn)
+
+			entry.Type = "Deny"
+			entry.SamAccountName = ACE.samAccountName
+			permissions := hexToInt(ACE.mask)
+			entry.RawMask = permissions
+			entry.Mask, _ = AceMaskToText(int(permissions), "")
+
+			translatedAces = append(translatedAces, entry)
+		case "ACCESS_DENIED_OBJECT_ACE_TYPE":
+			ACE := new(ACCESS_DENIED_OBJECT_ACE)
+			ACE.parse(rawACESList[ace], baseDN, conn)
+
+			entry.Type = "Deny"
+			entry.SamAccountName = ACE.samAccountName
+			permissions := hexToInt(ACE.mask)
+			entry.RawMask = permissions
+			entry.Mask, _ = AceMaskToText(permissions, ACE.objectType)
+
+			ACEFlags := hexToInt(ACE.header.ACEFlags)
+			if ACEFlags&aceFlagsMap["INHERITED_ACE"] != 0 {
+				entry.Inheritance = true
 			}
 
-			inArray := false
-			for index := range abusableAces {
-				if entry.SamAccountName == abusableAces[index].SamAccountName {
-					inArray = true
-					abusableAces[index].FORCE_CHANGE_PASSWORD = entry.FORCE_CHANGE_PASSWORD
-					abusableAces[index].ADD_MEMBER = entry.ADD_MEMBER
-				}
-			}
+			entry.Scope = aceFlagsToText(ACE.header.ACEFlags, ACE.inheritedObjectType)
 
-			if !inArray {
-				abusableAces = append(abusableAces, entry)
-			}
+			translatedAces = append(translatedAces, entry)
+		default:
+			//fmt.Println(resolvedACEType)
 		}
-
 	}
 
-	return abusableAces
+	ownerName, _ := LookupSID(conn, baseDN, aclOwner)
+
+	return translatedAces, ownerName
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"strconv"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
+	"h12.io/socks"
 )
 
 var (
@@ -20,6 +22,7 @@ var (
 	ldapPassword string
 	ntlmHash     string
 	ntlmDomain   string
+	socksServer  string
 
 	emojis       bool
 	colors       bool
@@ -95,6 +98,8 @@ func setPageFocus() {
 		app.SetFocus(groupMembersPanel)
 	case 3:
 		app.SetFocus(daclEntriesPanel)
+	case 4:
+		app.SetFocus(keybindingsPanel)
 	}
 }
 
@@ -158,36 +163,7 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		}
 	case 'r', 'R':
 		// TODO: Check possible race conditions
-		go func() {
-			if lc.Conn != nil {
-				lc.Conn.Close()
-			}
-			lc, err = utils.NewLDAPConn(
-				ldapServer, ldapPort,
-				ldaps, tlsConfig, pagingSize,
-			)
-
-			if err != nil {
-				updateLog(fmt.Sprint(err), "red")
-			} else {
-				updateLog("Connection success", "green")
-
-				if ntlmHash != "" {
-					err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
-				} else {
-					err = lc.LDAPBind(ldapUsername, ldapPassword)
-				}
-
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					updateLog("Bind success", "green")
-				}
-			}
-
-			updateStateBox(tlsPanel, ldaps)
-			updateStateBox(statusPanel, err == nil)
-		}()
+		go setupLDAPConn()
 	case 'h', 'H':
 		showHeader = !showHeader
 		if showHeader {
@@ -205,12 +181,21 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddInputField("Port", strconv.Itoa(ldapPort), 20, nil, nil).
 			AddInputField("Username", ldapUsername, 20, nil, nil).
 			AddPasswordField("Password", ldapPassword, 20, '*', nil).
+			AddCheckbox("LDAPS", ldaps, nil).
+			AddCheckbox("IgnoreCert", insecure, nil).
+			AddInputField("SOCKSProxy", socksServer, 20, nil, nil).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
 			AddButton("Save", func() {
 				ldapServer = credsForm.GetFormItemByLabel("Server").(*tview.InputField).GetText()
 				ldapPort, _ = strconv.Atoi(credsForm.GetFormItemByLabel("Port").(*tview.InputField).GetText())
 				ldapUsername = credsForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
 				ldapPassword = credsForm.GetFormItemByLabel("Password").(*tview.InputField).GetText()
+
+				ldaps = credsForm.GetFormItemByLabel("LDAPS").(*tview.Checkbox).IsChecked()
+				insecure = credsForm.GetFormItemByLabel("IgnoreCert").(*tview.Checkbox).IsChecked()
+
+				socksServer = credsForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
+
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			}).
 			AddButton("Cancel", func() {
@@ -237,49 +222,64 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
-func setupApp() {
-	logPanel = tview.NewTextView()
-	logPanel.SetTitle("Last Log")
-	logPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+func setupLDAPConn() error {
+	if lc != nil && lc.Conn != nil {
+		lc.Conn.Close()
+	}
 
 	tlsConfig = secureTlsConfig
 	if insecure {
 		tlsConfig = insecureTlsConfig
 	}
 
+	var proxyConn net.Conn = nil
+	var err error = nil
+
+	if socksServer != "" {
+		proxyDial := socks.Dial(socksServer)
+		proxyConn, err = proxyDial("tcp", fmt.Sprintf("%s:%s", ldapServer, strconv.Itoa(ldapPort)))
+		if err != nil {
+			updateLog(fmt.Sprint(err), "red")
+			return err
+		}
+	}
+
 	lc, err = utils.NewLDAPConn(
 		ldapServer, ldapPort,
 		ldaps, tlsConfig, pagingSize,
+		proxyConn,
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if ntlmHash != "" {
-		err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
-	} else {
-		err = lc.LDAPBind(ldapUsername, ldapPassword)
-	}
 
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 	} else {
-		updateLog("Bind success", "green")
-	}
-	if err != nil {
-		updateLog(fmt.Sprint(err), "red")
-	} else {
-		updateLog("Bind success", "green")
-	}
+		updateLog("Connection success", "green")
 
-	defer lc.Conn.Close()
+		if ntlmHash != "" {
+			err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+		} else {
+			err = lc.LDAPBind(ldapUsername, ldapPassword)
+		}
 
-	if rootDN == "" {
-		rootDN, err = lc.FindRootDN()
 		if err != nil {
-			log.Fatal(err)
+			updateLog(fmt.Sprint(err), "red")
+		} else {
+			updateLog("Bind success", "green")
 		}
 	}
+
+	updateStateBox(statusPanel, err == nil)
+	if ldaps {
+		updateStateBox(tlsPanel, err == nil)
+	}
+
+	return err
+}
+
+func setupApp() {
+	logPanel = tview.NewTextView()
+	logPanel.SetTitle("Last Log")
+	logPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	tlsPanel = tview.NewTextView()
 	tlsPanel.SetTitle("TLS")
@@ -305,6 +305,21 @@ func setupApp() {
 	expandFlagPanel.SetTitle("Expand")
 	expandFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
+	//
+	//
+
+	err := setupLDAPConn()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if rootDN == "" {
+		rootDN, err = lc.FindRootDN()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	// Pages setup
 	InitExplorerPage()
 	InitSearchPage()
@@ -322,7 +337,6 @@ func setupApp() {
 
 	pages.AddPage("page-4", helpPage, true, false)
 
-	// IN PROGRESS
 	info.SetDynamicColors(true).
 		SetRegions(true).
 		SetWrap(false).
@@ -400,6 +414,7 @@ func main() {
 	rootCmd.Flags().Uint32VarP(&pagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
+	rootCmd.Flags().StringVarP(&socksServer, "socks", "x", "", "Use a SOCKS proxy for initial connection")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

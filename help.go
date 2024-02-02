@@ -9,6 +9,7 @@ import (
 )
 
 var helpPage *tview.Flex
+var keybindingsPanel *tview.Table
 
 func InitHelpPage() {
 	helpText := `
@@ -21,7 +22,7 @@ func InitHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v1.5.0
+v1.6.0
 `
 
 	keybindings := [][]string{
@@ -38,14 +39,14 @@ v1.5.0
 		{"Ctrl + n / N", "Explorer panel", "Create a new object under the selected object"},
 		{"Ctrl + s / S", "Explorer panel", "Export all loaded nodes in the selected subtree into a JSON file"},
 		{"Ctrl + p / P", "Explorer panel", "Change the password of the selected user or computer account"},
-		{"Ctrl + a / A", "Explorer panel", "Update the userAccountControl attribute of the object interactively"},
+		{"Ctrl + a / A", "Explorer panel", "Update the userAccountControl of the object interactively"},
 		{"Delete", "Explorer/attributes panel", "Deletes the selected object or attribute"},
 		{"h / H", "Global", "Show/hide headers"},
 		{"q", "Global", "Exit the program"},
 	}
 
 	// Create a table
-	table := tview.NewTable().
+	keybindingsPanel = tview.NewTable().
 		SetBorders(true).
 		SetSelectable(true, false)
 
@@ -53,8 +54,8 @@ v1.5.0
 	for col, header := range headers {
 		cell := tview.NewTableCell(header).
 			SetTextColor(tview.Styles.SecondaryTextColor).
-			SetAlign(tview.AlignCenter)
-		table.SetCell(0, col, cell)
+			SetAlign(tview.AlignCenter).SetSelectable(false)
+		keybindingsPanel.SetCell(0, col, cell)
 	}
 
 	for row, binding := range keybindings {
@@ -62,16 +63,18 @@ v1.5.0
 			cell := tview.NewTableCell(value).
 				SetTextColor(tview.Styles.PrimaryTextColor).
 				SetAlign(tview.AlignLeft)
-			table.SetCell(row+1, col, cell)
+			keybindingsPanel.SetCell(row+1, col, cell)
 		}
 	}
+
+	keybindingsPanel.Select(1, 0)
 
 	helpTextView := tview.NewTextView().
 		SetText(helpText).
 		SetTextAlign(tview.AlignCenter).
 		SetDynamicColors(true)
 
-	frame := tview.NewFrame(table)
+	frame := tview.NewFrame(keybindingsPanel)
 	frame.SetBorders(0, 0, 0, 0, 0, 0).
 		SetTitleAlign(tview.AlignCenter).
 		SetBorder(true).

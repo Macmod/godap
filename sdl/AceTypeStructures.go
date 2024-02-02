@@ -43,20 +43,48 @@ func (ace *ACCESS_ALLOWED_OBJECT_ACE) parse(rawACE string, baseDN string, conn *
 }
 
 type ACCESS_DENIED_ACE struct {
-	header string
-	mask   string
-	SID    string
+	header         *ACEHEADER
+	mask           string
+	SID            string
+	samAccountName string
+}
+
+func (ace *ACCESS_DENIED_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
+	ace.header = getACEHeader(rawACE)
+	ace.mask = getACEMask(rawACE)
+	ace.SID = convertSID(rawACE[16:])
+	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
 }
 
 type ACCESS_DENIED_OBJECT_ACE struct {
-	header              string
+	header              *ACEHEADER
 	mask                string
 	flags               string
 	objectType          string
 	inheritedObjectType string
 	SID                 string
+	samAccountName      string
 }
 
+func (ace *ACCESS_DENIED_OBJECT_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
+	ace.header = getACEHeader(rawACE)
+	ace.mask = getACEMask(rawACE)
+	ace.flags = getACEFlags((rawACE))
+	ace.objectType, ace.inheritedObjectType = getObjectAndInheritedType(rawACE, ace.flags)
+	lengthBeforeSID := 24
+	if len(ace.objectType) > 0 {
+		lengthBeforeSID += 32
+	}
+	if len(ace.inheritedObjectType) > 0 {
+		lengthBeforeSID += 32
+	}
+	ace.SID = convertSID(rawACE[lengthBeforeSID:])
+	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
+}
+
+// The ACE types below seem currently useless,
+// if I figure out any use for them in the future I'll
+// consider implementing some additional logic
 type ACCESS_ALLOWED_CALLBACK_ACE struct {
 	header          string
 	mask            string

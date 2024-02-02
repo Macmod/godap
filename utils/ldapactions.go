@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"strings"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
@@ -29,14 +30,23 @@ func (lc LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	return nil
 }
 
-func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32) (*LDAPConn, error) {
+func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32, proxyConn net.Conn) (*LDAPConn, error) {
 	var conn *ldap.Conn
-	var err error
+	var err error = nil
 
-	if ldaps {
-		conn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort), tlsConfig)
+	if proxyConn == nil {
+		if ldaps {
+			conn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort), tlsConfig)
+		} else {
+			conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort))
+		}
 	} else {
-		conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort))
+		if ldaps {
+			conn = ldap.NewConn(tls.Client(proxyConn, tlsConfig), true)
+		} else {
+			conn = ldap.NewConn(proxyConn, false)
+		}
+		conn.Start()
 	}
 
 	if err != nil {
