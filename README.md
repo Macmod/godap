@@ -81,6 +81,7 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 
 * `-u`,`--username` - Username for bind
 * `-p`,`--password` - Password for bind
+* `--passfile` - Path to a file containing the password for bind
 * `-P`,`--port` - Custom port for the connection (default: `389`)
 * `-r`,`--rootDN <distinguishedName>` - Initial root DN (default: automatic)
 * `-f`,`--filter <search filter>` - Initial LDAP search filter (default: `(objectClass=*)`)
@@ -95,6 +96,7 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 * `-G`,`--paging` - Default paging size for regular queries
 * `-d`,`--domain` - Domain for NTLM bind
 * `-H`,`--hashes` - Hashes for NTLM bind
+* `--hashfile` - Path to a file containing the hashes for NTLM bind
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 
 ## Keybindings
