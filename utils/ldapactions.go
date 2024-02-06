@@ -8,6 +8,7 @@ import (
 
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
+
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -389,11 +390,7 @@ func (lc LDAPConn) ModifyAttribute(targetDN string, attributeToModify string, at
 	modifyRequest.Replace(attributeToModify, attributeValues)
 
 	err = lc.Conn.Modify(modifyRequest)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (lc LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) error {
@@ -403,9 +400,27 @@ func (lc LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) er
 	modifyRequest.Delete(attributeToDelete, []string{})
 
 	err = lc.Conn.Modify(modifyRequest)
-	if err != nil {
-		return err
+	return err
+}
+
+func (lc LDAPConn) MoveObject(sourceDN string, targetDN string) error {
+	var err error
+
+	targetRDNs := strings.Split(targetDN, ",")
+
+	targetFirstRDN := ""
+	if len(targetRDNs) > 0 {
+		targetFirstRDN = targetRDNs[0]
 	}
 
-	return nil
+	targetNewParent := ""
+	if len(targetRDNs) > 1 {
+		targetNewParent = strings.Join(targetRDNs[1:], ",")
+	}
+
+	modifyDNRequest := ldap.NewModifyDNRequest(sourceDN, targetFirstRDN, true, targetNewParent)
+
+	err = lc.Conn.ModifyDN(modifyDNRequest)
+
+	return err
 }

@@ -24,6 +24,7 @@
 * Recursive object search bundled with useful saved searches
 * Group members & user groups lookup
 * Supports creation, editing and removal of objects and attributes
+* Supports moving and renaming objects
 * Supports exporting specific subtrees of the directory into JSON files
 * Interactive userAccountControl editor
 * DACL viewer
@@ -115,6 +116,7 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 | `Ctrl` + `s / S`  | Explorer panel                                              | Export all loaded nodes in the selected subtree into a JSON file   |
 | `Ctrl` + `p / P`                  | Explorer panel                              | Change the password of the selected user or computer account  |
 | `Ctrl` + `a / A`                  | Explorer panel                              | Update the userAccountControl of the object interactively |
+| `Ctrl` + `l / L`                  | Explorer panel                              | Move the selected object to another location |
 | `Delete`                          | Explorer/attributes panel        | Deletes the selected object or attribute                      |
 | `h` / `H`                               | Global                                                      | Show/hide headers                                             |
 | `q`                               | Global                                                      | Exit the program                                              |

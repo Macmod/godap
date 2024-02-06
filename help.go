@@ -1,10 +1,6 @@
 package main
 
 import (
-
-	//"strconv"
-	//"strings"
-
 	"github.com/rivo/tview"
 )
 
@@ -22,7 +18,7 @@ func InitHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v1.6.0
+v1.7.0
 `
 
 	keybindings := [][]string{
@@ -40,6 +36,7 @@ v1.6.0
 		{"Ctrl + s / S", "Explorer panel", "Export all loaded nodes in the selected subtree into a JSON file"},
 		{"Ctrl + p / P", "Explorer panel", "Change the password of the selected user or computer account"},
 		{"Ctrl + a / A", "Explorer panel", "Update the userAccountControl of the object interactively"},
+		{"Ctrl + l / L", "Explorer panel", "Move the selected object to another location"},
 		{"Delete", "Explorer/attributes panel", "Deletes the selected object or attribute"},
 		{"h / H", "Global", "Show/hide headers"},
 		{"q", "Global", "Exit the program"},

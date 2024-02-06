@@ -255,16 +255,19 @@ func setupLDAPConn() error {
 	} else {
 		updateLog("Connection success", "green")
 
+		var bindType string
 		if ntlmHash != "" {
 			err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+			bindType = "NTLM"
 		} else {
 			err = lc.LDAPBind(ldapUsername, ldapPassword)
+			bindType = "LDAP"
 		}
 
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 		} else {
-			updateLog("Bind success", "green")
+			updateLog("Bind success ("+bindType+")", "green")
 		}
 	}
 
@@ -304,9 +307,6 @@ func setupApp() {
 	expandFlagPanel = tview.NewTextView()
 	expandFlagPanel.SetTitle("Expand")
 	expandFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
-
-	//
-	//
 
 	err := setupLDAPConn()
 	if err != nil {

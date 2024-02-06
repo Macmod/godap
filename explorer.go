@@ -99,21 +99,28 @@ func collapseTreeNode(node *tview.TreeNode) {
 }
 
 func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
-	pathToCurrent := treePanel.GetPath(node)
-	parent := pathToCurrent[len(pathToCurrent)-2]
+	parent := getParentNode(node)
 	collapseTreeNode(parent)
 	expandTreeNode(parent)
 
 	return parent
 }
 
-func findLocationInSiblings(node *tview.TreeNode) int {
+func getParentNode(node *tview.TreeNode) *tview.TreeNode {
 	pathToCurrent := treePanel.GetPath(node)
-	parent := pathToCurrent[len(pathToCurrent)-2]
+
+	if len(pathToCurrent) > 1 {
+		return pathToCurrent[len(pathToCurrent)-2]
+	}
+
+	return nil
+}
+
+func findEntryInChildren(dn string, parent *tview.TreeNode) int {
 	siblings := parent.GetChildren()
 
 	for idx, loopNode := range siblings {
-		if loopNode.GetReference().(string) == node.GetReference().(string) {
+		if loopNode.GetReference().(string) == dn {
 			return idx
 		}
 	}
@@ -126,6 +133,8 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	if currentNode == nil {
 		return event
 	}
+
+	parentNode := getParentNode(currentNode)
 
 	switch event.Key() {
 	case tcell.KeyRight:
@@ -156,7 +165,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 						delete(loadedDNs, baseDN)
 						updateLog("Object deleted: "+baseDN, "green")
 
-						idx := findLocationInSiblings(currentNode)
+						idx := findEntryInChildren(baseDN, parentNode)
 
 						parent := reloadParentNode(currentNode)
 						otherNodeToSelect := parent
@@ -313,7 +322,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					updateLog("Object's UAC updated to "+strCheckboxState+" at: "+baseDN, "green")
 				}
 
-				idx := findLocationInSiblings(currentNode)
+				idx := findEntryInChildren(baseDN, parentNode)
 
 				parent := reloadParentNode(currentNode)
 				siblings := parent.GetChildren()
@@ -428,13 +437,15 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	currentNode := treePanel.GetCurrentNode()
+	if currentNode == nil {
+		return event
+	}
+
+	parentNode := getParentNode(currentNode)
+
 	switch event.Key() {
 	case tcell.KeyCtrlE:
-		currentNode := treePanel.GetCurrentNode()
-		if currentNode == nil {
-			return event
-		}
-
 		writeAttrValsForm := tview.NewForm()
 
 		attrRow, _ := attrsPanel.GetSelection()
@@ -517,7 +528,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					updateLog("Attribute updated: '"+attrName+"' from '"+baseDN+"'", "green")
 				}
 
-				idx := findLocationInSiblings(currentNode)
+				idx := findEntryInChildren(baseDN, parentNode)
 
 				parent := reloadParentNode(currentNode)
 				siblings := parent.GetChildren()
@@ -535,11 +546,6 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
 		app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
 	case tcell.KeyCtrlP:
-		currentNode := treePanel.GetCurrentNode()
-		if currentNode == nil {
-			return event
-		}
-
 		changePasswordForm := tview.NewForm()
 
 		baseDN := currentNode.GetReference().(string)
@@ -565,6 +571,47 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 		changePasswordForm.SetTitle("Password Editor").SetBorder(true)
 		app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
+	case tcell.KeyCtrlL:
+		moveObjectForm := tview.NewForm()
+
+		baseDN := currentNode.GetReference().(string)
+		moveObjectForm = moveObjectForm.
+			AddTextView("Object DN", baseDN, 0, 1, false, true).
+			AddInputField("New Object DN", baseDN, 0, nil, nil).
+			SetFieldBackgroundColor(tcell.GetColor("black")).
+			AddButton("Update", func() {
+				newObjectDN := moveObjectForm.GetFormItemByLabel("New Object DN").(*tview.InputField).GetText()
+
+				err := lc.MoveObject(baseDN, newObjectDN)
+
+				if err != nil {
+					updateLog(fmt.Sprint(err), "red")
+				} else {
+					updateLog("Object moved from '"+baseDN+"' to '"+newObjectDN+"'", "green")
+				}
+
+				newParentNode := reloadParentNode(currentNode)
+
+				idx := findEntryInChildren(newObjectDN, newParentNode)
+
+				otherNodeToSelect := newParentNode
+
+				if idx > 0 {
+					siblings := newParentNode.GetChildren()
+					otherNodeToSelect = siblings[idx]
+				}
+
+				treePanel.SetCurrentNode(otherNodeToSelect)
+				reloadAttributesPanel(otherNodeToSelect, cacheEntries)
+
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			})
+
+		moveObjectForm.SetTitle("Move Object").SetBorder(true)
+		app.SetRoot(moveObjectForm, true).SetFocus(moveObjectForm)
 	}
 
 	return event
