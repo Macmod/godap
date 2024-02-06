@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,14 @@ func InitSearchPage() {
 	searchLibraryPanel.SetTitle("Search Library").SetBorder(true)
 	searchLibraryPanel.SetCurrentItem(0)
 
-	for key, query := range utils.PredefinedLdapQueries {
+	predefinedLdapQueriesKeys := make([]string, 0)
+	for k, _ := range utils.PredefinedLdapQueries {
+		predefinedLdapQueriesKeys = append(predefinedLdapQueriesKeys, k)
+	}
+	sort.Strings(predefinedLdapQueriesKeys)
+
+	for _, key := range predefinedLdapQueriesKeys {
+		query := utils.PredefinedLdapQueries[key]
 		searchLibraryPanel.AddItem(key, query, 'o', nil)
 	}
 	searchLibraryPanel.SetSelectedFunc(func(idx int, key string, query string, ch rune) {
