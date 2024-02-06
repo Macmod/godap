@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Macmod/godap/utils"
@@ -16,13 +18,15 @@ import (
 )
 
 var (
-	ldapServer   string
-	ldapPort     int
-	ldapUsername string
-	ldapPassword string
-	ntlmHash     string
-	ntlmDomain   string
-	socksServer  string
+	ldapServer       string
+	ldapPort         int
+	ldapUsername     string
+	ldapPassword     string
+	ldapPasswordFile string
+	ntlmHash         string
+	ntlmHashFile     string
+	ntlmDomain       string
+	socksServer      string
 
 	emojis       bool
 	colors       bool
@@ -384,7 +388,6 @@ func setupApp() {
 	if err := app.SetRoot(appPanel, true).SetFocus(treePanel).Run(); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func main() {
@@ -394,6 +397,22 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			ldapServer = args[0]
+
+			if ldapPasswordFile != "" {
+				pw, err := os.ReadFile(ldapPasswordFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+				ldapPassword = strings.TrimSpace(string(pw))
+			}
+			if ntlmHashFile != "" {
+				hash, err := os.ReadFile(ntlmHashFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+				ntlmHash = strings.TrimSpace(string(hash))
+			}
+
 			setupApp()
 		},
 	}
@@ -401,8 +420,10 @@ func main() {
 	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port")
 	rootCmd.Flags().StringVarP(&ldapUsername, "username", "u", "", "LDAP username")
 	rootCmd.Flags().StringVarP(&ldapPassword, "password", "p", "", "LDAP password")
+	rootCmd.Flags().StringVarP(&ldapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password")
 	rootCmd.Flags().StringVarP(&ntlmDomain, "domain", "d", "", "Domain for NTLM bind")
 	rootCmd.Flags().StringVarP(&ntlmHash, "hashes", "H", "", "NTLM hash")
+	rootCmd.Flags().StringVarP(&ntlmHashFile, "hashfile", "", "", "Path to a file containing the NTLM hash")
 	rootCmd.Flags().StringVarP(&rootDN, "rootDN", "r", "", "Initial root DN")
 	rootCmd.Flags().StringVarP(&searchFilter, "filter", "f", "(objectClass=*)", "Initial LDAP search filter")
 	rootCmd.Flags().BoolVarP(&emojis, "emojis", "E", true, "Prefix objects with emojis")
