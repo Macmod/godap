@@ -92,7 +92,7 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 * `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
-* `-G`,`--paging` - Default paging size for regular queries
+* `-G`,`--paging` - Paging size for regular queries (default: `800`)
 * `-d`,`--domain` - Domain for NTLM bind
 * `-H`,`--hashes` - Hashes for NTLM bind
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
@@ -125,10 +125,16 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 
 # Acknowledgements
 
-DACL parsing code and SOCKS code were adapted from the tools below:
+* DACL parsing code and SOCKS code were adapted from the tools below:
 
-* [ldapper](https://github.com/Synzack/ldapper)
-* [Darksteel](https://github.com/wjlab/Darksteel)
+  * [ldapper](https://github.com/Synzack/ldapper)
+  * [Darksteel](https://github.com/wjlab/Darksteel)
+
+* [BadBlood](https://github.com/davidprowe/BadBlood) was also very useful for testing during the development of the tool.
+
+# Disclaimer
+
+I'm not prioritizing Kerberos authentication at the moment. Although `ldapper` (which was a great source of inspiration and useful code) supports it, the `ldapper` authors chose to rewrite lots of dependencies maintained by third parties in order to provide this feature. This does not seem like the best approach in terms of long-term support. Nonetheless, `go-ldap` (which is godap's main dependency) currently has [an open issue](https://github.com/go-ldap/ldap/issues/115) from 2017 regarding the lack of GSSAPI support. A pull request [has been merged](https://github.com/go-ldap/ldap/pull/402) in 2022 to deal with the issue on Windows platforms only, but that isn't a suitable option for this tool. I hope someone finds a solution for this issue (maybe [go-ldap/ldap/pull/449](https://github.com/go-ldap/ldap/pull/449)) that doesn't involve rewriting dependencies I won't have time to maintain :-)
 
 # License
 
