@@ -614,6 +614,9 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddTextView("Object DN", baseDN, 0, 1, false, true).
 			AddInputField("New Object DN", baseDN, 0, nil, nil).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
 			AddButton("Update", func() {
 				newObjectDN := moveObjectForm.GetFormItemByLabel("New Object DN").(*tview.InputField).GetText()
 
@@ -639,9 +642,6 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				treePanel.SetCurrentNode(otherNodeToSelect)
 				reloadAttributesPanel(otherNodeToSelect, cacheEntries)
 
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Go Back", func() {
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			})
 
