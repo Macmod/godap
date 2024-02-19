@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -16,9 +17,10 @@ import (
 type LDAPConn struct {
 	Conn       *ldap.Conn
 	PagingSize uint32
+	RootDN     string
 }
 
-func (lc LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
+func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	if lc.Conn == nil {
 		return fmt.Errorf("Current connection is invalid")
 	}
@@ -60,18 +62,18 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 	}, nil
 }
 
-func (lc LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
+func (lc *LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
 	err := lc.Conn.Bind(ldapUsername, ldapPassword)
 	return err
 }
 
-func (lc LDAPConn) NTLMBindWithHash(ntlmDomain string, ntlmUsername string, ntlmHash string) error {
+func (lc *LDAPConn) NTLMBindWithHash(ntlmDomain string, ntlmUsername string, ntlmHash string) error {
 	err := lc.Conn.NTLMBindWithHash(ntlmDomain, ntlmUsername, ntlmHash)
 	return err
 }
 
 // Search
-func (lc LDAPConn) Query(baseDN string, searchFilter string, scope int) ([]*ldap.Entry, error) {
+func (lc *LDAPConn) Query(baseDN string, searchFilter string, scope int) ([]*ldap.Entry, error) {
 	searchRequest := ldap.NewSearchRequest(
 		baseDN,
 		scope, ldap.NeverDerefAliases, 0, 0, false,
@@ -88,10 +90,11 @@ func (lc LDAPConn) Query(baseDN string, searchFilter string, scope int) ([]*ldap
 	return sr.Entries, nil
 }
 
-func (lc LDAPConn) FindRootDN() (string, error) {
+func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 	searchRequest := ldap.NewSearchRequest(
 		"",
-		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
+		ldap.ScopeBaseObject,
+		ldap.NeverDerefAliases, 0, 0, false,
 		"(objectClass=*)",
 		[]string{"namingContexts"},
 		nil,
@@ -99,19 +102,46 @@ func (lc LDAPConn) FindRootDN() (string, error) {
 
 	searchResult, err := lc.Conn.Search(searchRequest)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(searchResult.Entries) < 1 {
-		return "", fmt.Errorf("No entries found")
+		return nil, fmt.Errorf("No entries found")
 	}
 
-	rootDN := searchResult.Entries[0].GetAttributeValue("namingContexts")
+	return searchResult.Entries[0].GetAttributeValues("namingContexts"), nil
+}
+
+func (lc *LDAPConn) FindRootDN() (string, error) {
+	var rootDN string
+	avoidablePrefixes := []string{
+		"CN=Schema", "CN=Configuration",
+		"DC=DomainDnsZones", "DC=ForestDnsZones",
+	}
+
+	rDNCandidates, err := lc.FindNamingContexts()
+	if err != nil {
+		return "", err
+	}
+
+	for _, rootDNCandidate := range rDNCandidates {
+		include := true
+		for _, prefix := range avoidablePrefixes {
+			if strings.HasPrefix(rootDNCandidate, prefix) {
+				include = false
+			}
+		}
+
+		if include {
+			rootDN = rootDNCandidate
+			break
+		}
+	}
 
 	return rootDN, nil
 }
 
-func (lc LDAPConn) FindRootFQDN() (string, error) {
+func (lc *LDAPConn) FindRootFQDN() (string, error) {
 	searchRequest := ldap.NewSearchRequest(
 		"",
 		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
@@ -136,13 +166,14 @@ func (lc LDAPConn) FindRootFQDN() (string, error) {
 	return dnsRoot, nil
 }
 
-func (lc LDAPConn) QueryGroupMembers(groupName string, rootDN string) (group []*ldap.Entry, err error) {
-	groupDNQuery := fmt.Sprintf("(&(objectCategory=group)(sAMAccountName=%s))", groupName)
+func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, err error) {
+	samOrDn, isSam := SamOrDN(groupName)
 
 	groupDN := groupName
-	if !strings.Contains(groupName, ",") {
+	if isSam {
+		groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
 		groupSearch := ldap.NewSearchRequest(
-			rootDN,
+			lc.RootDN,
 			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 			groupDNQuery,
 			[]string{"distinguishedName"},
@@ -164,7 +195,7 @@ func (lc LDAPConn) QueryGroupMembers(groupName string, rootDN string) (group []*
 	ldapQuery := fmt.Sprintf("(memberOf=%s)", groupDN)
 
 	search := ldap.NewSearchRequest(
-		rootDN,
+		lc.RootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		ldapQuery,
 		[]string{"sAMAccountName", "objectCategory"},
@@ -183,18 +214,13 @@ func (lc LDAPConn) QueryGroupMembers(groupName string, rootDN string) (group []*
 	return result.Entries, nil
 }
 
-func (lc LDAPConn) QueryUserGroups(userName string, rootDN string) ([]*ldap.Entry, error) {
-	var ldapQuery string
-	if !strings.Contains(userName, ",") {
-		ldapQuery = fmt.Sprintf("(sAMAccountName=%s)", userName)
-	} else {
-		ldapQuery = fmt.Sprintf("(distinguishedName=%s)", userName)
-	}
+func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
+	samOrDn, _ := SamOrDN(userName)
 
 	search := ldap.NewSearchRequest(
-		rootDN,
+		lc.RootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		ldapQuery,
+		samOrDn,
 		[]string{"memberOf"},
 		nil,
 	)
@@ -253,7 +279,7 @@ func (c *ldapControlServerPolicyHints) String() string {
 	return "Enforce password history policies during password set: " + c.GetControlType()
 }
 
-func (lc LDAPConn) ResetPassword(objectDN string, newPassword string) error {
+func (lc *LDAPConn) ResetPassword(objectDN string, newPassword string) error {
 	utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
 	pwdEncoded, err := utf16.NewEncoder().String(fmt.Sprintf("\"%s\"", newPassword))
 	if err != nil {
@@ -303,7 +329,7 @@ func LDAPChangePassword(conn *ldap.Conn, targetDN string, oldPassword string, ne
 */
 
 // Objects
-func (lc LDAPConn) DeleteObject(targetDN string) error {
+func (lc *LDAPConn) DeleteObject(targetDN string) error {
 	var err error
 
 	deleteRequest := ldap.NewDelRequest(targetDN, nil)
@@ -316,7 +342,7 @@ func (lc LDAPConn) DeleteObject(targetDN string) error {
 	return nil
 }
 
-func (lc LDAPConn) AddGroup(objectName string, parentDN string) error {
+func (lc *LDAPConn) AddGroup(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "group"})
 	addRequest.Attribute("cn", []string{objectName})
@@ -325,7 +351,7 @@ func (lc LDAPConn) AddGroup(objectName string, parentDN string) error {
 	return lc.Conn.Add(addRequest)
 }
 
-func (lc LDAPConn) AddOrganizationalUnit(objectName string, parentDN string) error {
+func (lc *LDAPConn) AddOrganizationalUnit(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("OU="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "organizationalUnit"})
 	addRequest.Attribute("ou", []string{objectName})
@@ -333,14 +359,14 @@ func (lc LDAPConn) AddOrganizationalUnit(objectName string, parentDN string) err
 	return lc.Conn.Add(addRequest)
 }
 
-func (lc LDAPConn) AddContainer(objectName string, parentDN string) error {
+func (lc *LDAPConn) AddContainer(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "container"})
 
 	return lc.Conn.Add(addRequest)
 }
 
-func (lc LDAPConn) AddComputer(objectName string, parentDN string) error {
+func (lc *LDAPConn) AddComputer(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "computer"})
 	addRequest.Attribute("cn", []string{objectName})
@@ -350,7 +376,7 @@ func (lc LDAPConn) AddComputer(objectName string, parentDN string) error {
 	return lc.Conn.Add(addRequest)
 }
 
-func (lc LDAPConn) AddUser(objectName string, parentDN string) error {
+func (lc *LDAPConn) AddUser(objectName string, parentDN string) error {
 	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "person", "organizationalPerson", "user"})
 	addRequest.Attribute("cn", []string{objectName})
@@ -369,7 +395,7 @@ func (lc LDAPConn) AddUser(objectName string, parentDN string) error {
 }
 
 // Attributes
-func (lc LDAPConn) AddAttribute(targetDN string, attributeToAdd string, attributeValues []string) error {
+func (lc *LDAPConn) AddAttribute(targetDN string, attributeToAdd string, attributeValues []string) error {
 	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
@@ -383,7 +409,7 @@ func (lc LDAPConn) AddAttribute(targetDN string, attributeToAdd string, attribut
 	return nil
 }
 
-func (lc LDAPConn) ModifyAttribute(targetDN string, attributeToModify string, attributeValues []string) error {
+func (lc *LDAPConn) ModifyAttribute(targetDN string, attributeToModify string, attributeValues []string) error {
 	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
@@ -393,7 +419,7 @@ func (lc LDAPConn) ModifyAttribute(targetDN string, attributeToModify string, at
 	return err
 }
 
-func (lc LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) error {
+func (lc *LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) error {
 	var err error
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
@@ -403,7 +429,7 @@ func (lc LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) er
 	return err
 }
 
-func (lc LDAPConn) MoveObject(sourceDN string, targetDN string) error {
+func (lc *LDAPConn) MoveObject(sourceDN string, targetDN string) error {
 	var err error
 
 	targetRDNs := strings.Split(targetDN, ",")
@@ -423,4 +449,262 @@ func (lc LDAPConn) MoveObject(sourceDN string, targetDN string) error {
 	err = lc.Conn.ModifyDN(modifyDNRequest)
 
 	return err
+}
+
+type ControlMicrosoftSDFlags struct {
+	Criticality  bool
+	ControlValue int32
+}
+
+func (c *ControlMicrosoftSDFlags) GetControlType() string {
+	return "1.2.840.113556.1.4.801"
+}
+
+func (c *ControlMicrosoftSDFlags) Encode() *ber.Packet {
+	packet := ber.Encode(ber.ClassUniversal, ber.TypeConstructed, ber.TagSequence, nil, "Control")
+	packet.AppendChild(ber.NewString(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, "1.2.840.113556.1.4.801", "Control Type"))
+	packet.AppendChild(ber.NewBoolean(ber.ClassUniversal, ber.TypePrimitive, ber.TagBoolean, true, "Criticality"))
+	p2 := ber.Encode(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, nil, "Control Value(SDFlags)")
+	seq := ber.Encode(ber.ClassUniversal, ber.TypeConstructed, ber.TagSequence, nil, "SDFlags")
+	seq.AppendChild(ber.NewInteger(ber.ClassUniversal, ber.TypePrimitive, ber.TagInteger, c.ControlValue, "Flags"))
+	p2.AppendChild(seq)
+
+	packet.AppendChild(p2)
+	return packet
+}
+
+func (c *ControlMicrosoftSDFlags) String() string {
+	return fmt.Sprintf("Control Type: %s (%q)  Criticality: %t  Control Value: %d", "1.2.840.113556.1.4.801",
+		"1.2.840.113556.1.4.801", c.Criticality, c.ControlValue)
+}
+
+func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, err error) {
+	samOrDn, _ := SamOrDN(object)
+	searchReq := ldap.NewSearchRequest(
+		lc.RootDN,
+		ldap.ScopeWholeSubtree,
+		ldap.NeverDerefAliases, 0, 0, false,
+		samOrDn,
+		[]string{"nTSecurityDescriptor"},
+		// ControlValue=15 in order to get SACLs too
+		[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+	)
+
+	result, err := lc.Conn.Search(searchReq)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Entries) > 0 {
+		sd := result.Entries[0].GetRawAttributeValue("nTSecurityDescriptor")
+		hexSD := hex.EncodeToString(sd)
+		return hexSD, nil
+	}
+
+	return "", fmt.Errorf("Object '%s' not found", object)
+}
+
+func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
+	objectSearch := ldap.NewSearchRequest(
+		lc.RootDN,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		filter,
+		[]string{attr},
+		nil,
+	)
+
+	result, err := lc.Conn.Search(objectSearch)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Entries) == 0 {
+		return "", fmt.Errorf("Search for '%s' returned 0 results", filter)
+	}
+
+	return result.Entries[0].GetAttributeValue(attr), nil
+}
+
+func SamOrDN(object string) (string, bool) {
+	if strings.Contains(object, "=") {
+		return fmt.Sprintf("(distinguishedName=%s)", object), false
+	}
+
+	return fmt.Sprintf("(sAMAccountName=%s)", object), true
+}
+
+func (lc *LDAPConn) ModifyDACL(objectName string, newSD string) error {
+	samOrDn, isSam := SamOrDN(objectName)
+	objectDN := objectName
+	if isSam {
+		dn, err := lc.FindFirstAttr(samOrDn, "distinguishedName")
+		if err != nil {
+			return err
+		}
+		objectDN = dn
+	}
+
+	modifyReq := ldap.NewModifyRequest(
+		objectDN,
+		[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+	)
+
+	modifyReq.Replace("nTSecurityDescriptor", []string{newSD})
+
+	err := lc.Conn.Modify(modifyReq)
+	return err
+}
+
+func (lc *LDAPConn) FindSIDForObject(object string) (SID string, err error) {
+	found := false
+	wellKnownSID := ""
+	for key, val := range WellKnownSIDsMap {
+		if strings.ToLower(val) == strings.ToLower(object) {
+			found = true
+			wellKnownSID = key
+		}
+	}
+
+	if found {
+		return wellKnownSID, nil
+	}
+
+	queryFilter, _ := SamOrDN(object)
+	sidAttr, err := lc.FindFirstAttr(queryFilter, "objectSid")
+	if err == nil {
+		principalSID := ConvertSID(hex.EncodeToString([]byte(sidAttr)))
+		return principalSID, nil
+	}
+
+	return "", err
+}
+
+func (lc *LDAPConn) FindSamForSID(SID string) (resolvedSID string, err error) {
+	for entry, _ := range WellKnownSIDsMap {
+		if SID == entry {
+			return WellKnownSIDsMap[entry], nil
+		}
+	}
+
+	query := fmt.Sprintf("(objectSID=%s)", SID)
+	searchReq := ldap.NewSearchRequest(
+		lc.RootDN,
+		ldap.ScopeWholeSubtree, 0, 0, 0, false,
+		query,
+		[]string{},
+		nil,
+	)
+
+	result, err := lc.Conn.Search(searchReq)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Entries) > 0 {
+		resolvedSID = result.Entries[0].GetAttributeValues("sAMAccountName")[0]
+		return resolvedSID, nil
+	}
+
+	return "", fmt.Errorf("No entries found")
+}
+
+func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err error) {
+	domainSID, err := lc.FindSIDForObject(lc.RootDN)
+	if err != nil {
+		return "", err
+	}
+
+	query := fmt.Sprintf("(objectSID=%s)", SID)
+	searchReq := ldap.NewSearchRequest(
+		lc.RootDN,
+		ldap.ScopeWholeSubtree, 0, 0, 0, false,
+		query,
+		[]string{"primaryGroupID"},
+		nil,
+	)
+
+	result, err := lc.Conn.Search(searchReq)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Entries) > 0 {
+		resolvedRID := result.Entries[0].GetAttributeValue("primaryGroupID")
+		if resolvedRID != "" {
+			return domainSID + "-" + resolvedRID, nil
+		}
+	}
+
+	return "", fmt.Errorf("No entries found")
+}
+
+func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]string, error) {
+	extendedRights := make(map[string]string)
+
+	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject)
+	if err != nil {
+		return nil, err
+	}
+
+	configurationDN := rootDSE[0].GetAttributeValue("configurationNamingContext")
+
+	extendedEntries, err := lc.Query(
+		"CN=Extended-Rights,"+configurationDN,
+		filter,
+		ldap.ScopeSingleLevel,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range extendedEntries {
+		cn := entry.GetAttributeValue("cn")
+		guidRights := entry.GetAttributeValue("rightsGuid")
+
+		if len(guidRights) > 0 {
+			extendedRights[strings.ToLower(guidRights)] = cn
+		}
+	}
+
+	return extendedRights, nil
+}
+
+func (lc *LDAPConn) FindSchemaClassesAndAttributes() (map[string]string, map[string]string, error) {
+	classesGuids := make(map[string]string)
+	attrsGuids := make(map[string]string)
+
+	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	schemaDN := rootDSE[0].GetAttributeValue("schemaNamingContext")
+
+	schemaEntries, err := lc.Query(
+		schemaDN,
+		"(|(objectClass=attributeSchema)(objectClass=classSchema))",
+		ldap.ScopeSingleLevel,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, entry := range schemaEntries {
+		cn := entry.GetAttributeValue("cn")
+		cat := entry.GetAttributeValue("objectCategory")
+		guid := entry.GetRawAttributeValue("schemaIDGUID")
+
+		if len(guid) > 0 {
+			guidConverted := ConvertGUID(hex.EncodeToString(guid))
+			if strings.HasPrefix(cat, "CN=Class-Schema") {
+				classesGuids[strings.ToLower(guidConverted)] = cn
+			} else if strings.HasPrefix(cat, "CN=Attribute-Schema") {
+				attrsGuids[strings.ToLower(guidConverted)] = cn
+			}
+		}
+	}
+
+	return classesGuids, attrsGuids, nil
 }

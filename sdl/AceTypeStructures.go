@@ -1,172 +1,247 @@
 package sdl
 
-import "github.com/go-ldap/ldap/v3"
+//utils.HexToInt(ace.Header.ACEFlags)
+import (
+	"fmt"
 
-type ACCESS_ALLOWED_ACE struct {
-	header         *ACEHEADER
-	mask           string
-	SID            string
-	samAccountName string
+	"github.com/Macmod/godap/utils"
+)
+
+// ACE Header
+type ACEHEADER struct {
+	ACEType      string
+	ACEFlags     string
+	AceSizeBytes string
 }
 
-func (ace *ACCESS_ALLOWED_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
-	ace.header = getACEHeader(rawACE)
-	ace.mask = getACEMask(rawACE)
-	ace.SID = convertSID(rawACE[16:])
-	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
+func newACEHeader(SD string) *ACEHEADER {
+	ACEHeader := new(ACEHEADER)
+	ACEHeader.ACEType = SD[0:2]
+	ACEHeader.ACEFlags = SD[2:4]
+	ACEHeader.AceSizeBytes = SD[4:8]
+
+	return ACEHeader
 }
 
-type ACCESS_ALLOWED_OBJECT_ACE struct {
-	header              *ACEHEADER
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	samAccountName      string
+func (ah *ACEHEADER) Encode() string {
+	return ah.ACEType + ah.ACEFlags + ah.AceSizeBytes
 }
 
-func (ace *ACCESS_ALLOWED_OBJECT_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
-	ace.header = getACEHeader(rawACE)
-	ace.mask = getACEMask(rawACE)
-	ace.flags = getACEFlags((rawACE))
-	ace.objectType, ace.inheritedObjectType = getObjectAndInheritedType(rawACE, ace.flags)
+// ACE Interface
+type ACEInt interface {
+	GetHeader() *ACEHEADER
+	GetMask() int
+	GetSID() string
+	SetHeader(*ACEHEADER)
+	SetMask(int)
+	SetSID(string) error
+	Parse(string)
+	Encode() string
+}
+
+// Basic ACE (embedded in more advanced types)
+type BASIC_ACE struct {
+	Header *ACEHEADER
+	Mask   string
+	SID    string
+}
+
+func (ace *BASIC_ACE) GetHeader() *ACEHEADER {
+	return ace.Header
+}
+
+func (ace *BASIC_ACE) GetMask() int {
+	return utils.HexToInt(utils.EndianConvert(ace.Mask))
+}
+
+func (ace *BASIC_ACE) GetSID() string {
+	return utils.ConvertSID(ace.SID)
+}
+
+func (ace *BASIC_ACE) SetHeader(header *ACEHEADER) {
+	ace.Header = header
+}
+
+func (ace *BASIC_ACE) SetMask(mask int) {
+	ace.Mask = utils.EndianConvert(fmt.Sprintf("%08x", mask))
+}
+
+func (ace *BASIC_ACE) SetSID(sid string) error {
+	encodedSid, err := utils.EncodeSID(sid)
+
+	if err == nil {
+		ace.SID = encodedSid
+	}
+
+	return err
+}
+
+func (ace *BASIC_ACE) Parse(rawACE string) {
+	ace.Header = newACEHeader(rawACE)
+	ace.Mask = rawACE[8:16]
+	ace.SID = rawACE[16:]
+}
+
+func (ace *BASIC_ACE) Encode() string {
+	var s string
+	s = ace.Header.Encode()
+	s += ace.Mask
+	s += ace.SID
+	return s
+}
+
+// Object ACE (base type embedded in more advanced types)
+type OBJECT_ACE struct {
+	BASIC_ACE
+	Flags               string
+	ObjectType          string
+	InheritedObjectType string
+}
+
+func (ace *OBJECT_ACE) Parse(rawACE string) {
+	ace.Header = newACEHeader(rawACE)
+	ace.Mask = rawACE[8:16]
+	ace.Flags = rawACE[16:24]
+
+	ace.ObjectType = ""
+	ace.InheritedObjectType = ""
+
+	switch utils.EndianConvert(ace.Flags) {
+	case "00000001":
+		ace.ObjectType = rawACE[24:56]
+	case "00000002":
+		ace.InheritedObjectType = rawACE[24:56]
+	case "00000003":
+		ace.ObjectType = rawACE[24:56]
+		ace.InheritedObjectType = rawACE[56:88]
+	}
+
 	lengthBeforeSID := 24
-	if len(ace.objectType) > 0 {
+	if len(ace.ObjectType) > 0 {
 		lengthBeforeSID += 32
 	}
-	if len(ace.inheritedObjectType) > 0 {
+	if len(ace.InheritedObjectType) > 0 {
 		lengthBeforeSID += 32
 	}
-	ace.SID = convertSID(rawACE[lengthBeforeSID:])
-	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
+	ace.SID = rawACE[lengthBeforeSID:]
+}
+
+func (ace *OBJECT_ACE) Encode() string {
+	var s string
+	s = ace.Header.Encode()
+	s += ace.Mask
+	s += ace.Flags
+	s += ace.ObjectType
+	s += ace.InheritedObjectType
+	s += ace.SID
+
+	return s
+}
+
+func (ace *OBJECT_ACE) GetObjectAndInheritedType() (objectTypeGUID string, inheritedObjectTypeGUID string) {
+	switch utils.EndianConvert(ace.Flags) {
+	case "00000001":
+		objectTypeGUID = utils.ConvertGUID(ace.ObjectType)
+		inheritedObjectTypeGUID = ""
+	case "00000002":
+		inheritedObjectTypeGUID = utils.ConvertGUID(ace.InheritedObjectType)
+		objectTypeGUID = ""
+	case "00000003":
+		objectTypeGUID = utils.ConvertGUID(ace.ObjectType)
+		inheritedObjectTypeGUID = utils.ConvertGUID(ace.InheritedObjectType)
+	}
+
+	return
+}
+
+// Placeholder type for ACES that were not implemented
+// They should be kept "as-is" when parsing
+type NOTIMPL_ACE struct {
+	BASIC_ACE
+	rawHex string
+}
+
+func (ace *NOTIMPL_ACE) Parse(rawACE string) {
+	ace.rawHex = rawACE
+}
+
+func (ace *NOTIMPL_ACE) Encode() string {
+	return ace.rawHex
+}
+
+// Specific definitions
+type ACCESS_ALLOWED_ACE struct {
+	BASIC_ACE
 }
 
 type ACCESS_DENIED_ACE struct {
-	header         *ACEHEADER
-	mask           string
-	SID            string
-	samAccountName string
+	BASIC_ACE
 }
 
-func (ace *ACCESS_DENIED_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
-	ace.header = getACEHeader(rawACE)
-	ace.mask = getACEMask(rawACE)
-	ace.SID = convertSID(rawACE[16:])
-	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
+type ACCESS_ALLOWED_OBJECT_ACE struct {
+	OBJECT_ACE
 }
 
 type ACCESS_DENIED_OBJECT_ACE struct {
-	header              *ACEHEADER
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	samAccountName      string
-}
-
-func (ace *ACCESS_DENIED_OBJECT_ACE) parse(rawACE string, baseDN string, conn *ldap.Conn) {
-	ace.header = getACEHeader(rawACE)
-	ace.mask = getACEMask(rawACE)
-	ace.flags = getACEFlags((rawACE))
-	ace.objectType, ace.inheritedObjectType = getObjectAndInheritedType(rawACE, ace.flags)
-	lengthBeforeSID := 24
-	if len(ace.objectType) > 0 {
-		lengthBeforeSID += 32
-	}
-	if len(ace.inheritedObjectType) > 0 {
-		lengthBeforeSID += 32
-	}
-	ace.SID = convertSID(rawACE[lengthBeforeSID:])
-	ace.samAccountName, _ = LookupSID(conn, baseDN, ace.SID)
+	OBJECT_ACE
 }
 
 // The ACE types below seem currently useless,
 // if I figure out any use for them in the future I'll
 // consider implementing some additional logic
+
+/*
+// Callback Types
 type ACCESS_ALLOWED_CALLBACK_ACE struct {
-	header          string
-	mask            string
-	SID             string
+	BASIC_ACE
 	applicationData string
 }
 
 type ACCESS_DENIED_CALLBACK_ACE struct {
-	header          string
-	mask            string
-	SID             string
+	BASIC_ACE
 	applicationData string
 }
 
 type ACCESS_ALLOWED_CALLBACK_OBJECT_ACE struct {
-	header              string
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	applicationData     string
+	OBJECT_ACE
+	applicationData string
 }
 
 type ACCESS_DENIED_CALLBACK_OBJECT_ACE struct {
-	header              string
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	applicationData     string
+	OBJECT_ACE
+	applicationData string
 }
 
+// SACL Types
 type SYSTEM_AUDIT_ACE struct {
-	header string
-	mask   string
-	SID    string
+	BASIC_ACE
 }
 
 type SYSTEM_AUDIT_OBJECT_ACE struct {
-	header              string
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	applicationData     string
+	OBJECT_ACE
+	applicationData string
 }
 
 type SYSTEM_AUDIT_CALLBACK_ACE struct {
-	header          string
-	mask            string
-	SID             string
+	BASIC_ACE
+	applicationData string
+}
+
+type SYSTEM_AUDIT_CALLBACK_OBJECT_ACE struct {
+	OBJECT_ACE
 	applicationData string
 }
 
 type SYSTEM_MANDATORY_LABEL_ACE struct {
-	header string
-	mask   string
-	SID    string
-}
-
-type SYSTEM_AUDIT_CALLBACK_OBJECT_ACE struct {
-	header              string
-	mask                string
-	flags               string
-	objectType          string
-	inheritedObjectType string
-	SID                 string
-	applicationData     string
+	BASIC_ACE
 }
 
 type SYSTEM_RESOURCE_ATTRIBUTE_ACE struct {
-	header        string
-	mask          string
-	SID           string
+	BASIC_ACE
 	attributeData string
 }
 
 type SYSTEM_SCOPED_POLICY_ID_ACE struct {
-	header string
-	mask   string
-	SID    string
+	BASIC_ACE
 }
+*/

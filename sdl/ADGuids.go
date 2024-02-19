@@ -1,6 +1,14 @@
 package sdl
 
-var controlAccessRightMap = map[string]string{
+var ValidatedWriteGuids = map[string]string{
+	"bf9679c0-0de6-11d0-a285-00aa003049e2": "Self-Membership",
+	"72e39547-7b18-11d1-adef-00c04fd8d5cd": "Validated-DNS-Host-Name",
+	"80863791-dbe9-4eb8-837e-7f0ab55d9ac7": "Validated-MS-DS-Additional-DNS-Host-Name",
+	"d31a8757-2447-4545-8081-3bb610cacbf2": "Validated-MS-DS-Behavior-Version",
+	"f3a64788-5306-11d1-a9c5-0000f80367c1": "Validated-SPN",
+}
+
+var ExtendedGuids = map[string]string{
 	"ee914b82-0a98-11d1-adbb-00c04fd8d5cd": "Abandon-Replication",
 	"440820ad-65b4-11d1-a3da-0000f875ae0d": "Add-GUID",
 	"1abd7cf8-0a99-11d1-adbb-00c04fd8d5cd": "Allocate-Rids",
@@ -65,7 +73,7 @@ var controlAccessRightMap = map[string]string{
 	"9b026da6-0d3c-465c-8bee-5199d7165cba": "DS-Validated-Write-Computer",
 }
 
-var attributesGuidMap = map[string]string{
+var AttributeGuids = map[string]string{
 	"0003508e-9c42-4a76-a8f4-38bf64bab0de": "msWMI-Parm2",
 	"00fbf30c-91fe-11d1-aebc-0000f80367c1": "altSecurityIdentities",
 	"00fbf30d-91fe-11d1-aebc-0000f80367c1": "isCriticalSystemObject",
@@ -673,8 +681,7 @@ var attributesGuidMap = map[string]string{
 	"7184a120-3ac4-47ae-848f-fe0ab20784d4": "msDS-AzApplicationVersion",
 	"720bc4e2-a54a-11d0-afdf-00c04fd930c9": "defaultGroup",
 	"72dc918a-ccee-11d2-9993-0000f87a57d4": "mS-SQL-UnicodeSortOrder",
-	// The raw dNSHostName was removed in favor of its property set at the bottom of this map
-	// "72e39547-7b18-11d1-adef-00c04fd8d5cd": "dNSHostName",
+	"72e39547-7b18-11d1-adef-00c04fd8d5cd": "dNSHostName",
 	"7330af36-8e6d-4223-a1ed-aef51d73ee6c": "sourceObjectGuid",
 	"7359a352-90f7-11d1-aebc-0000f80367c1": "lDAPAdminLimits",
 	"7359a353-90f7-11d1-aebc-0000f80367c1": "lDAPIPDenyList",
@@ -1623,24 +1630,27 @@ var attributesGuidMap = map[string]string{
 	"ff739e9c-6bb7-460e-b221-e250f3de0f95": "msTSMaxIdleTime",
 	"ff9e5552-7db7-4138-8888-05ce320a0323": "msDNS-NSEC3HashAlgorithm",
 	"ffadb4b2-de39-11d1-90a5-00c04fd91ab1": "mSMQSiteName",
-	"c7407360-20bf-11d0-a768-00aa006e0529": "Domain password & lockout policies", // Property set
-	"59ba2f42-79a2-11d0-9020-00c04fc2d3cf": "General information",                // Property set
-	"4c164200-20c0-11d0-a768-00aa006e0529": "Account restrictions",               // Property set
-	"5f202010-79a5-11d0-9020-00c04fc2d4cf": "Logon information",                  // Property set
-	"bc0ac240-79a9-11d0-9020-00c04fc2d4cf": "Group membership",                   // Property set
-	"e45795b2-9455-11d1-aebd-0000f80367c1": "Phone and mail options",             // Property set
-	"77b5b886-944a-11d1-aebd-0000f80367c1": "Personal information",               // Property set
-	"e45795b3-9455-11d1-aebd-0000f80367c1": "Web information",                    // Property set
-	"e48d0154-bcf8-11d1-8702-00c04fb96050": "Public information",                 // Property set
-	"037088f8-0ae1-11d2-b422-00a0c968f939": "Remote access information",          // Property set
-	"b8119fd0-04f6-4762-ab7a-4986c76b3f9a": "Other domain parameters",            // Property set
-	"72e39547-7b18-11d1-adef-00c04fd8d5cd": "DNS Hostname attributes",            // Property set
-	"ffa6f046-ca4b-4feb-b40d-04dfee722543": "MS-TS-GatewayAccess",                // Property set
-	"91e647de-d96f-4b70-9557-d63ff4f3ccd8": "Private Information",                // Property set
-	"5805bc62-bdc9-4428-a5e2-856a0f4c185e": "Terminal server license server",     // Property set
 }
 
-var classesGuidMap = map[string]string{
+var PropertySetGuids = map[string]string{
+	"c7407360-20bf-11d0-a768-00aa006e0529": "Domain password & lockout policies",
+	"59ba2f42-79a2-11d0-9020-00c04fc2d3cf": "General information",
+	"4c164200-20c0-11d0-a768-00aa006e0529": "Account restrictions",
+	"5f202010-79a5-11d0-9020-00c04fc2d4cf": "Logon information",
+	"bc0ac240-79a9-11d0-9020-00c04fc2d4cf": "Group membership",
+	"e45795b2-9455-11d1-aebd-0000f80367c1": "Phone and mail options",
+	"77b5b886-944a-11d1-aebd-0000f80367c1": "Personal information",
+	"e45795b3-9455-11d1-aebd-0000f80367c1": "Web information",
+	"e48d0154-bcf8-11d1-8702-00c04fb96050": "Public information",
+	"037088f8-0ae1-11d2-b422-00a0c968f939": "Remote access information",
+	"b8119fd0-04f6-4762-ab7a-4986c76b3f9a": "Other domain parameters",
+	"72e39547-7b18-11d1-adef-00c04fd8d5cd": "DNS Hostname attributes",
+	"ffa6f046-ca4b-4feb-b40d-04dfee722543": "MS-TS-GatewayAccess",
+	"91e647de-d96f-4b70-9557-d63ff4f3ccd8": "Private Information",
+	"5805bc62-bdc9-4428-a5e2-856a0f4c185e": "Terminal server license server",
+}
+
+var ClassGuids = map[string]string{
 	"0310a911-93a3-4e21-a7a3-55d85ab2c48b": "groupOfUniqueNames",
 	"04828aa9-6e42-4e80-b962-e2fe00754d17": "msDFSR-Topology",
 	"05630000-3927-4ede-bf27-ca91f275c26f": "msWMI-WMIGPO",

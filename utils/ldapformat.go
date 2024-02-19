@@ -19,8 +19,10 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 
 	for idx, val := range attr.Values {
 		switch attr.Name {
-		case "objectGUID", "objectSid":
-			formattedEntries = []string{"HEX{" + hex.EncodeToString(attr.ByteValues[idx]) + "}"}
+		case "objectSid":
+			formattedEntries = []string{"SID{" + ConvertSID(hex.EncodeToString(attr.ByteValues[idx])) + "}"}
+		case "objectGUID", "schemaIDGUID":
+			formattedEntries = []string{"GUID{" + ConvertGUID(hex.EncodeToString(attr.ByteValues[idx])) + "}"}
 		case "whenCreated", "whenChanged":
 			layout := "20060102150405.0Z"
 			t, err := time.Parse(layout, val)

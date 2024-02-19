@@ -1,6 +1,6 @@
 package sdl
 
-var aceTypeMap = map[int]string{
+var AceTypeMap = map[int]string{
 	0x00: "ACCESS_ALLOWED_ACE_TYPE",
 	0x01: "ACCESS_DENIED_ACE_TYPE",
 	0x02: "SYSTEM_AUDIT_ACE_TYPE",
@@ -23,7 +23,7 @@ var aceTypeMap = map[int]string{
 	0x13: "SYSTEM_SCOPED_POLICY_ID_ACE_TYPE",
 }
 
-var aceFlagsMap = map[string]int{
+var AceFlagsMap = map[string]int{
 	"CONTAINER_INHERIT_ACE":      0x02,
 	"FAILED_ACCESS_ACE_FLAG":     0x80,
 	"INHERIT_ONLY_ACE":           0x08,
@@ -33,7 +33,7 @@ var aceFlagsMap = map[string]int{
 	"SUCCESSFUL_ACCESS_ACE_FLAG": 0x40,
 }
 
-var accessRightsMap = map[string]int{
+var AccessRightsMap = map[string]int{
 	"RIGHT_DS_CREATE_CHILD":   0x00000001,
 	"RIGHT_DS_DELETE_CHILD":   0x00000002,
 	"RIGHT_DS_LIST_CONTENTS":  0x00000004,
@@ -53,7 +53,7 @@ var accessRightsMap = map[string]int{
 	"GENERIC_EXECUTE":         0x00020004,
 }
 
-var objectTypeMap = map[int]string{
+var ObjectTypeMap = map[int]string{
 	0x00000100: "ADS_RIGHT_DS_CONTROL_ACCESS",
 	0x00000001: "ADS_RIGHT_DS_CREATE_CHILD",
 	0x00000002: "ADS_RIGHT_DS_DELETE_CHILD",
@@ -62,43 +62,8 @@ var objectTypeMap = map[int]string{
 	0x00000008: "ADS_RIGHT_DS_SELF",
 }
 
-var inheritedObjectTypeMap = map[int]string{
+var InheritedObjectTypeMap = map[int]string{
 	0x00000000: "",
 	0x00000001: "ACE_OBJECT_TYPE_PRESENT",
 	0x00000002: "ACE_INHERITED_OBJECT_TYPE_PRESENT",
-}
-
-var wellKnownSIDsMap = map[string]string{
-	"S-1-0-0":    "Null SID",
-	"S-1-1-0":    "Everyone",
-	"S-1-2-0":    "Local",
-	"S-1-2-1":    "Console Logon",
-	"S-1-3-0":    "Creator Owner ID",
-	"S-1-3-1":    "Creator Group ID",
-	"S-1-3-2":    "Creator Owner Server",
-	"S-1-3-3":    "Creator Group Server",
-	"S-1-3-4":    "Owner Rights",
-	"S-1-4":      "Non-Unique Authority",
-	"S-1-5":      "NT Authority",
-	"S-1-5-80-0": "All Services",
-	"S-1-5-1":    "Dialup",
-	"S-1-5-113":  "Local Account",
-	"S-1-5-114":  "Local account and member of Administrators group",
-	"S-1-5-2":    "Network",
-	"S-1-5-3":    "Batch",
-	"S-1-5-4":    "Interactive",
-	"S-1-5-6":    "Serivce",
-	"S-1-5-7":    "Anonymous Logon",
-	"S-1-5-8":    "Proxy",
-	"S-1-5-9":    "Enterprise Domain Controllers",
-	"S-1-5-10":   "Self",
-	"S-1-5-11":   "Authenticated Users",
-	"S-1-5-12":   "Restricted Code",
-	"S-1-5-13":   "Terminal Server User",
-	"S-1-5-14":   "Remote Interactive Logon",
-	"S-1-5-15":   "This Organization",
-	"S-1-5-17":   "IUSR",
-	"S-1-5-18":   "SYSTEM",
-	"S-1-5-19":   "NT Authority (LocalService)",
-	"S-1-5-20":   "Network Service",
 }
