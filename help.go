@@ -7,8 +7,8 @@ import (
 var helpPage *tview.Flex
 var keybindingsPanel *tview.Table
 
-func InitHelpPage() {
-	helpText := `
+func initHelpPage() {
+	helpText := `[blue]
  _______  _______  ______   _______  _______ 
 (  ____ \(  ___  )(  __  \ (  ___  )(  ____ )
 | (    \/| (   ) || (  \  )| (   ) || (    )|
@@ -18,7 +18,7 @@ func InitHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v1.7.0
+v2.0.0 - Ace of Spades
 `
 
 	keybindings := [][]string{
@@ -30,22 +30,29 @@ v1.7.0
 		{"l / L", "Global", "Change current server address & credentials"},
 		{"r / R", "Global", "Reconnect to the server"},
 		{"u / U", "Global", "Upgrade connection to use TLS (with StartTLS)"},
-		{"Ctrl + e / E", "Attributes panel", "Edit the selected attribute of the selected object"},
-		{"Ctrl + n / N", "Attributes panel", "Create a new attribute in the selected object"},
 		{"Ctrl + n / N", "Explorer panel", "Create a new object under the selected object"},
 		{"Ctrl + s / S", "Explorer panel", "Export all loaded nodes in the selected subtree into a JSON file"},
 		{"Ctrl + p / P", "Explorer panel", "Change the password of the selected user or computer account"},
 		{"Ctrl + a / A", "Explorer panel", "Update the userAccountControl of the object interactively"},
 		{"Ctrl + l / L", "Explorer panel", "Move the selected object to another location"},
-		{"Delete", "Explorer/attributes panel", "Deletes the selected object or attribute"},
+		{"Delete", "Explorer panel", "Delete the selected object"},
+		{"Ctrl + e / E", "Attributes panel", "Edit the selected attribute of the selected object"},
+		{"Ctrl + n / N", "Attributes panel", "Create a new attribute in the selected object"},
+		{"Delete", "Attributes panel", "Delete the selected attribute of the selected object"},
+		{"Ctrl + o / O", "DACL page", "Change the owner of the current DACL"},
+		{"Ctrl + k / K", "DACL page", "Change the control flags of the current DACL"},
+		{"Ctrl + n / N", "DACL entries panel", "Create a new ACE in the current DACL"},
+		{"Ctrl + e / E", "DACL entries panel", "Edit the selected ACE of the current DACL"},
+		{"Delete", "DACL entries panel", "Deletes the selected ACE of the current DACL"},
 		{"h / H", "Global", "Show/hide headers"},
 		{"q", "Global", "Exit the program"},
 	}
 
 	// Create a table
 	keybindingsPanel = tview.NewTable().
-		SetBorders(true).
-		SetSelectable(true, false)
+		SetSelectable(true, false).
+		SetEvaluateAllRows(true).
+		SetFixed(1, 0)
 
 	headers := []string{"Keybinding", "Context", "Action"}
 	for col, header := range headers {
@@ -74,7 +81,6 @@ v1.7.0
 	frame := tview.NewFrame(keybindingsPanel)
 	frame.SetBorders(0, 0, 0, 0, 0, 0).
 		SetTitleAlign(tview.AlignCenter).
-		SetBorder(true).
 		SetTitle(" Keybindings ")
 
 	helpPage = tview.NewFlex().

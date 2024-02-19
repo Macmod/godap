@@ -4,6 +4,18 @@
 
 `godap` is a complete TUI for LDAP written in Golang.
 
+# Summary
+
+* [Screenshots](https://github.com/Macmod/godap?tab=readme-ov-file#screenshots)
+* [Features](https://github.com/Macmod/godap?tab=readme-ov-file#features)
+* [Installation](https://github.com/Macmod/godap?tab=readme-ov-file#installation)
+* [Usage](https://github.com/Macmod/godap?tab=readme-ov-file#usage)
+   * [Flags](https://github.com/Macmod/godap?tab=readme-ov-file#flags)
+   * [Keybindings](https://github.com/Macmod/godap?tab=readme-ov-file#keybindings)
+* [Contributing](https://github.com/Macmod/godap?tab=readme-ov-file#contributing)
+* [Acknowledgements](https://github.com/Macmod/godap?tab=readme-ov-file#acknowledgements)
+* [Disclaimers](https://github.com/Macmod/godap?tab=readme-ov-file#disclaimers)
+
 # Screenshots
 
 ![images/page1.png](images/page1.png)
@@ -16,19 +28,18 @@
 
 # Features
 
-* Formats date/time, boolean and other categorical attributes into readable text
-* Supports changing the search filter & base DN for the query
-* LDAPS & StartTLS support
-* Pretty colors & cool emojis
-* Quick explorer that loads objects on demand
-* Recursive object search bundled with useful saved searches
-* Group members & user groups lookup
-* Supports creation, editing and removal of objects and attributes
-* Supports moving and renaming objects
-* Supports exporting specific subtrees of the directory into JSON files
-* Interactive userAccountControl editor
-* DACL viewer
-* SOCKS support
+* 🗒️ Formats date/time, boolean and other categorical attributes into readable text
+* 😎 Pretty colors & cool emojis
+* 🔐 LDAPS & StartTLS support
+* ⏩ Fast explorer that loads objects on demand
+* 🔎 Recursive object search bundled with useful saved searches
+* 👥 Group members & user groups lookup
+* 🎡 Supports creation, editing and removal of objects and attributes
+* 🚙 Supports moving and renaming objects
+* 📁 Supports exporting specific subtrees of the directory into JSON files
+* 🕹️ Interactive userAccountControl editor
+* 🔥 Interactive DACL editor
+* 🧦 SOCKS support
 
 # Installation
 
@@ -102,26 +113,32 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 
 ## Keybindings
 
-| Keybinding                        | Context                                                     | Action                                                   |
-| --------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
-| `Ctrl` + `J`                      | Global                                                      | Next panel                                                   |
-| `f` / `F`                         | Global                                                      | Toggle attribute formatting                                  |
-| `e` / `E`                         | Global                                                      | Toggle emojis                                                |
-| `c` / `C`                         | Global                                                      | Toggle colors                                                |
-| `a` / `A`                         | Global                                                      | Toggle attribute expansion for multi-value attributes        |
-| `l` / `L`                           | Global                                                      | Change current server address & credentials                  |
-| `r` / `R`                           | Global                                                      | Reconnect to the server                                       |
-| `u` / `U`                           | Global                                                      | Upgrade connection to use TLS (with StartTLS)                |
-| `Ctrl` + `e / E`                  | Attributes panel                                             | Edit the selected attribute of the selected object           |
-| `Ctrl` + `n / N` | Attributes panel                                             | Create a new attribute in the selected object                |
-| `Ctrl` + `n / N` | Explorer panel                                              | Create a new object under the selected object                 |
-| `Ctrl` + `s / S`  | Explorer panel                                              | Export all loaded nodes in the selected subtree into a JSON file   |
-| `Ctrl` + `p / P`                  | Explorer panel                              | Change the password of the selected user or computer account  |
-| `Ctrl` + `a / A`                  | Explorer panel                              | Update the userAccountControl of the object interactively |
-| `Ctrl` + `l / L`                  | Explorer panel                              | Move the selected object to another location |
-| `Delete`                          | Explorer/attributes panel        | Deletes the selected object or attribute                      |
-| `h` / `H`                               | Global                                                      | Show/hide headers                                             |
-| `q`                               | Global                                                      | Exit the program                                              |
+| Keybinding                        | Context                                                           | Action                                                        |
+| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| `Ctrl` + `J`                      | Global                                                            | Next panel                                                    |
+| `f` / `F`                         | Global                                                            | Toggle attribute formatting                                   |
+| `e` / `E`                         | Global                                                            | Toggle emojis                                                 |
+| `c` / `C`                         | Global                                                            | Toggle colors                                                 |
+| `a` / `A`                         | Global                                                            | Toggle attribute expansion for multi-value attributes         |
+| `l` / `L`                         | Global                                                            | Change current server address & credentials                   |
+| `r` / `R`                         | Global                                                            | Reconnect to the server                                       |
+| `u` / `U`                         | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| `Ctrl` + `n / N`                  | Explorer panel                                                    | Create a new object under the selected object                 |
+| `Ctrl` + `s / S`                  | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file |
+| `Ctrl` + `p / P`                  | Explorer panel                                                    | Change the password of the selected user or computer account  |
+| `Ctrl` + `a / A`                  | Explorer panel                                                    | Update the userAccountControl of the object interactively     |
+| `Ctrl` + `l / L`                  | Explorer panel                                                    | Move the selected object to another location                  |
+| `Delete`                          | Explorer panel                                                    | Delete the selected object                                    |
+| `Ctrl` + `e / E`                  | Attributes panel                                                  | Edit the selected attribute of the selected object            |
+| `Ctrl` + `n / N`                  | Attributes panel                                                  | Create a new attribute in the selected object                 |
+| `Delete`                          | Attributes panel                                                  | Delete the selected attribute of the selected object          |
+| `Ctrl` + `o / O`                  | DACL page                                                         | Change the owner of the current DACL                          |
+| `Ctrl` + `k / K`                  | DACL page                                                         | Change the control flags of the current DACL                  |
+| `Ctrl` + `n / N`                  | DACL entries panel                                                | Create a new ACE in the current DACL                          |
+| `Ctrl` + `e / E`                  | DACL entries panel                                                | Edit the selected ACE of the current DACL                     |
+| `Delete`                          | DACL entries panel                                                | Deletes the selected ACE of the current DACL                  |
+| `h` / `H`                         | Global                                                            | Show/hide headers                                             |
+| `q`                               | Global                                                            | Exit the program                                              |
 
 # Contributing
 
@@ -136,9 +153,10 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 
 * [BadBlood](https://github.com/davidprowe/BadBlood) was also very useful for testing during the development of the tool.
 
-# Disclaimer
+# Disclaimers
 
-I'm not prioritizing Kerberos authentication at the moment. Although `ldapper` (which was a great source of inspiration and useful code) supports it, the `ldapper` authors chose to rewrite lots of dependencies maintained by third parties in order to provide this feature. This does not seem like the best approach in terms of long-term support. Nonetheless, `go-ldap` (which is godap's main dependency) currently has [an open issue](https://github.com/go-ldap/ldap/issues/115) from 2017 regarding the lack of GSSAPI support. A pull request [has been merged](https://github.com/go-ldap/ldap/pull/402) in 2022 to deal with the issue on Windows platforms only, but that isn't a suitable option for this tool. I hope someone finds a solution for this issue (maybe [go-ldap/ldap/pull/449](https://github.com/go-ldap/ldap/pull/449)) that doesn't involve rewriting dependencies I won't have time to maintain :-)
+* I'm not prioritizing Kerberos authentication at the moment. Although `ldapper` (which was a great source of inspiration and useful code) supports it, the `ldapper` authors chose to rewrite lots of dependencies maintained by third parties in order to provide this feature. This does not seem like the best approach in terms of long-term support. Nonetheless, `go-ldap` (which is godap's main dependency) currently has [an open issue](https://github.com/go-ldap/ldap/issues/115) from 2017 regarding the lack of GSSAPI support. A pull request [has been merged](https://github.com/go-ldap/ldap/pull/402) in 2022 to deal with the issue on Windows platforms only, but that isn't a suitable option for this tool. I hope someone finds a solution for this issue (maybe [go-ldap/ldap/pull/449](https://github.com/go-ldap/ldap/pull/449)) that doesn't involve rewriting dependencies I won't have time to maintain :-)
+* All features were tested and seem to be working properly on a Windows Server 2019 lab, but this tool is highly experimental and I cannot test it extensively - I don't take responsibility for modifications that you execute and end up impacting your environment. If you observe any unexpected behaviors please [let me know](https://github.com/Macmod/godap/issues/new) so I can try to fix it.
 
 # License
 
