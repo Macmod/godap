@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Macmod/godap/utils"
@@ -15,7 +16,7 @@ var groupMembersPanel *tview.Table
 var userNameInput *tview.InputField
 var userGroupsPanel *tview.Table
 
-func InitGroupPage() {
+func initGroupPage() {
 	groupNameInput = tview.NewInputField()
 	groupNameInput.
 		SetFieldBackgroundColor(tcell.GetColor("black")).
@@ -39,6 +40,7 @@ func InitGroupPage() {
 		cellId, ok := cell.GetReference().(string)
 		if ok {
 			userNameInput.SetText(cellId)
+			app.SetFocus(userNameInput)
 		}
 	})
 
@@ -52,6 +54,7 @@ func InitGroupPage() {
 		cellId, ok := cell.GetReference().(string)
 		if ok {
 			groupNameInput.SetText(cellId)
+			app.SetFocus(groupNameInput)
 		}
 	})
 
@@ -73,7 +76,7 @@ func InitGroupPage() {
 	groupNameInput.SetDoneFunc(func(key tcell.Key) {
 		groupMembersPanel.Clear()
 
-		entries, err := lc.QueryGroupMembers(groupNameInput.GetText(), rootDN)
+		entries, err := lc.QueryGroupMembers(groupNameInput.GetText())
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
@@ -104,20 +107,24 @@ func InitGroupPage() {
 			groupMembersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
 		}
 
-		updateLog("Group members query executed successfully", "green")
+		groupMembersPanel.Select(0, 0)
+		groupMembersPanel.ScrollToBeginning()
+		app.SetFocus(groupMembersPanel)
+		updateLog("Members query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
 	})
 
 	userNameInput.SetDoneFunc(func(key tcell.Key) {
 		userGroupsPanel.Clear()
 
-		entries, err := lc.QueryUserGroups(userNameInput.GetText(), rootDN)
+		entries, err := lc.QueryUserGroups(userNameInput.GetText())
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
 		}
 
-		for _, entry := range entries {
-			memberOf := entry.GetAttributeValues("memberOf")
+		var memberOf []string
+		if len(entries) > 0 {
+			memberOf = entries[0].GetAttributeValues("memberOf")
 
 			for idx, group := range memberOf {
 				userGroupsPanel.SetCell(idx, 0, tview.NewTableCell(group).SetReference(group))
@@ -125,7 +132,10 @@ func InitGroupPage() {
 			}
 		}
 
-		updateLog("User groups query executed successfully", "green")
+		userGroupsPanel.Select(0, 0)
+		userGroupsPanel.ScrollToBeginning()
+		app.SetFocus(userGroupsPanel)
+		updateLog("Groups query completed ("+strconv.Itoa(len(memberOf))+" objects found)", "green")
 	})
 }
 

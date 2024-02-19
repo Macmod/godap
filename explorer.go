@@ -21,7 +21,7 @@ var attrsPanel *tview.Table
 var rootDNInput *tview.InputField
 var searchFilterInput *tview.InputField
 
-func InitExplorerPage() {
+func initExplorerPage() {
 	treePanel = tview.NewTreeView()
 
 	rootNode = renderPartialTree(rootDN, searchFilter)
@@ -52,7 +52,7 @@ func InitExplorerPage() {
 	})
 
 	rootDNInput.SetDoneFunc(func(key tcell.Key) {
-		rootDN = rootDNInput.GetText()
+		lc.RootDN = rootDNInput.GetText()
 		reloadPage()
 	})
 
@@ -128,6 +128,14 @@ func findEntryInChildren(dn string, parent *tview.TreeNode) int {
 	return -1
 }
 
+func handleEscapeToTree(event *tcell.EventKey) *tcell.EventKey {
+	if event.Key() == tcell.KeyEscape {
+		app.SetRoot(appPanel, true).SetFocus(treePanel)
+		return nil
+	}
+	return event
+}
+
 func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	currentNode := treePanel.GetCurrentNode()
 	if currentNode == nil {
@@ -185,12 +193,17 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		app.SetRoot(promptModal, false).SetFocus(promptModal)
 	case tcell.KeyCtrlN:
 		baseDN := currentNode.GetReference().(string)
+
 		createObjectForm := tview.NewForm().
 			AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
 			AddInputField("Object Name", "", 0, nil, nil).
 			AddInputField("Parent DN", baseDN, 0, nil, nil)
+		createObjectForm.SetInputCapture(handleEscapeToTree)
 
 		createObjectForm.
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+			}).
 			AddButton("Create", func() {
 				// Note: It should be possible to walk upwards in the tree
 				//   to find the first place where it's possible to place the object
@@ -238,9 +251,6 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				treePanel.SetCurrentNode(currentNode)
 
 				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			}).
-			AddButton("Cancel", func() {
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
 			})
 
 		createObjectForm.SetTitle("Object Creator").SetBorder(true)
@@ -270,6 +280,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		baseDN := currentNode.GetReference().(string)
 
 		updateUacForm := tview.NewForm()
+		updateUacForm.SetInputCapture(handleEscapeToTree)
 		updateUacForm.SetItemPadding(0)
 
 		var checkboxState int = 0
@@ -307,11 +318,13 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					if uacPreview != nil {
 						uacPreview.SetText(strconv.Itoa(checkboxState))
 					}
-				},
-			)
+				}).SetFieldBackgroundColor(tcell.GetColor("black"))
 		}
 
 		updateUacForm.
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, true).SetFocus(treePanel)
+			}).
 			AddButton("Update", func() {
 				strCheckboxState := strconv.Itoa(checkboxState)
 				err := lc.ModifyAttribute(baseDN, "userAccountControl", []string{strCheckboxState})
@@ -332,9 +345,6 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				app.SetRoot(appPanel, true).SetFocus(treePanel)
 
 				treePanel.SetCurrentNode(siblings[idx])
-			}).
-			AddButton("Cancel", func() {
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
 			})
 
 		updateUacForm.SetTitle("userAccountControl Editor").SetBorder(true)
@@ -384,6 +394,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		}
 
 		createAttrForm := tview.NewForm()
+		createAttrForm.SetInputCapture(handleEscapeToTree)
 
 		baseDN := currentNode.GetReference().(string)
 
@@ -392,6 +403,9 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddInputField("Attribute Name", "", 20, nil, nil).
 			AddInputField("Attribute Value", "", 20, nil, nil).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
 			AddButton("Create", func() {
 				attrName := createAttrForm.GetFormItemByLabel("Attribute Name").(*tview.InputField).GetText()
 				attrVal := createAttrForm.GetFormItemByLabel("Attribute Value").(*tview.InputField).GetText()
@@ -408,13 +422,32 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			}).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
 			SetTitle("Attribute Creator").
 			SetBorder(true)
 
 		app.SetRoot(createAttrForm, true).SetFocus(createAttrForm)
+	case tcell.KeyDown:
+		selectedRow, _ := attrsPanel.GetSelection()
+		s := selectedRow
+		for s < attrsPanel.GetRowCount() && attrsPanel.GetCell(s, 0).Text == "" {
+			s = s + 1
+		}
+
+		if s != selectedRow {
+			attrsPanel.Select(s, 0)
+			return nil
+		}
+	case tcell.KeyUp:
+		selectedRow, _ := attrsPanel.GetSelection()
+		s := selectedRow
+		for s > 0 && attrsPanel.GetCell(s, 0).Text == "" {
+			s = s - 1
+		}
+
+		if s != selectedRow {
+			attrsPanel.Select(s, 0)
+			return nil
+		}
 	}
 
 	return event
@@ -447,6 +480,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Key() {
 	case tcell.KeyCtrlE:
 		writeAttrValsForm := tview.NewForm()
+		writeAttrValsForm.SetInputCapture(handleEscapeToTree)
 
 		attrRow, _ := attrsPanel.GetSelection()
 		baseDN := currentNode.GetReference().(string)
@@ -501,6 +535,9 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				useHexEncoding = checked
 			}).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
 			AddButton("Update", func() {
 				newValue := writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
 				if useHexEncoding {
@@ -538,21 +575,22 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				reloadAttributesPanel(currentNode, cacheEntries)
 
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			})
 
 		writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
 		app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
 	case tcell.KeyCtrlP:
 		changePasswordForm := tview.NewForm()
+		changePasswordForm.SetInputCapture(handleEscapeToTree)
 
 		baseDN := currentNode.GetReference().(string)
 		changePasswordForm = changePasswordForm.
 			AddTextView("Object DN", baseDN, 0, 1, false, true).
 			AddPasswordField("New Password", "", 20, '*', nil).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
 			AddButton("Update", func() {
 				newPassword := changePasswordForm.GetFormItemByLabel("New Password").(*tview.InputField).GetText()
 
@@ -563,9 +601,6 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					updateLog("Password changed: "+baseDN, "green")
 				}
 
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Go Back", func() {
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			})
 
