@@ -275,17 +275,25 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 		return nil
 	}
 
-	rootEntries, err := lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel)
+	rootNodeName := getNodeName(rootEntry[0])
+	if rootDN == "" {
+		rootNodeName += "RootDSE"
+	}
 
+	rootNode = tview.NewTreeNode(rootNodeName).
+		SetReference(rootDN).
+		SetSelectable(true)
+
+	if rootDN == "" {
+		return rootNode
+	}
+
+	var rootEntries []*ldap.Entry
+	rootEntries, err = lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return nil
 	}
-
-	// Emojis
-	rootNode = tview.NewTreeNode(getNodeName(rootEntry[0])).
-		SetReference(rootDN).
-		SetSelectable(true)
 
 	// Sort results to guarantee stable view
 	sort.Slice(rootEntries, func(i int, j int) bool {
@@ -307,6 +315,11 @@ func reloadPage() {
 
 	clear(loadedDNs)
 
-	rootNode = renderPartialTree(rootDN, searchFilter)
+	rootNode = renderPartialTree(lc.RootDN, searchFilter)
+	if rootNode != nil {
+		numChildren := len(rootNode.GetChildren())
+		updateLog("Tree updated successfully ("+strconv.Itoa(numChildren)+" objects found)", "green")
+	}
+
 	treePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 }
