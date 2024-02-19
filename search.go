@@ -22,7 +22,7 @@ var (
 
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
 
-func InitSearchPage() {
+func initSearchPage() {
 	searchQueryPanel = tview.NewInputField().
 		SetFieldBackgroundColor(tcell.GetColor("black"))
 	searchQueryPanel.SetTitle("Search Filter (Recursive)").SetBorder(true)
@@ -45,7 +45,7 @@ func InitSearchPage() {
 		nowTimestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
 		editedQuery := strings.Replace(
 			strings.Replace(
-				query, "DC=domain,DC=com", rootDN, -1,
+				query, "DC=domain,DC=com", lc.RootDN, -1,
 			),
 			"<timestamp>", nowTimestamp, -1,
 		)
@@ -91,22 +91,22 @@ func InitSearchPage() {
 
 func searchQueryDoneHandler(key tcell.Key) {
 	updateLog("Performing recursive query...", "yellow")
-	rootNode := tview.NewTreeNode(rootDN).SetSelectable(false)
+	rootNode := tview.NewTreeNode(lc.RootDN).SetSelectable(false)
 	searchTreePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 
 	clear(searchLoadedDNs)
 
 	searchQuery := searchQueryPanel.GetText()
-	entries, _ := lc.Query(rootDN, searchQuery, ldap.ScopeWholeSubtree)
+	entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree)
 
 	for _, entry := range entries {
-		if entry.DN == rootDN {
+		if entry.DN == lc.RootDN {
 			continue
 		}
 
 		var nodeName string
 		entryName := getNodeName(entry)
-		dnPath := strings.TrimSuffix(entry.DN, ","+rootDN)
+		dnPath := strings.TrimSuffix(entry.DN, ","+lc.RootDN)
 
 		components := strings.Split(dnPath, ",")
 		currentNode := searchTreePanel.GetRoot()
@@ -136,7 +136,7 @@ func searchQueryDoneHandler(key tcell.Key) {
 		}
 	}
 
-	updateLog("Query completed", "green")
+	updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
 }
 
 func searchPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
