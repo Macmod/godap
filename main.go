@@ -121,7 +121,7 @@ func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
-	if event.Key() == tcell.KeyEscape || event.Rune() == 'q' {
+	if event.Rune() == 'q' {
 		app.Stop()
 		return nil
 	}
@@ -179,6 +179,13 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		}
 	case 'l', 'L':
 		credsForm := tview.NewForm()
+		credsForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+			if event.Key() == tcell.KeyEscape {
+				app.SetRoot(appPanel, true).SetFocus(appPanel)
+				return nil
+			}
+			return event
+		})
 
 		credsForm = credsForm.
 			AddInputField("Server", ldapServer, 20, nil, nil).
@@ -189,7 +196,10 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			AddCheckbox("IgnoreCert", insecure, nil).
 			AddInputField("SOCKSProxy", socksServer, 20, nil, nil).
 			SetFieldBackgroundColor(tcell.GetColor("black")).
-			AddButton("Save", func() {
+			AddButton("Go Back", func() {
+				app.SetRoot(appPanel, false).SetFocus(treePanel)
+			}).
+			AddButton("Update", func() {
 				ldapServer = credsForm.GetFormItemByLabel("Server").(*tview.InputField).GetText()
 				ldapPort, _ = strconv.Atoi(credsForm.GetFormItemByLabel("Port").(*tview.InputField).GetText())
 				ldapUsername = credsForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
@@ -200,9 +210,6 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 				socksServer = credsForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
 
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Cancel", func() {
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			})
 
@@ -323,13 +330,14 @@ func setupApp() {
 			log.Fatal(err)
 		}
 	}
+	lc.RootDN = rootDN
 
 	// Pages setup
-	InitExplorerPage()
-	InitSearchPage()
-	InitGroupPage()
-	InitDaclPage()
-	InitHelpPage()
+	initExplorerPage()
+	initSearchPage()
+	initGroupPage()
+	initDaclPage()
+	initHelpPage()
 
 	pages.AddPage("page-0", explorerPage, true, true)
 
@@ -354,8 +362,8 @@ func setupApp() {
 
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 1, "0", "LDAP Explorer")
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 2, "1", "Object Search")
-	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 3, "2", "Groups")
-	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 4, "3", "DACLs")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 3, "2", "Group Lookups")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 4, "3", "DACL Editor")
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 5, "4", "Help")
 
 	info.Highlight("0")
