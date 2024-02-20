@@ -428,25 +428,24 @@ func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		app.SetRoot(createAttrForm, true).SetFocus(createAttrForm)
 	case tcell.KeyDown:
 		selectedRow, _ := attrsPanel.GetSelection()
-		s := selectedRow
+
+		s := selectedRow + 1
 		for s < attrsPanel.GetRowCount() && attrsPanel.GetCell(s, 0).Text == "" {
 			s = s + 1
 		}
 
 		if s != selectedRow {
-			attrsPanel.Select(s, 0)
-			return nil
+			attrsPanel.Select(s-1, 0)
 		}
 	case tcell.KeyUp:
 		selectedRow, _ := attrsPanel.GetSelection()
-		s := selectedRow
+		s := selectedRow - 1
 		for s > 0 && attrsPanel.GetCell(s, 0).Text == "" {
 			s = s - 1
 		}
 
 		if s != selectedRow {
-			attrsPanel.Select(s, 0)
-			return nil
+			attrsPanel.Select(s+1, 0)
 		}
 	}
 
