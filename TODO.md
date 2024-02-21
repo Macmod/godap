@@ -1,6 +1,5 @@
 # TODO (priority)
 
-* Fix: Long searches in search page are blocking the UI
 * Feature: Monitor object for real-time changes
 * Feature: Keybinding to refresh the page contents
 

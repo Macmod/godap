@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Macmod/godap/utils"
@@ -18,6 +19,8 @@ var (
 	searchLibraryPanel *tview.List
 	treeFlex           *tview.Flex
 	searchPage         *tview.Flex
+	runControl         sync.Mutex
+	running            bool
 )
 
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
@@ -42,6 +45,14 @@ func initSearchPage() {
 		searchLibraryPanel.AddItem(key, query, 'o', nil)
 	}
 	searchLibraryPanel.SetSelectedFunc(func(idx int, key string, query string, ch rune) {
+		runControl.Lock()
+		if running {
+			runControl.Unlock()
+			updateLog("Another query is still running...", "yellow")
+			return
+		}
+		runControl.Unlock()
+
 		nowTimestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
 		editedQuery := strings.Replace(
 			strings.Replace(
@@ -49,6 +60,7 @@ func initSearchPage() {
 			),
 			"<timestamp>", nowTimestamp, -1,
 		)
+
 		searchQueryPanel.SetText(editedQuery)
 		searchQueryDoneHandler(tcell.KeyEnter)
 	})
@@ -91,52 +103,71 @@ func initSearchPage() {
 
 func searchQueryDoneHandler(key tcell.Key) {
 	updateLog("Performing recursive query...", "yellow")
+
 	rootNode := tview.NewTreeNode(lc.RootDN).SetSelectable(false)
 	searchTreePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 
 	clear(searchLoadedDNs)
 
 	searchQuery := searchQueryPanel.GetText()
-	entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree)
 
-	for _, entry := range entries {
-		if entry.DN == lc.RootDN {
-			continue
+	go func() {
+		runControl.Lock()
+		if running {
+			runControl.Unlock()
+			return
 		}
+		running = true
+		runControl.Unlock()
 
-		var nodeName string
-		entryName := getNodeName(entry)
-		dnPath := strings.TrimSuffix(entry.DN, ","+lc.RootDN)
+		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree)
 
-		components := strings.Split(dnPath, ",")
-		currentNode := searchTreePanel.GetRoot()
-
-		for i := len(components) - 1; i >= 0; i-- {
-			//attribute := strings.Split(components[i], "=")[0]
-			//value := strings.Split(components[i], "=")[1]
-
-			partialDN := strings.Join(components[i:], ",")
-
-			childNode, ok := searchLoadedDNs[partialDN]
-			if !ok {
-				if i == 0 {
-					nodeName = entryName
-				} else {
-					nodeName = components[i]
-				}
-
-				childNode = tview.NewTreeNode(nodeName).
-					SetSelectable(true).
-					SetExpanded(true)
-				currentNode.AddChild(childNode)
-				searchLoadedDNs[partialDN] = childNode
+		for _, entry := range entries {
+			if entry.DN == lc.RootDN {
+				continue
 			}
 
-			currentNode = childNode
-		}
-	}
+			var nodeName string
+			entryName := getNodeName(entry)
+			dnPath := strings.TrimSuffix(entry.DN, ","+lc.RootDN)
 
-	updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+			components := strings.Split(dnPath, ",")
+			currentNode := searchTreePanel.GetRoot()
+
+			for i := len(components) - 1; i >= 0; i-- {
+				//attribute := strings.Split(components[i], "=")[0]
+				//value := strings.Split(components[i], "=")[1]
+
+				partialDN := strings.Join(components[i:], ",")
+
+				childNode, ok := searchLoadedDNs[partialDN]
+				if !ok {
+					if i == 0 {
+						nodeName = entryName
+					} else {
+						nodeName = components[i]
+					}
+
+					childNode = tview.NewTreeNode(nodeName).
+						SetSelectable(true).
+						SetExpanded(true)
+					currentNode.AddChild(childNode)
+					app.Draw()
+
+					searchLoadedDNs[partialDN] = childNode
+				}
+
+				currentNode = childNode
+			}
+		}
+
+		updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+		app.Draw()
+
+		runControl.Lock()
+		running = false
+		runControl.Unlock()
+	}()
 }
 
 func searchPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
