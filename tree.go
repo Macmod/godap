@@ -69,7 +69,7 @@ func loadChildren(node *tview.TreeNode) {
 
 	// Sort results to guarantee stable view
 	sort.Slice(entries, func(i int, j int) bool {
-		return entries[i].GetAttributeValue("name") < entries[j].GetAttributeValue("name")
+		return getName(entries[i]) < getName(entries[j])
 	})
 
 	attrsPanel.Clear()
@@ -207,6 +207,36 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 	return nil
 }
 
+func getName(entry *ldap.Entry) string {
+	nameIds := []string{"cn", "ou", "dc", "name"}
+	objectName := ""
+	for _, nameId := range nameIds {
+		currentId := entry.GetAttributeValue(nameId)
+
+		if currentId != "" {
+			objectName = currentId
+			break
+		}
+	}
+
+	return objectName
+}
+
+func getDN(entry *ldap.Entry) string {
+	dnIds := []string{"distinguishedName", "dn"}
+	dn := ""
+	for _, dnId := range dnIds {
+		currentId := entry.GetAttributeValue(dnId)
+
+		if currentId != "" {
+			dn = currentId
+			break
+		}
+	}
+
+	return dn
+}
+
 func getNodeName(entry *ldap.Entry) string {
 	var classEmojisBuf bytes.Buffer
 	var emojisPrefix string
@@ -230,21 +260,20 @@ func getNodeName(entry *ldap.Entry) string {
 	}
 
 	if emojis {
-		return emojisPrefix + entry.GetAttributeValue("name")
+		return emojisPrefix + getName(entry)
 	}
 
-	dn := entry.GetAttributeValue("distinguishedName")
-
+	dn := getDN(entry)
 	if isDomain {
 		return dn
-	} else {
-		dnParts := strings.Split(dn, ",")
-		if len(dnParts) > 0 {
-			return dnParts[0]
-		}
 	}
 
-	return entry.GetAttributeValue("name")
+	dnParts := strings.Split(dn, ",")
+	if len(dnParts) > 0 {
+		return dnParts[0]
+	}
+
+	return dn
 }
 
 func updateEmojis() {
@@ -297,7 +326,7 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 
 	// Sort results to guarantee stable view
 	sort.Slice(rootEntries, func(i int, j int) bool {
-		return rootEntries[i].GetAttributeValue("name") < rootEntries[j].GetAttributeValue("name")
+		return getName(rootEntries[i]) < getName(rootEntries[j])
 	})
 
 	for _, entry := range rootEntries {
