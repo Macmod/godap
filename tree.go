@@ -247,7 +247,7 @@ func getNodeName(entry *ldap.Entry) string {
 	objectClasses := entry.GetAttributeValues("objectClass")
 	isDomain := false
 	for _, objectClass := range objectClasses {
-		if objectClass == "domain" {
+		if objectClass == "domain" || objectClass == "dcObject" {
 			isDomain = true
 		}
 
