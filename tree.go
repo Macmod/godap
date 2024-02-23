@@ -223,14 +223,17 @@ func getName(entry *ldap.Entry) string {
 }
 
 func getDN(entry *ldap.Entry) string {
-	dnIds := []string{"distinguishedName", "dn"}
-	dn := ""
-	for _, dnId := range dnIds {
-		currentId := entry.GetAttributeValue(dnId)
+	dn := entry.DN
 
-		if currentId != "" {
-			dn = currentId
-			break
+	if dn == "" {
+		dnIds := []string{"distinguishedName", "dn"}
+		for _, dnId := range dnIds {
+			currentId := entry.GetAttributeValue(dnId)
+
+			if currentId != "" {
+				dn = currentId
+				break
+			}
 		}
 	}
 
