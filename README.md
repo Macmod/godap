@@ -155,8 +155,9 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 
 # Disclaimers
 
+* Although some features might work with OpenLDAP (mainly in the explorer/search pages), the main focus of this tool is Active Directory.
+* All features were tested and seem to be working properly on a Windows Server 2019, but this tool is highly experimental and I cannot test it extensively - I don't take responsibility for modifications that you execute and end up impacting your environment. If you observe any unexpected behaviors please [let me know](https://github.com/Macmod/godap/issues/new) so I can try to fix it.
 * I'm not prioritizing Kerberos authentication at the moment. Although `ldapper` (which was a great source of inspiration and useful code) supports it, the `ldapper` authors chose to rewrite lots of dependencies maintained by third parties in order to provide this feature. This does not seem like the best approach in terms of long-term support. Nonetheless, `go-ldap` (which is godap's main dependency) currently has [an open issue](https://github.com/go-ldap/ldap/issues/115) from 2017 regarding the lack of GSSAPI support. A pull request [has been merged](https://github.com/go-ldap/ldap/pull/402) in 2022 to deal with the issue on Windows platforms only, but that isn't a suitable option for this tool. I hope someone finds a solution for this issue (maybe [go-ldap/ldap/pull/449](https://github.com/go-ldap/ldap/pull/449)) that doesn't involve rewriting dependencies I won't have time to maintain :-)
-* All features were tested and seem to be working properly on a Windows Server 2019 lab, but this tool is highly experimental and I cannot test it extensively - I don't take responsibility for modifications that you execute and end up impacting your environment. If you observe any unexpected behaviors please [let me know](https://github.com/Macmod/godap/issues/new) so I can try to fix it.
 
 # License
 
