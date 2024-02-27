@@ -405,9 +405,11 @@ func setupApp() {
 }
 
 func main() {
+	godapVer := "Godap v2.1.0"
+
 	rootCmd := &cobra.Command{
-		Use:   "godap",
-		Short: "A complete TUI for LDAP written in Golang.",
+		Use:   "godap <server address>",
+		Short: "A complete TUI for LDAP.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			ldapServer = args[0]
@@ -451,6 +453,17 @@ func main() {
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
 	rootCmd.Flags().StringVarP(&socksServer, "socks", "x", "", "Use a SOCKS proxy for initial connection")
+
+	versionCmd := &cobra.Command{
+		Use:                   "version",
+		Short:                 "Print the version number of the application",
+		DisableFlagsInUseLine: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(godapVer)
+		},
+	}
+
+	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
