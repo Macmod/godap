@@ -29,9 +29,11 @@ var (
 	groupPrincipal       string
 )
 
-func initDaclPage() {
+func initDaclPage(loadSchema bool) {
 	loadRightVars()
-	loadSchemaVars()
+	if loadSchema {
+		loadSchemaVars()
+	}
 
 	objectNameInputDacl = tview.NewInputField()
 	objectNameInputDacl.
