@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Macmod/godap/utils"
+	"github.com/Macmod/godap/v2/utils"
 )
 
 // ACL

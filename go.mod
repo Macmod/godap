@@ -1,4 +1,4 @@
-module github.com/Macmod/godap
+module github.com/Macmod/godap/v2
 
 go 1.21.4
 

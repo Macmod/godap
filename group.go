@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Macmod/godap/utils"
+	"github.com/Macmod/godap/v2/utils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
