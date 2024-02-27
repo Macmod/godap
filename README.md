@@ -44,9 +44,7 @@
 # Installation
 
 ```bash
-$ git clone https://github.com/Macmod/godap
-$ cd godap
-$ go install .
+go install github.com/Macmod/godap/v2@latest
 ```
 
 # Usage
