@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/github/go-mod/go-version/Macmod/godap) ![](https://img.shields.io/github/languages/code-size/Macmod/godap) ![](https://img.shields.io/github/license/Macmod/godap) ![](https://img.shields.io/github/actions/workflow/status/Macmod/godap/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/Macmod/godap)](https://goreportcard.com/report/github.com/Macmod/godap)
 
-`godap` is a complete TUI for LDAP written in Golang.
+`godap` is a complete TUI for LDAP.
 
 # Summary
 
@@ -77,11 +77,11 @@ To use LDAPS for the initial connection (ignoring certificate validation) run:
 $ godap <hostname or IP> [bind flags] -S -I -P 636
 ```
 
-To use StartTLS to upgrade an existing connection to use TLS, use the `u` keybinding inside godap.
+To use StartTLS to upgrade an existing connection to use TLS, use the `Ctrl + u` keybinding inside godap.
 
 Notice that, if the server certificate is not trusted by your client, you must either have started godap with `-I` to use the upgrade command properly or toggle the `IgnoreCert` checkbox using the `l` keybinding before upgrading.
 
-If LDAPS is available, you can also change the port using `l`, toggle the LDAPS checkbox, set the desired value for `IgnoreCert`, and reconnect with `r`.
+If LDAPS is available, you can also change the port using `l`, toggle the LDAPS checkbox, set the desired value for `IgnoreCert`, and reconnect with `Ctrl + r`.
 
 **SOCKS**
 
