@@ -72,33 +72,35 @@ func loadIntoCache(source map[string]string, reverse map[string]string, values *
 	}
 }
 
-func loadSchemaVars() {
-	// Get classes and attributes
-	classes, attrs, err := lc.FindSchemaClassesAndAttributes()
-	if err == nil {
-		for key, val := range classes {
-			sdl.ClassGuids[key] = val
+func loadSchemaVars(includeCurSchema bool) {
+	if includeCurSchema {
+		// Get classes and attributes
+		classes, attrs, err := lc.FindSchemaClassesAndAttributes()
+		if err == nil {
+			for key, val := range classes {
+				sdl.ClassGuids[key] = val
+			}
+
+			for key, val := range attrs {
+				// Are property sets being included here?
+				sdl.AttributeGuids[key] = val
+			}
 		}
 
-		for key, val := range attrs {
-			// Are property sets being included here?
-			sdl.AttributeGuids[key] = val
+		// Get extended rights
+		extendedRights, err := lc.FindSchemaControlAccessRights("(validAccesses=256)")
+		if err == nil {
+			for key, val := range extendedRights {
+				sdl.ExtendedGuids[key] = val
+			}
 		}
-	}
 
-	// Get extended rights
-	extendedRights, err := lc.FindSchemaControlAccessRights("(validAccesses=256)")
-	if err == nil {
-		for key, val := range extendedRights {
-			sdl.ExtendedGuids[key] = val
-		}
-	}
-
-	// Get validated writes
-	validatedWriteRights, err := lc.FindSchemaControlAccessRights("(validAccesses=8)")
-	if err == nil {
-		for key, val := range validatedWriteRights {
-			sdl.ValidatedWriteGuids[key] = val
+		// Get validated writes
+		validatedWriteRights, err := lc.FindSchemaControlAccessRights("(validAccesses=8)")
+		if err == nil {
+			for key, val := range validatedWriteRights {
+				sdl.ValidatedWriteGuids[key] = val
+			}
 		}
 	}
 
