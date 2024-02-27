@@ -6,15 +6,15 @@
 
 # Summary
 
-* [Screenshots](https://github.com/Macmod/godap?tab=readme-ov-file#screenshots)
-* [Features](https://github.com/Macmod/godap?tab=readme-ov-file#features)
-* [Installation](https://github.com/Macmod/godap?tab=readme-ov-file#installation)
-* [Usage](https://github.com/Macmod/godap?tab=readme-ov-file#usage)
-   * [Flags](https://github.com/Macmod/godap?tab=readme-ov-file#flags)
-   * [Keybindings](https://github.com/Macmod/godap?tab=readme-ov-file#keybindings)
-* [Contributing](https://github.com/Macmod/godap?tab=readme-ov-file#contributing)
-* [Acknowledgements](https://github.com/Macmod/godap?tab=readme-ov-file#acknowledgements)
-* [Disclaimers](https://github.com/Macmod/godap?tab=readme-ov-file#disclaimers)
+* [Screenshots](https://github.com/Macmod/godap#screenshots)
+* [Features](https://github.com/Macmod/godap#features)
+* [Installation](https://github.com/Macmod/godap#installation)
+* [Usage](https://github.com/Macmod/godap#usage)
+   * [Flags](https://github.com/Macmod/godap#flags)
+   * [Keybindings](https://github.com/Macmod/godap#keybindings)
+* [Contributing](https://github.com/Macmod/godap#contributing)
+* [Acknowledgements](https://github.com/Macmod/godap#acknowledgements)
+* [Disclaimers](https://github.com/Macmod/godap#disclaimers)
 
 # Screenshots
 
@@ -87,8 +87,6 @@ To connect to LDAP through a SOCKS proxy include the flag `-x schema://ip:port`,
 
 You can also change the address of your proxy using the `l` keybinding.
 
-Note that when using a proxy you might want to consider including the `-M` flag (enable cache) to avoid a terribly slow UI.
-
 ## Flags
 
 * `-u`,`--username` - Username for bind
@@ -102,7 +100,7 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 * `-A`,`--expand` - Expand multi-value attributes (default: `true`, to change use `-expand=false`)
 * `-L`,`--limit` - Number of attribute values to render for multi-value attributes when `-expand` is `true` (default: `20`)
 * `-F`,`--format` - Format attributes into human-readable values (default: `true`, to change use `-format=false`)
-* `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `false`)
+* `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `true`)
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
 * `-G`,`--paging` - Paging size for regular queries (default: `800`)
@@ -110,25 +108,28 @@ Note that when using a proxy you might want to consider including the `-M` flag 
 * `-H`,`--hashes` - Hashes for NTLM bind
 * `--hashfile` - Path to a file containing the hashes for NTLM bind
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
+* `-k`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 
 ## Keybindings
 
 | Keybinding                        | Context                                                           | Action                                                        |
 | --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
-| `Ctrl` + `J`                      | Global                                                            | Next panel                                                    |
+| `Ctrl` + `Enter` (or `Ctrl` + `J`) | Global                                                            | Next panel                                                    |
 | `f` / `F`                         | Global                                                            | Toggle attribute formatting                                   |
 | `e` / `E`                         | Global                                                            | Toggle emojis                                                 |
 | `c` / `C`                         | Global                                                            | Toggle colors                                                 |
 | `a` / `A`                         | Global                                                            | Toggle attribute expansion for multi-value attributes         |
 | `l` / `L`                         | Global                                                            | Change current server address & credentials                   |
-| `r` / `R`                         | Global                                                            | Reconnect to the server                                       |
-| `u` / `U`                         | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| `Ctrl` + `r / R`                         | Global                                                            | Reconnect to the server                                       |
+| `Ctrl` + `u / U`                         | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| `r` / `R`                         | Explorer panel   | Reload the attributes and children of the selected object |
 | `Ctrl` + `n / N`                  | Explorer panel                                                    | Create a new object under the selected object                 |
 | `Ctrl` + `s / S`                  | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file |
 | `Ctrl` + `p / P`                  | Explorer panel                                                    | Change the password of the selected user or computer account  |
 | `Ctrl` + `a / A`                  | Explorer panel                                                    | Update the userAccountControl of the object interactively     |
 | `Ctrl` + `l / L`                  | Explorer panel                                                    | Move the selected object to another location                  |
 | `Delete`                          | Explorer panel                                                    | Delete the selected object                                    |
+| `r` / `R`                         | Attributes panel                                                  | Reload the attributes for the selected object    |
 | `Ctrl` + `e / E`                  | Attributes panel                                                  | Edit the selected attribute of the selected object            |
 | `Ctrl` + `n / N`                  | Attributes panel                                                  | Create a new attribute in the selected object                 |
 | `Delete`                          | Attributes panel                                                  | Delete the selected attribute of the selected object          |

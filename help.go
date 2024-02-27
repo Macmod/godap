@@ -18,7 +18,7 @@ func initHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v2.0.0 - Ace of Spades
+v2.1.0
 `
 
 	keybindings := [][]string{

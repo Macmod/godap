@@ -13,10 +13,8 @@ import (
 	"github.com/rivo/tview"
 )
 
-var loadedDNs map[string]*ldap.Entry = make(map[string]*ldap.Entry)
-
 func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
-	_, ok := loadedDNs[entry.DN]
+	_, ok := cache.Get(entry.DN)
 
 	if !ok {
 		nodeName := getNodeName(entry)
@@ -32,7 +30,7 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 			node.SetColor(tcell.GetColor("red"))
 		}
 
-		loadedDNs[entry.DN] = entry
+		cache.Add(entry.DN, entry)
 
 		node.SetExpanded(false)
 		return node
@@ -53,7 +51,7 @@ func unloadChildren(parentNode *tview.TreeNode) {
 
 	for _, child := range children {
 		childDN := child.GetReference().(string)
-		delete(loadedDNs, childDN)
+		cache.Delete(childDN)
 		parentNode.RemoveChild(child)
 	}
 }
@@ -72,29 +70,8 @@ func loadChildren(node *tview.TreeNode) {
 		return getName(entries[i]) < getName(entries[j])
 	})
 
-	attrsPanel.Clear()
-
 	for _, entry := range entries {
 		childNode := createTreeNodeFromEntry(entry)
-
-		attributes := entry.Attributes
-
-		row := 0
-		for _, attribute := range attributes {
-			attrsPanel.SetCell(row, 0,
-				tview.NewTableCell(attribute.Name))
-
-			col := 1
-			for _, value := range attribute.Values {
-				myCell := tview.NewTableCell(value)
-
-				attrsPanel.SetCell(row, col, myCell)
-
-				col = col + 1
-			}
-
-			row = row + 1
-		}
 
 		if childNode != nil {
 			node.AddChild(childNode)
@@ -112,8 +89,10 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 
 	baseDN := ref.(string)
 
+	attrsPanel.Clear()
+
 	if useCache {
-		entry, ok := loadedDNs[baseDN]
+		entry, ok := cache.Get(baseDN)
 		if ok {
 			attributes = entry.Attributes
 		} else {
@@ -131,12 +110,10 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 		}
 
 		entry := entries[0]
-		loadedDNs[baseDN] = entry
+		cache.Add(baseDN, entry)
 
 		attributes = entry.Attributes
 	}
-
-	attrsPanel.Clear()
 
 	row := 0
 	for _, attribute := range attributes {
@@ -204,6 +181,10 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 		}
 	}
 
+	attrsPanel.ScrollToBeginning()
+	go func() {
+		app.Draw()
+	}()
 	return nil
 }
 
@@ -281,10 +262,11 @@ func getNodeName(entry *ldap.Entry) string {
 
 func updateEmojis() {
 	rootNode := treePanel.GetRoot()
+
 	rootNode.Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
 		ref := node.GetReference()
 		if ref != nil {
-			entry, ok := loadedDNs[ref.(string)]
+			entry, ok := cache.Get(ref.(string))
 
 			if ok {
 				node.SetText(getNodeName(entry))
@@ -306,6 +288,8 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 		updateLog("Root entry not found.", "red")
 		return nil
 	}
+
+	cache.Add(rootDN, rootEntry[0])
 
 	rootNodeName := getNodeName(rootEntry[0])
 	if rootDN == "" {
@@ -344,8 +328,7 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 
 func reloadPage() {
 	attrsPanel.Clear()
-
-	clear(loadedDNs)
+	cache.Clear()
 
 	rootNode = renderPartialTree(lc.RootDN, searchFilter)
 	if rootNode != nil {

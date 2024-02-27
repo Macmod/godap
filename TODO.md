@@ -1,7 +1,7 @@
 # TODO (priority)
 
 * Feature: Monitor object for real-time changes
-* Feature: Keybinding to refresh the page contents
+* Feature: Load initial cache from file
 
 # TODO (later)
 

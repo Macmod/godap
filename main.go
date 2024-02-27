@@ -33,6 +33,7 @@ var (
 	formatAttrs  bool
 	expandAttrs  bool
 	cacheEntries bool
+	loadSchema   bool
 	pagingSize   uint32
 	insecure     bool
 	ldaps        bool
@@ -63,8 +64,6 @@ var (
 
 var attrLimit int
 
-var pageCount = 5
-
 var app = tview.NewApplication()
 
 var pages = tview.NewPages()
@@ -76,13 +75,17 @@ var insecureTlsConfig = &tls.Config{InsecureSkipVerify: true}
 var secureTlsConfig = &tls.Config{InsecureSkipVerify: false}
 
 func updateStateBox(target *tview.TextView, control bool) {
-	if control {
-		target.SetText("ON")
-		target.SetTextColor(tcell.GetColor("green"))
-	} else {
-		target.SetText("OFF")
-		target.SetTextColor(tcell.GetColor("red"))
-	}
+	go func() {
+		app.QueueUpdateDraw(func() {
+			if control {
+				target.SetText("ON")
+				target.SetTextColor(tcell.GetColor("green"))
+			} else {
+				target.SetText("OFF")
+				target.SetTextColor(tcell.GetColor("red"))
+			}
+		})
+	}()
 }
 
 func updateLog(msg string, color string) {
@@ -116,7 +119,7 @@ func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	if event.Key() == tcell.KeyCtrlJ {
-		dstPage := (page + 1) % pageCount
+		dstPage := (page + 1) % pages.GetPageCount()
 		info.Highlight(strconv.Itoa(dstPage))
 		return nil
 	}
@@ -165,9 +168,6 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		if node != nil {
 			reloadAttributesPanel(node, cacheEntries)
 		}
-	case 'r', 'R':
-		// TODO: Check possible race conditions
-		go setupLDAPConn()
 	case 'h', 'H':
 		showHeader = !showHeader
 		if showHeader {
@@ -215,7 +215,10 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 		credsForm.SetTitle("Connection Config").SetBorder(true)
 		app.SetRoot(credsForm, true).SetFocus(credsForm)
-	case 'u', 'U':
+	}
+
+	switch event.Key() {
+	case tcell.KeyCtrlU:
 		// TODO: Check possible race conditions
 		go func() {
 			err = lc.UpgradeToTLS(tlsConfig)
@@ -228,6 +231,9 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 			updateStateBox(statusPanel, err == nil)
 		}()
+	case tcell.KeyCtrlR:
+		// TODO: Check possible race conditions
+		go setupLDAPConn()
 	}
 
 	return event
@@ -336,7 +342,7 @@ func setupApp() {
 	initExplorerPage()
 	initSearchPage()
 	initGroupPage()
-	initDaclPage()
+	initDaclPage(loadSchema)
 	initHelpPage()
 
 	pages.AddPage("page-0", explorerPage, true, true)
@@ -439,7 +445,8 @@ func main() {
 	rootCmd.Flags().BoolVarP(&formatAttrs, "format", "F", true, "Format attributes into human-readable values")
 	rootCmd.Flags().BoolVarP(&expandAttrs, "expand", "A", true, "Expand multi-value attributes")
 	rootCmd.Flags().IntVarP(&attrLimit, "limit", "L", 20, "Number of attribute values to render for multi-value attributes when -expand is set true")
-	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", false, "Keep loaded entries in memory while the program is open and don't query them again")
+	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", true, "Keep loaded entries in memory while the program is open and don't query them again")
+	rootCmd.Flags().BoolVarP(&loadSchema, "schema", "k", false, "Load schema GUIDs from the LDAP server during initialization")
 	rootCmd.Flags().Uint32VarP(&pagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
