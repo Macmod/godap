@@ -1,7 +1,12 @@
 # TODO (priority)
 
-* Feature: Monitor object for real-time changes
+* Fix: TUI colors should be predictable to avoid strange colors in custom terminals
+* Feature: Find deleted objects in Object Search
+* Feature: Predefined query for legacy password fields in Object Search
+* Feature: Custom themes
 * Feature: Load initial cache from file
+* Feature: Attributes viewer in Object Search
+* Feature: Monitor object for real-time changes
 
 # TODO (later)
 
