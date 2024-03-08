@@ -1,20 +1,21 @@
 # godap
 
-![](https://img.shields.io/github/go-mod/go-version/Macmod/godap) ![](https://img.shields.io/github/languages/code-size/Macmod/godap) ![](https://img.shields.io/github/license/Macmod/godap) ![](https://img.shields.io/github/actions/workflow/status/Macmod/godap/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/Macmod/godap)](https://goreportcard.com/report/github.com/Macmod/godap)
+![GitHub Release](https://img.shields.io/github/v/release/Macmod/godap) ![](https://img.shields.io/github/go-mod/go-version/Macmod/godap) ![](https://img.shields.io/github/languages/code-size/Macmod/godap) ![](https://img.shields.io/github/license/Macmod/godap) ![](https://img.shields.io/github/actions/workflow/status/Macmod/godap/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/Macmod/godap)](https://goreportcard.com/report/github.com/Macmod/godap) ![GitHub Downloads](https://img.shields.io/github/downloads/Macmod/godap/total)
 
 `godap` is a complete TUI for LDAP.
 
 # Summary
 
-* [Screenshots](https://github.com/Macmod/godap#screenshots)
-* [Features](https://github.com/Macmod/godap#features)
-* [Installation](https://github.com/Macmod/godap#installation)
-* [Usage](https://github.com/Macmod/godap#usage)
-   * [Flags](https://github.com/Macmod/godap#flags)
-   * [Keybindings](https://github.com/Macmod/godap#keybindings)
-* [Contributing](https://github.com/Macmod/godap#contributing)
-* [Acknowledgements](https://github.com/Macmod/godap#acknowledgements)
-* [Disclaimers](https://github.com/Macmod/godap#disclaimers)
+* [Screenshots](#screenshots)
+* [Features](#features)
+* [Installation](#installation)
+* [Usage](#usage)
+   * [Flags](#flags)
+   * [Keybindings](#keybindings)
+* [Tree Colors](#tree-colors)
+* [Contributing](#contributing)
+* [Acknowledgements](#acknowledgements)
+* [Disclaimers](#disclaimers)
 
 # Screenshots
 
