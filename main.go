@@ -12,6 +12,7 @@ import (
 
 	"github.com/Macmod/godap/v2/utils"
 	"github.com/gdamore/tcell/v2"
+	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
 	"h12.io/socks"
@@ -33,8 +34,10 @@ var (
 	formatAttrs  bool
 	expandAttrs  bool
 	cacheEntries bool
+	deleted      bool
 	loadSchema   bool
 	pagingSize   uint32
+	timeout      int32
 	insecure     bool
 	ldaps        bool
 	searchFilter string
@@ -54,12 +57,13 @@ var (
 	rootNode    *tview.TreeNode
 	logPanel    *tview.TextView
 
-	formatFlagPanel *tview.TextView
-	emojiFlagPanel  *tview.TextView
-	colorFlagPanel  *tview.TextView
-	expandFlagPanel *tview.TextView
-	tlsPanel        *tview.TextView
-	statusPanel     *tview.TextView
+	statusPanel      *tview.TextView
+	tlsPanel         *tview.TextView
+	formatFlagPanel  *tview.TextView
+	emojiFlagPanel   *tview.TextView
+	colorFlagPanel   *tview.TextView
+	expandFlagPanel  *tview.TextView
+	deletedFlagPanel *tview.TextView
 )
 
 var attrLimit int
@@ -132,6 +136,135 @@ func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
+func toggleFlagF() {
+	formatAttrs = !formatAttrs
+	updateStateBox(formatFlagPanel, formatAttrs)
+
+	nodeExplorer := treePanel.GetCurrentNode()
+	if nodeExplorer != nil {
+		reloadExplorerAttrsPanel(nodeExplorer, cacheEntries)
+	}
+
+	nodeSearch := searchTreePanel.GetCurrentNode()
+	if nodeSearch != nil {
+		reloadSearchAttrsPanel(nodeSearch, cacheEntries)
+	}
+}
+
+func toggleFlagE() {
+	emojis = !emojis
+	updateStateBox(emojiFlagPanel, emojis)
+	updateEmojis()
+}
+
+func toggleFlagC() {
+	colors = !colors
+	updateStateBox(colorFlagPanel, colors)
+
+	nodeExplorer := treePanel.GetCurrentNode()
+	if nodeExplorer != nil {
+		reloadExplorerAttrsPanel(nodeExplorer, cacheEntries)
+	}
+
+	nodeSearch := searchTreePanel.GetCurrentNode()
+	if nodeSearch != nil {
+		reloadSearchAttrsPanel(nodeSearch, cacheEntries)
+	}
+}
+
+func toggleFlagA() {
+	expandAttrs = !expandAttrs
+	updateStateBox(expandFlagPanel, expandAttrs)
+	nodeExplorer := treePanel.GetCurrentNode()
+	if nodeExplorer != nil {
+		reloadExplorerAttrsPanel(nodeExplorer, cacheEntries)
+	}
+
+	nodeSearch := searchTreePanel.GetCurrentNode()
+	if nodeSearch != nil {
+		reloadSearchAttrsPanel(nodeSearch, cacheEntries)
+	}
+}
+
+func toggleFlagD() {
+	deleted = !deleted
+	updateStateBox(deletedFlagPanel, deleted)
+}
+
+func toggleHeader() {
+	showHeader = !showHeader
+	if showHeader {
+		appPanel.RemoveItem(headerPanel)
+	} else {
+		appPanel.RemoveItem(pages)
+		appPanel.AddItem(headerPanel, 3, 0, false)
+		appPanel.AddItem(pages, 0, 8, false)
+	}
+}
+
+func upgradeStartTLS() {
+	// TODO: Check possible race conditions
+	go func() {
+		err = lc.UpgradeToTLS(tlsConfig)
+		if err != nil {
+			updateLog(fmt.Sprint(err), "red")
+		} else {
+			updateLog("StartTLS request successful", "green")
+			updateStateBox(tlsPanel, true)
+		}
+
+		updateStateBox(statusPanel, err == nil)
+	}()
+}
+
+func reconnectLdap() {
+	// TODO: Check possible race conditions
+	go setupLDAPConn()
+}
+
+func openConfigForm() {
+	credsForm := NewXForm()
+	credsForm.
+		AddInputField("Server", ldapServer, 20, nil, nil).
+		AddInputField("Port", strconv.Itoa(ldapPort), 20, nil, nil).
+		AddInputField("Username", ldapUsername, 20, nil, nil).
+		AddPasswordField("Password", ldapPassword, 20, '*', nil).
+		AddCheckbox("LDAPS", ldaps, nil).
+		AddCheckbox("IgnoreCert", insecure, nil).
+		AddInputField("SOCKSProxy", socksServer, 20, nil, nil).
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, false).SetFocus(treePanel)
+		}).
+		AddButton("Update", func() {
+			ldapServer = credsForm.GetFormItemByLabel("Server").(*tview.InputField).GetText()
+			ldapPort, _ = strconv.Atoi(credsForm.GetFormItemByLabel("Port").(*tview.InputField).GetText())
+			ldapUsername = credsForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
+			ldapPassword = credsForm.GetFormItemByLabel("Password").(*tview.InputField).GetText()
+
+			ldaps = credsForm.GetFormItemByLabel("LDAPS").(*tview.Checkbox).IsChecked()
+			insecure = credsForm.GetFormItemByLabel("IgnoreCert").(*tview.Checkbox).IsChecked()
+
+			socksServer = credsForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
+
+			app.SetRoot(appPanel, false).SetFocus(treePanel)
+		})
+
+	credsForm.SetTitle("Connection Config").SetBorder(true)
+	credsForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	credsForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			app.SetRoot(appPanel, true).SetFocus(appPanel)
+			return nil
+		}
+		return event
+	})
+
+	app.SetRoot(credsForm, true).SetFocus(credsForm)
+}
+
 func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	_, isTextArea := app.GetFocus().(*tview.TextArea)
 	_, isInputField := app.GetFocus().(*tview.InputField)
@@ -142,104 +275,34 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 	switch event.Rune() {
 	case 'f', 'F':
-		formatAttrs = !formatAttrs
-		updateStateBox(formatFlagPanel, formatAttrs)
-
-		node := treePanel.GetCurrentNode()
-		if node != nil {
-			err = reloadAttributesPanel(node, cacheEntries)
-		}
+		toggleFlagF()
 	case 'e', 'E':
-		emojis = !emojis
-		emojiFlagPanel.SetText("Emojis: " + strconv.FormatBool(emojis))
-		updateStateBox(emojiFlagPanel, emojis)
-		updateEmojis()
+		toggleFlagE()
 	case 'c', 'C':
-		colors = !colors
-		updateStateBox(colorFlagPanel, colors)
-		node := treePanel.GetCurrentNode()
-		if node != nil {
-			reloadAttributesPanel(node, cacheEntries)
-		}
+		toggleFlagC()
 	case 'a', 'A':
-		expandAttrs = !expandAttrs
-		updateStateBox(expandFlagPanel, expandAttrs)
-		node := treePanel.GetCurrentNode()
-		if node != nil {
-			reloadAttributesPanel(node, cacheEntries)
-		}
+		toggleFlagA()
 	case 'h', 'H':
-		showHeader = !showHeader
-		if showHeader {
-			appPanel.RemoveItem(headerPanel)
-		} else {
-			appPanel.RemoveItem(pages)
-			appPanel.AddItem(headerPanel, 3, 0, false)
-			appPanel.AddItem(pages, 0, 8, false)
-		}
+		toggleHeader()
+	case 'd', 'D':
+		toggleFlagD()
 	case 'l', 'L':
-		credsForm := tview.NewForm()
-		credsForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-			if event.Key() == tcell.KeyEscape {
-				app.SetRoot(appPanel, true).SetFocus(appPanel)
-				return nil
-			}
-			return event
-		})
-
-		credsForm = credsForm.
-			AddInputField("Server", ldapServer, 20, nil, nil).
-			AddInputField("Port", strconv.Itoa(ldapPort), 20, nil, nil).
-			AddInputField("Username", ldapUsername, 20, nil, nil).
-			AddPasswordField("Password", ldapPassword, 20, '*', nil).
-			AddCheckbox("LDAPS", ldaps, nil).
-			AddCheckbox("IgnoreCert", insecure, nil).
-			AddInputField("SOCKSProxy", socksServer, 20, nil, nil).
-			SetFieldBackgroundColor(tcell.GetColor("black")).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Update", func() {
-				ldapServer = credsForm.GetFormItemByLabel("Server").(*tview.InputField).GetText()
-				ldapPort, _ = strconv.Atoi(credsForm.GetFormItemByLabel("Port").(*tview.InputField).GetText())
-				ldapUsername = credsForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
-				ldapPassword = credsForm.GetFormItemByLabel("Password").(*tview.InputField).GetText()
-
-				ldaps = credsForm.GetFormItemByLabel("LDAPS").(*tview.Checkbox).IsChecked()
-				insecure = credsForm.GetFormItemByLabel("IgnoreCert").(*tview.Checkbox).IsChecked()
-
-				socksServer = credsForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
-
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			})
-
-		credsForm.SetTitle("Connection Config").SetBorder(true)
-		app.SetRoot(credsForm, true).SetFocus(credsForm)
+		openConfigForm()
 	}
 
 	switch event.Key() {
 	case tcell.KeyCtrlU:
-		// TODO: Check possible race conditions
-		go func() {
-			err = lc.UpgradeToTLS(tlsConfig)
-			if err != nil {
-				updateLog(fmt.Sprint(err), "red")
-			} else {
-				updateLog("StartTLS request successful", "green")
-				updateStateBox(tlsPanel, true)
-			}
-
-			updateStateBox(statusPanel, err == nil)
-		}()
+		upgradeStartTLS()
 	case tcell.KeyCtrlR:
-		// TODO: Check possible race conditions
-		go setupLDAPConn()
+		reconnectLdap()
 	}
 
 	return event
 }
 
 func setupLDAPConn() error {
+	updateLog("Connecting to LDAP server...", "yellow")
+
 	if lc != nil && lc.Conn != nil {
 		lc.Conn.Close()
 	}
@@ -261,9 +324,11 @@ func setupLDAPConn() error {
 		}
 	}
 
+	ldap.DefaultTimeout = time.Duration(timeout) * time.Second
+
 	lc, err = utils.NewLDAPConn(
 		ldapServer, ldapPort,
-		ldaps, tlsConfig, pagingSize,
+		ldaps, tlsConfig, pagingSize, rootDN,
 		proxyConn,
 	)
 
@@ -302,28 +367,46 @@ func setupApp() {
 	logPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
 
 	tlsPanel = tview.NewTextView()
-	tlsPanel.SetTitle("TLS")
-	tlsPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	tlsPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("TLS (C-u)").
+		SetBorder(true)
 
 	statusPanel = tview.NewTextView()
-	statusPanel.SetTitle("Conn")
-	statusPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	statusPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Conn (C-r)").
+		SetBorder(true)
 
 	formatFlagPanel = tview.NewTextView()
-	formatFlagPanel.SetTitle("Format")
-	formatFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	formatFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Format (f)").
+		SetBorder(true)
 
 	emojiFlagPanel = tview.NewTextView()
-	emojiFlagPanel.SetTitle("Emoji")
-	emojiFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	emojiFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Emoji (e)").
+		SetBorder(true)
 
 	colorFlagPanel = tview.NewTextView()
-	colorFlagPanel.SetTitle("Colors")
-	colorFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	colorFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Colors (c)").
+		SetBorder(true)
 
 	expandFlagPanel = tview.NewTextView()
-	expandFlagPanel.SetTitle("Expand")
-	expandFlagPanel.SetTextAlign(tview.AlignCenter).SetBorder(true)
+	expandFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Expand (a)").
+		SetBorder(true)
+
+	deletedFlagPanel = tview.NewTextView()
+	deletedFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Deleted (d)").
+		SetBorder(true)
 
 	err := setupLDAPConn()
 	if err != nil {
@@ -384,7 +467,8 @@ func setupApp() {
 		AddItem(formatFlagPanel, 0, 1, false).
 		AddItem(colorFlagPanel, 0, 1, false).
 		AddItem(expandFlagPanel, 0, 1, false).
-		AddItem(emojiFlagPanel, 0, 1, false)
+		AddItem(emojiFlagPanel, 0, 1, false).
+		AddItem(deletedFlagPanel, 0, 1, false)
 
 	appPanel = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(info, 1, 1, false).
@@ -402,6 +486,7 @@ func setupApp() {
 	updateStateBox(colorFlagPanel, colors)
 	updateStateBox(emojiFlagPanel, emojis)
 	updateStateBox(expandFlagPanel, expandAttrs)
+	updateStateBox(deletedFlagPanel, deleted)
 
 	if err := app.SetRoot(appPanel, true).SetFocus(treePanel).Run(); err != nil {
 		log.Fatal(err)
@@ -454,6 +539,8 @@ func main() {
 	rootCmd.Flags().BoolVarP(&expandAttrs, "expand", "A", true, "Expand multi-value attributes")
 	rootCmd.Flags().IntVarP(&attrLimit, "limit", "L", 20, "Number of attribute values to render for multi-value attributes when -expand is set true")
 	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", true, "Keep loaded entries in memory while the program is open and don't query them again")
+	rootCmd.Flags().BoolVarP(&deleted, "deleted", "D", false, "Include deleted objects in all queries performed")
+	rootCmd.Flags().Int32VarP(&timeout, "timeout", "T", 10, "Timeout for LDAP connections in seconds")
 	rootCmd.Flags().BoolVarP(&loadSchema, "schema", "k", false, "Load schema GUIDs from the LDAP server during initialization")
 	rootCmd.Flags().Uint32VarP(&pagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")

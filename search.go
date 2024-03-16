@@ -1,7 +1,7 @@
 package main
 
 import (
-	"sort"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,61 +14,138 @@ import (
 )
 
 var (
-	searchTreePanel    *tview.TreeView
-	searchQueryPanel   *tview.InputField
-	searchLibraryPanel *tview.List
-	treeFlex           *tview.Flex
+	searchTreePanel  *tview.TreeView
+	searchQueryPanel *tview.InputField
+	searchAttrsPanel *tview.Table
+
+	searchLibraryPanel *tview.TreeView
+	sidePanel          *tview.Pages
 	searchPage         *tview.Flex
 	runControl         sync.Mutex
 	running            bool
+
+	searchCache EntryCache
 )
 
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
 
+func reloadSearchAttrsPanel(node *tview.TreeNode, useCache bool) {
+	reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
+}
+
 func initSearchPage() {
-	searchQueryPanel = tview.NewInputField().
-		SetFieldBackgroundColor(tcell.GetColor("black"))
-	searchQueryPanel.SetTitle("Search Filter (Recursive)").SetBorder(true)
-
-	searchLibraryPanel = tview.NewList()
-	searchLibraryPanel.SetTitle("Search Library").SetBorder(true)
-	searchLibraryPanel.SetCurrentItem(0)
-
-	predefinedLdapQueriesKeys := make([]string, 0)
-	for k, _ := range utils.PredefinedLdapQueries {
-		predefinedLdapQueriesKeys = append(predefinedLdapQueriesKeys, k)
+	searchCache = EntryCache{
+		entries: make(map[string]*ldap.Entry),
 	}
-	sort.Strings(predefinedLdapQueriesKeys)
+
+	searchQueryPanel = tview.NewInputField()
+	searchQueryPanel.
+		SetPlaceholder("Type an LDAP search filter").
+		SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetTitle("Search Filter (Recursive)").
+		SetBorder(true)
+
+	tabs := tview.NewTextView().
+		SetTextAlign(tview.AlignCenter).
+		SetWrap(false).
+		SetRegions(true).
+		SetDynamicColors(true)
+	tabs.SetBackgroundColor(tcell.ColorBlack)
+	tabs.SetBorder(true)
+
+	searchTreePanel = tview.NewTreeView()
+	searchTreePanel.
+		SetTitle("Search Results").
+		SetBorder(true)
+
+	searchTreePanel.SetChangedFunc(func(node *tview.TreeNode) {
+		searchAttrsPanel.Clear()
+		reloadSearchAttrsPanel(node, true)
+	})
+
+	searchAttrsPanel = tview.NewTable().
+		SetSelectable(true, true).
+		SetEvaluateAllRows(true)
+	searchAttrsPanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		currentNode := searchTreePanel.GetCurrentNode()
+		if currentNode == nil || currentNode.GetReference() == nil {
+			return event
+		}
+
+		return attrsPanelKeyHandler(event, currentNode, &searchCache, searchAttrsPanel)
+	})
+
+	searchLibraryPanel = tview.NewTreeView()
+
+	searchLibraryRoot := tview.NewTreeNode("Queries").SetSelectable(false)
+	searchLibraryPanel.SetRoot(searchLibraryRoot)
+
+	sidePanel = tview.NewPages().
+		AddPage("page-0", searchLibraryPanel, true, true).
+		AddPage("page-1", searchAttrsPanel, true, false)
+
+	sidePanel.SetBorder(true)
+
+	predefinedLdapQueriesKeys := []string{"Security", "Users", "Computers", "Enum"}
 
 	for _, key := range predefinedLdapQueriesKeys {
-		query := utils.PredefinedLdapQueries[key]
-		searchLibraryPanel.AddItem(key, query, 'o', nil)
-	}
-	searchLibraryPanel.SetSelectedFunc(func(idx int, key string, query string, ch rune) {
-		runControl.Lock()
-		if running {
-			runControl.Unlock()
-			updateLog("Another query is still running...", "yellow")
-			return
+		children := utils.PredefinedLdapQueries[key]
+
+		childNode := tview.NewTreeNode(key).
+			SetSelectable(false).
+			SetExpanded(true)
+
+		for _, val := range children {
+			childNode.AddChild(
+				tview.NewTreeNode(val.Title).
+					SetReference(val.Filter).
+					SetSelectable(true))
 		}
-		runControl.Unlock()
 
-		nowTimestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
-		editedQuery := strings.Replace(
-			strings.Replace(
-				query, "DC=domain,DC=com", lc.RootDN, -1,
-			),
-			"<timestamp>", nowTimestamp, -1,
-		)
+		searchLibraryRoot.AddChild(childNode)
+	}
 
-		searchQueryPanel.SetText(editedQuery)
-		searchQueryDoneHandler(tcell.KeyEnter)
-	})
+	searchLibraryPanel.SetSelectedFunc(
+		func(node *tview.TreeNode) {
+			runControl.Lock()
+			if running {
+				runControl.Unlock()
+				updateLog("Another query is still running...", "yellow")
+				return
+			}
+			runControl.Unlock()
+
+			searchQueryDoneHandler(tcell.KeyEnter)
+		},
+	)
+
+	searchLibraryPanel.SetChangedFunc(
+		func(node *tview.TreeNode) {
+			ref := node.GetReference()
+			if ref == nil {
+				searchQueryPanel.SetText("")
+				return
+			}
+
+			nowTimestamp := time.Now().UnixNano()
+
+			nowTimestampStr := strconv.FormatInt(nowTimestamp, 10)
+			lastDayTimestampStr := strconv.FormatInt(nowTimestamp-86400, 10)
+			lastMonthTimestampStr := strconv.FormatInt(nowTimestamp-2592000, 10)
+
+			editedQuery := strings.Replace(ref.(string), "DC=domain,DC=com", lc.RootDN, -1)
+			editedQuery = strings.Replace(editedQuery, "<timestamp>", nowTimestampStr, -1)
+			editedQuery = strings.Replace(editedQuery, "<timestamp1d>", lastDayTimestampStr, -1)
+			editedQuery = strings.Replace(editedQuery, "<timestamp30d>", lastMonthTimestampStr, -1)
+
+			searchQueryPanel.SetText(editedQuery)
+		},
+	)
 
 	searchQueryPanel.SetDoneFunc(searchQueryDoneHandler)
 
-	searchTreePanel = tview.NewTreeView()
-	searchTreePanel.SetTitle("Search Results").SetBorder(true)
 	searchTreePanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		currentNode := searchTreePanel.GetCurrentNode()
 		if currentNode == nil {
@@ -77,24 +154,52 @@ func initSearchPage() {
 
 		switch event.Key() {
 		case tcell.KeyRight:
-			currentNode.SetExpanded(true)
+			if len(currentNode.GetChildren()) != 0 && !currentNode.IsExpanded() {
+				currentNode.SetExpanded(true)
+			}
+			return nil
 		case tcell.KeyLeft:
-			currentNode.SetExpanded(false)
+			if currentNode.IsExpanded() { // Collapse current node
+				currentNode.SetExpanded(false)
+				searchTreePanel.SetCurrentNode(currentNode)
+			} else { // Collapse parent node
+				pathToCurrent := searchTreePanel.GetPath(currentNode)
+				if len(pathToCurrent) > 1 {
+					parentNode := pathToCurrent[len(pathToCurrent)-2]
+					parentNode.SetExpanded(false)
+					searchTreePanel.SetCurrentNode(parentNode)
+				}
+			}
+			return nil
 		}
 
 		return event
 	})
 
+	fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "0", "Library")
+	fmt.Fprintf(tabs, `["%s"][white]%s[black][""]`, "1", "Attributes")
+
+	tabs.SetHighlightedFunc(func(added, removed, remaining []string) {
+		if len(added) > 0 {
+			sidePanel.SwitchToPage("page-" + added[0])
+		} else {
+			tabs.Highlight("0")
+		}
+	})
+
+	tabs.Highlight("0")
+
 	searchPage = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(
 			tview.NewFlex().
-				AddItem(searchQueryPanel, 0, 1, false),
+				AddItem(searchQueryPanel, 0, 1, false).
+				AddItem(tabs, 20, 0, false),
 			3, 0, false,
 		).
 		AddItem(
 			tview.NewFlex().
-				AddItem(searchTreePanel, 0, 2, false).
-				AddItem(searchLibraryPanel, 0, 1, false),
+				AddItem(searchTreePanel, 0, 1, false).
+				AddItem(sidePanel, 0, 1, false),
 			0, 8, false,
 		)
 
@@ -104,9 +209,12 @@ func initSearchPage() {
 func searchQueryDoneHandler(key tcell.Key) {
 	updateLog("Performing recursive query...", "yellow")
 
-	rootNode := tview.NewTreeNode(lc.RootDN).SetSelectable(false)
-	searchTreePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
+	rootNode := tview.NewTreeNode(lc.RootDN).SetSelectable(true)
+	searchTreePanel.
+		SetRoot(rootNode).
+		SetCurrentNode(rootNode)
 
+	searchCache.Clear()
 	clear(searchLoadedDNs)
 
 	searchQuery := searchQueryPanel.GetText()
@@ -120,7 +228,9 @@ func searchQueryDoneHandler(key tcell.Key) {
 		running = true
 		runControl.Unlock()
 
-		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree)
+		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree, deleted)
+
+		firstLeaf := true
 
 		for _, entry := range entries {
 			if entry.DN == lc.RootDN {
@@ -135,23 +245,34 @@ func searchQueryDoneHandler(key tcell.Key) {
 			currentNode := searchTreePanel.GetRoot()
 
 			for i := len(components) - 1; i >= 0; i-- {
-				//attribute := strings.Split(components[i], "=")[0]
-				//value := strings.Split(components[i], "=")[1]
-
 				partialDN := strings.Join(components[i:], ",")
 
 				childNode, ok := searchLoadedDNs[partialDN]
 				if !ok {
 					if i == 0 {
+						// Leaf node
 						nodeName = entryName
+						childNode = tview.NewTreeNode(nodeName).
+							SetReference(entry.DN).
+							SetExpanded(false).
+							SetSelectable(true)
+						currentNode.AddChild(childNode)
+
+						if firstLeaf {
+							searchTreePanel.SetCurrentNode(childNode)
+							firstLeaf = false
+						}
+
+						searchCache.Add(entry.DN, entry)
 					} else {
+						// Non-leaf node
 						nodeName = components[i]
+						childNode = tview.NewTreeNode(nodeName).
+							SetExpanded(true).
+							SetSelectable(true)
+						currentNode.AddChild(childNode)
 					}
 
-					childNode = tview.NewTreeNode(nodeName).
-						SetSelectable(true).
-						SetExpanded(true)
-					currentNode.AddChild(childNode)
 					app.Draw()
 
 					searchLoadedDNs[partialDN] = childNode
@@ -162,6 +283,7 @@ func searchQueryDoneHandler(key tcell.Key) {
 		}
 
 		updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+
 		app.Draw()
 
 		runControl.Lock()
@@ -186,8 +308,8 @@ func searchRotateFocus() {
 	case searchTreePanel:
 		app.SetFocus(searchQueryPanel)
 	case searchQueryPanel:
-		app.SetFocus(searchLibraryPanel)
-	case searchLibraryPanel:
+		app.SetFocus(sidePanel)
+	case searchLibraryPanel, searchAttrsPanel:
 		app.SetFocus(searchTreePanel)
 	}
 }

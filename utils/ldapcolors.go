@@ -46,8 +46,10 @@ func GetAttrCellColor(cellName string, cellValue string) (string, bool) {
 	switch cellValue {
 	case "TRUE", "Enabled", "Normal", "PwdNotExpired":
 		color = "green"
-	case "FALSE", "Disabled", "NotNormal", "PwdExpired":
+	case "FALSE", "NotNormal", "PwdExpired":
 		color = "red"
+	case "Disabled":
+		color = "yellow"
 	}
 
 	if color != "" {

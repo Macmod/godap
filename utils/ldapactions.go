@@ -33,7 +33,7 @@ func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	return nil
 }
 
-func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32, proxyConn net.Conn) (*LDAPConn, error) {
+func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32, rootDN string, proxyConn net.Conn) (*LDAPConn, error) {
 	var conn *ldap.Conn
 	var err error = nil
 
@@ -59,6 +59,7 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 	return &LDAPConn{
 		Conn:       conn,
 		PagingSize: pagingSize,
+		RootDN:     rootDN,
 	}, nil
 }
 
@@ -73,13 +74,18 @@ func (lc *LDAPConn) NTLMBindWithHash(ntlmDomain string, ntlmUsername string, ntl
 }
 
 // Search
-func (lc *LDAPConn) Query(baseDN string, searchFilter string, scope int) ([]*ldap.Entry, error) {
+func (lc *LDAPConn) Query(baseDN string, searchFilter string, scope int, showDeleted bool) ([]*ldap.Entry, error) {
+	var controls []ldap.Control = nil
+	if showDeleted {
+		controls = []ldap.Control{ldap.NewControlMicrosoftShowDeleted()}
+	}
+
 	searchRequest := ldap.NewSearchRequest(
 		baseDN,
 		scope, ldap.NeverDerefAliases, 0, 0, false,
 		searchFilter,
 		[]string{},
-		nil,
+		controls,
 	)
 
 	sr, err := lc.Conn.SearchWithPaging(searchRequest, lc.PagingSize)
@@ -189,7 +195,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, er
 			return nil, fmt.Errorf("Group '%s' not found", groupName)
 		}
 
-		groupDN = groupResult.Entries[0].GetAttributeValue("distinguishedName")
+		groupDN = groupResult.Entries[0].DN
 	}
 
 	ldapQuery := fmt.Sprintf("(memberOf=%s)", groupDN)
@@ -208,7 +214,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, er
 	}
 
 	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("Group '%s' not found", groupName)
+		return nil, fmt.Errorf("Group '%s' has 0 members", groupName)
 	}
 
 	return result.Entries, nil
@@ -641,7 +647,7 @@ func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err err
 func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]string, error) {
 	extendedRights := make(map[string]string)
 
-	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject)
+	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject, false)
 	if err != nil {
 		return nil, err
 	}
@@ -652,6 +658,7 @@ func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]str
 		"CN=Extended-Rights,"+configurationDN,
 		filter,
 		ldap.ScopeSingleLevel,
+		false,
 	)
 
 	if err != nil {
@@ -674,7 +681,7 @@ func (lc *LDAPConn) FindSchemaClassesAndAttributes() (map[string]string, map[str
 	classesGuids := make(map[string]string)
 	attrsGuids := make(map[string]string)
 
-	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject)
+	rootDSE, err := lc.Query("", "(objectClass=*)", ldap.ScopeBaseObject, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -685,6 +692,7 @@ func (lc *LDAPConn) FindSchemaClassesAndAttributes() (map[string]string, map[str
 		schemaDN,
 		"(|(objectClass=attributeSchema)(objectClass=classSchema))",
 		ldap.ScopeSingleLevel,
+		false,
 	)
 
 	if err != nil {

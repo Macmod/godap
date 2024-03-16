@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,7 +16,7 @@ import (
 )
 
 func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
-	_, ok := cache.Get(entry.DN)
+	_, ok := explorerCache.Get(entry.DN)
 
 	if !ok {
 		nodeName := getNodeName(entry)
@@ -23,14 +25,28 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 			SetReference(entry.DN).
 			SetSelectable(true)
 
-		uac := entry.GetAttributeValue("userAccountControl")
-		uacNum, err := strconv.Atoi(uac)
+		// Helpful node coloring for deleted and disabled objects
+		if colors {
+			isDeleted := strings.ToLower(entry.GetAttributeValue("isDeleted")) == "true"
+			isRecycled := strings.ToLower(entry.GetAttributeValue("isRecycled")) == "true"
 
-		if err == nil && colors && uacNum&2 != 0 {
-			node.SetColor(tcell.GetColor("red"))
+			if isDeleted {
+				if isRecycled {
+					node.SetColor(tcell.GetColor("red"))
+				} else {
+					node.SetColor(tcell.GetColor("gray"))
+				}
+			} else {
+				uac := entry.GetAttributeValue("userAccountControl")
+				uacNum, err := strconv.Atoi(uac)
+
+				if err == nil && uacNum&2 != 0 {
+					node.SetColor(tcell.GetColor("yellow"))
+				}
+			}
 		}
 
-		cache.Add(entry.DN, entry)
+		explorerCache.Add(entry.DN, entry)
 
 		node.SetExpanded(false)
 		return node
@@ -51,7 +67,7 @@ func unloadChildren(parentNode *tview.TreeNode) {
 
 	for _, child := range children {
 		childDN := child.GetReference().(string)
-		cache.Delete(childDN)
+		explorerCache.Delete(childDN)
 		parentNode.RemoveChild(child)
 	}
 }
@@ -59,7 +75,7 @@ func unloadChildren(parentNode *tview.TreeNode) {
 // Loads child nodes and their attributes directly from LDAP
 func loadChildren(node *tview.TreeNode) {
 	baseDN := node.GetReference().(string)
-	entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeSingleLevel)
+	entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeSingleLevel, deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return
@@ -79,7 +95,254 @@ func loadChildren(node *tview.TreeNode) {
 	}
 }
 
-func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
+func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
+	currentFocus := app.GetFocus()
+	attrRow, _ := attrsPanel.GetSelection()
+	attrName := attrsPanel.GetCell(attrRow, 0).Text
+
+	baseDN := currentNode.GetReference().(string)
+
+	entry, _ := cache.Get(baseDN)
+	attrVals := entry.GetAttributeValues(attrName)
+	if len(attrVals) == 0 {
+		return
+	}
+
+	// Encode attribute values to hex
+	rawAttrVals := entry.GetRawAttributeValues(attrName)
+
+	var attrValsHex []string
+	for idx := range rawAttrVals {
+		hexEncoded := hex.EncodeToString(rawAttrVals[idx])
+		attrValsHex = append(attrValsHex, hexEncoded)
+	}
+
+	valIndices := []string{}
+	for idx := range attrVals {
+		valIndices = append(valIndices, strconv.Itoa(idx))
+	}
+	valIndices = append(valIndices, "New")
+
+	selectedIndex := 0
+
+	useHexEncoding := false
+
+	writeAttrValsForm := NewXForm()
+	writeAttrValsForm.
+		AddTextView("Base DN", baseDN, 0, 1, false, true).
+		AddTextView("Attribute Name", attrName, 0, 1, false, true).
+		AddTextView("Current Value", attrVals[0], 0, 1, false, true).
+		AddTextView("Current Value (HEX)", attrValsHex[0], 0, 1, false, true).
+		AddDropDown("Value Index", valIndices, 0, func(option string, optionIndex int) {
+			selectedIndex = optionIndex
+
+			currentValItem := writeAttrValsForm.GetFormItemByLabel("Current Value").(*tview.TextView)
+			currentValItemHex := writeAttrValsForm.GetFormItemByLabel("Current Value (HEX)").(*tview.TextView)
+
+			if selectedIndex < len(attrVals) {
+				currentValItem.SetText(attrVals[selectedIndex])
+				currentValItemHex.SetText(attrValsHex[selectedIndex])
+			} else {
+				currentValItem.SetText("")
+				currentValItemHex.SetText("")
+			}
+		}).
+		AddInputField("New Value", "", 0, nil, nil).
+		AddCheckbox("Use HEX encoding", false, func(checked bool) {
+			useHexEncoding = checked
+		}).
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		}).
+		AddButton("Update", func() {
+			newValue := writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
+			if useHexEncoding {
+				newValueBytes, err := hex.DecodeString(newValue)
+				if err == nil {
+					newValue = string(newValueBytes)
+				} else {
+					updateLog(fmt.Sprint(err), "red")
+					return
+				}
+			}
+
+			if selectedIndex < len(attrVals) {
+				attrVals[selectedIndex] = newValue
+			} else {
+				attrVals = append(attrVals, newValue)
+			}
+
+			err := lc.ModifyAttribute(baseDN, attrName, attrVals)
+			// TODO: Don't go back immediately so that the user can
+			// change multiple values at once
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog("Attribute updated: '"+attrName+"' from '"+baseDN+"'", "green")
+			}
+
+			reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+
+			/*
+				if parentNode != nil {
+					idx := findEntryInChildren(baseDN, parentNode)
+
+					parent := reloadParentNode(currentNode)
+					siblings := parent.GetChildren()
+
+					tree.SetCurrentNode(siblings[idx])
+				} else {
+					// Update UI in this edge case
+				}
+			*/
+
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		})
+
+	writeAttrValsForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	writeAttrValsForm.SetInputCapture(handleEscapeToTree)
+	writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
+	app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
+}
+
+func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
+	currentFocus := app.GetFocus()
+	baseDN := currentNode.GetReference().(string)
+
+	attrRow, _ := attrsPanel.GetSelection()
+	attrName := attrsPanel.GetCell(attrRow, 0).Text
+
+	promptModal := tview.NewModal().
+		SetText("Do you really want to delete attribute `" + attrName + "` of this object?\n" + baseDN).
+		AddButtons([]string{"No", "Yes"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			if buttonLabel == "Yes" {
+				err := lc.DeleteAttribute(baseDN, attrName)
+				if err != nil {
+					updateLog(fmt.Sprint(err), "red")
+				} else {
+					cache.Delete(baseDN)
+					reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+
+					updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
+				}
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	app.SetRoot(promptModal, false).SetFocus(promptModal)
+}
+
+func handleAttrsKeyCtrlN(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
+	currentFocus := app.GetFocus()
+	createAttrForm := NewXForm().
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	createAttrForm.SetInputCapture(handleEscapeToTree)
+
+	baseDN := currentNode.GetReference().(string)
+
+	createAttrForm.
+		AddTextView("Object DN", baseDN, 0, 1, false, true).
+		AddInputField("Attribute Name", "", 20, nil, nil).
+		AddInputField("Attribute Value", "", 20, nil, nil).
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		}).
+		AddButton("Create", func() {
+			attrName := createAttrForm.GetFormItemByLabel("Attribute Name").(*tview.InputField).GetText()
+			attrVal := createAttrForm.GetFormItemByLabel("Attribute Value").(*tview.InputField).GetText()
+
+			err := lc.AddAttribute(baseDN, attrName, []string{attrVal})
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				cache.Delete(baseDN)
+				reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+
+				updateLog("Attribute added: "+attrName+" to "+baseDN, "green")
+			}
+
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		}).
+		SetTitle("Attribute Creator").
+		SetBorder(true)
+
+	app.SetRoot(createAttrForm, true).SetFocus(createAttrForm)
+}
+
+func handleAttrsKeyDown(attrsPanel *tview.Table) {
+	selectedRow, selectedCol := attrsPanel.GetSelection()
+	rowCount := attrsPanel.GetRowCount()
+
+	if selectedCol == 0 {
+		s := selectedRow + 1
+		for s < rowCount && attrsPanel.GetCell(s, 0).Text == "" {
+			s = s + 1
+		}
+
+		if s == rowCount {
+			attrsPanel.Select(selectedRow-1, 0)
+		} else if s != selectedRow {
+			attrsPanel.Select(s-1, 0)
+		}
+	}
+}
+
+func handleAttrsKeyUp(attrsPanel *tview.Table) {
+	selectedRow, selectedCol := attrsPanel.GetSelection()
+	if selectedCol == 0 {
+		s := selectedRow - 1
+		for s > 0 && attrsPanel.GetCell(s, 0).Text == "" {
+			s = s - 1
+		}
+
+		if s != selectedRow {
+			attrsPanel.Select(s+1, 0)
+		}
+	}
+}
+
+func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, cache *EntryCache, attrsPanel *tview.Table) *tcell.EventKey {
+	switch event.Rune() {
+	case 'r', 'R':
+		baseDN := currentNode.GetReference().(string)
+
+		updateLog("Reloading node "+baseDN, "yellow")
+
+		cache.Delete(baseDN)
+		reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+
+		updateLog("Node "+baseDN+" reloaded", "green")
+
+		go func() {
+			app.Draw()
+		}()
+		return event
+	}
+
+	switch event.Key() {
+	case tcell.KeyDelete:
+		handleAttrsKeyDelete(currentNode, attrsPanel, cache)
+	case tcell.KeyCtrlE:
+		handleAttrsKeyCtrlE(currentNode, attrsPanel, cache)
+	case tcell.KeyCtrlN:
+		handleAttrsKeyCtrlN(currentNode, attrsPanel, cache)
+	case tcell.KeyDown:
+		handleAttrsKeyDown(attrsPanel)
+	case tcell.KeyUp:
+		handleAttrsKeyUp(attrsPanel)
+	}
+
+	return event
+}
+
+func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCache bool, cache *EntryCache) error {
 	ref := node.GetReference()
 	if ref == nil {
 		return fmt.Errorf("Couldn't reload attributes: no node selected")
@@ -89,7 +352,7 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 
 	baseDN := ref.(string)
 
-	attrsPanel.Clear()
+	attrsTable.Clear()
 
 	if useCache {
 		entry, ok := cache.Get(baseDN)
@@ -99,7 +362,7 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 			return fmt.Errorf("Couldn't reload attributes: node not cached")
 		}
 	} else {
-		entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeBaseObject)
+		entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeBaseObject, deleted)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return err
@@ -121,7 +384,7 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 
 		var cellValues []string
 
-		attrsPanel.SetCell(row, 0, tview.NewTableCell(cellName))
+		attrsTable.SetCell(row, 0, tview.NewTableCell(cellName))
 
 		if formatAttrs {
 			cellValues = utils.FormatLDAPAttribute(attribute)
@@ -139,7 +402,7 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 				}
 			}
 
-			attrsPanel.SetCell(row, 1, myCell)
+			attrsTable.SetCell(row, 1, myCell)
 			row = row + 1
 			continue
 		}
@@ -163,13 +426,14 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 			}
 
 			if idx == 0 {
-				attrsPanel.SetCell(row, 1, myCell)
+				attrsTable.SetCell(row, 1, myCell)
 			} else {
 				if expandAttrs {
 					if attrLimit == -1 || idx < attrLimit {
-						attrsPanel.SetCell(row, 1, myCell)
+						attrsTable.SetCell(row, 0, tview.NewTableCell(""))
+						attrsTable.SetCell(row, 1, myCell)
 						if idx == attrLimit-1 {
-							attrsPanel.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]"))
+							attrsTable.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]"))
 							row = row + 2
 							break
 						}
@@ -181,7 +445,7 @@ func reloadAttributesPanel(node *tview.TreeNode, useCache bool) error {
 		}
 	}
 
-	attrsPanel.ScrollToBeginning()
+	attrsTable.ScrollToBeginning()
 	go func() {
 		app.Draw()
 	}()
@@ -239,12 +503,14 @@ func getNodeName(entry *ldap.Entry) string {
 
 	emojisPrefix = classEmojisBuf.String()
 
+	entryMarker := regexp.MustCompile("DEL:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$")
+
 	if len(emojisPrefix) == 0 {
 		emojisPrefix = utils.EmojiMap["container"]
 	}
 
 	if emojis {
-		return emojisPrefix + getName(entry)
+		return emojisPrefix + entryMarker.ReplaceAllString(getName(entry), "")
 	}
 
 	dn := getDN(entry)
@@ -261,24 +527,41 @@ func getNodeName(entry *ldap.Entry) string {
 }
 
 func updateEmojis() {
-	rootNode := treePanel.GetRoot()
+	rootExplorer := treePanel.GetRoot()
+	if rootExplorer != nil {
+		rootExplorer.Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
+			ref := node.GetReference()
+			if ref != nil {
+				entry, ok := explorerCache.Get(ref.(string))
 
-	rootNode.Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
-		ref := node.GetReference()
-		if ref != nil {
-			entry, ok := cache.Get(ref.(string))
-
-			if ok {
-				node.SetText(getNodeName(entry))
+				if ok {
+					node.SetText(getNodeName(entry))
+				}
 			}
-		}
 
-		return true
-	})
+			return true
+		})
+	}
+
+	rootSearch := searchTreePanel.GetRoot()
+	if rootSearch != nil {
+		rootSearch.Walk(func(node *tview.TreeNode, parent *tview.TreeNode) bool {
+			ref := node.GetReference()
+			if ref != nil {
+				entry, ok := searchCache.Get(ref.(string))
+
+				if ok {
+					node.SetText(getNodeName(entry))
+				}
+			}
+
+			return true
+		})
+	}
 }
 
 func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
-	rootEntry, err := lc.Query(rootDN, "(objectClass=*)", ldap.ScopeBaseObject)
+	rootEntry, err := lc.Query(rootDN, "(objectClass=*)", ldap.ScopeBaseObject, deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return nil
@@ -289,7 +572,7 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 		return nil
 	}
 
-	cache.Add(rootDN, rootEntry[0])
+	explorerCache.Add(rootDN, rootEntry[0])
 
 	rootNodeName := getNodeName(rootEntry[0])
 	if rootDN == "" {
@@ -305,7 +588,7 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 	}
 
 	var rootEntries []*ldap.Entry
-	rootEntries, err = lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel)
+	rootEntries, err = lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel, deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return nil
@@ -326,9 +609,9 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 	return rootNode
 }
 
-func reloadPage() {
-	attrsPanel.Clear()
-	cache.Clear()
+func reloadExplorerPage() {
+	explorerAttrsPanel.Clear()
+	explorerCache.Clear()
 
 	rootNode = renderPartialTree(lc.RootDN, searchFilter)
 	if rootNode != nil {
