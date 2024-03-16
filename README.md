@@ -4,6 +4,8 @@
 
 <h3>A complete TUI for LDAP.</h3>
 
+![Demo](images/godap.gif)
+
 # Summary
 
 * [Screenshots](#screenshots)
