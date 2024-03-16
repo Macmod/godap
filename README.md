@@ -115,8 +115,8 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>a</kbd> / <kbd>A</kbd>                         | Global                                                            | Toggle attribute expansion for multi-value attributes         |
 | <kbd>d</kbd> / <kbd>D</kbd>                         | Global                                                            | Toggle "include deleted objects" flag                         |
 | <kbd>l</kbd> / <kbd>L</kbd>                         | Global                                                            | Change current server address & credentials                   |
-| <kbd>Ctrl</kbd> + <kbd>r / R</kbd>                  | Global                                                            | Reconnect to the server                                       |
-| <kbd>Ctrl</kbd> + <kbd>u / U</kbd>                  | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| <kbd>Ctrl</kbd> + <kbd>r</kbd>                  | Global                                                            | Reconnect to the server                                       |
+| <kbd>Ctrl</kbd> + <kbd>u</kbd>                  | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
 | Right Arrow                                         | Explorer panel                                                    | Expand the children of the selected object                            |
 | Left Arrow                                          | Explorer panel                                                    | Collapse the children of the selected object                          |
 | <kbd>r</kbd> / <kbd>R</kbd>                         | Explorer panel                                                    | Reload the attributes and children of the selected object     |
