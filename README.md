@@ -8,7 +8,6 @@
 
 # Summary
 
-* [Screenshots](#screenshots)
 * [Features](#features)
 * [Installation](#installation)
 * [Usage](#usage)
