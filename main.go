@@ -359,10 +359,14 @@ func setupApp() {
 		SetRegions(true).
 		SetWrap(false).
 		SetHighlightedFunc(func(added, removed, remaining []string) {
+			nextPage := "0"
 			if len(added) > 0 {
-				pages.SwitchToPage("page-" + added[0])
-				page, _ = strconv.Atoi(added[0])
+				nextPage = added[0]
+				pages.SwitchToPage("page-" + nextPage)
+				page, _ = strconv.Atoi(nextPage)
 				setPageFocus()
+			} else {
+				info.Highlight(nextPage)
 			}
 		})
 
@@ -405,7 +409,9 @@ func setupApp() {
 }
 
 func main() {
-	godapVer := "Godap v2.1.0"
+	tview.Styles = baseTheme
+
+	godapVer := "Godap v2.2.0"
 
 	rootCmd := &cobra.Command{
 		Use:   "godap <server address>",

@@ -35,8 +35,11 @@ func initDaclPage(includeCurSchema bool) {
 
 	objectNameInputDacl = tview.NewInputField()
 	objectNameInputDacl.
-		SetFieldBackgroundColor(tcell.GetColor("black")).
-		SetTitle("Object (sAMAccountName or DN)").
+		SetPlaceholder("Type an object's sAMAccountName or DN").
+		SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetTitle("Object").
 		SetBorder(true)
 
 	acePanel = tview.NewList()
@@ -47,27 +50,23 @@ func initDaclPage(includeCurSchema bool) {
 	daclOwnerTextView = tview.NewTextView()
 	daclOwnerTextView.
 		SetTextAlign(tview.AlignCenter).
-		SetBackgroundColor(tcell.GetColor("black")).
 		SetTitle("Owner").
 		SetBorder(true)
 	aceMask = tview.NewTextView()
 	aceMask.
 		SetTextAlign(tview.AlignCenter).
-		SetBackgroundColor(tcell.GetColor("black")).
 		SetTitle("ACE Mask").
 		SetBorder(true)
 
 	aceMaskBinary = tview.NewTextView()
 	aceMaskBinary.
 		SetTextAlign(tview.AlignCenter).
-		SetBackgroundColor(tcell.GetColor("black")).
 		SetTitle("ACE Mask (Binary)").
 		SetBorder(true)
 
 	controlFlagsTextView = tview.NewTextView()
 	controlFlagsTextView.
 		SetTextAlign(tview.AlignCenter).
-		SetBackgroundColor(tcell.GetColor("black")).
 		SetTitle("ControlFlags").
 		SetBorder(true)
 
@@ -345,20 +344,11 @@ func daclRotateFocus() {
 }
 
 func loadChangeOwnerForm() {
-	changeOwnerForm := tview.NewForm()
-	changeOwnerForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEscape {
-			app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
-			return nil
-		}
-		return event
-	})
-
+	changeOwnerForm := NewXForm()
 	changeOwnerForm.
 		AddTextView("Owner", ownerPrincipal, 0, 1, true, true).
 		AddTextView("Group", groupPrincipal, 0, 1, true, true).
 		AddInputField("New Owner", "", 0, nil, nil).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
 		AddInputField("New Owner SID", "", 0, nil, nil).
 		AddInputField("New Group SID", "", 0, nil, nil)
 
@@ -444,6 +434,17 @@ func loadChangeOwnerForm() {
 	changeOwnerForm.
 		SetTitle("Change DACL Owner (" + object + ")").
 		SetBorder(true)
+	changeOwnerForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	changeOwnerForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
+			return nil
+		}
+		return event
+	})
 
 	app.SetRoot(changeOwnerForm, true).SetFocus(changeOwnerForm)
 }
@@ -453,8 +454,7 @@ func loadChangeControlFlagsForm() {
 		return
 	}
 
-	updateControlFlagsForm := tview.NewForm()
-	updateControlFlagsForm.SetItemPadding(0)
+	updateControlFlagsForm := NewXForm()
 
 	controlFlags := sd.GetControl()
 	checkboxState := controlFlags
@@ -484,7 +484,7 @@ func loadChangeControlFlagsForm() {
 				if flagPreview != nil {
 					flagPreview.SetText(strconv.Itoa(checkboxState))
 				}
-			}).SetFieldBackgroundColor(tcell.GetColor("black"))
+			}).SetFieldBackgroundColor(fieldBackgroundColor)
 	}
 
 	updateControlFlagsForm.
@@ -508,6 +508,12 @@ func loadChangeControlFlagsForm() {
 		})
 
 	updateControlFlagsForm.SetTitle("ControlFlags Editor").SetBorder(true)
+	updateControlFlagsForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	updateControlFlagsForm.SetItemPadding(0)
+
 	app.SetRoot(updateControlFlagsForm, true).SetFocus(updateControlFlagsForm)
 }
 

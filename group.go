@@ -19,14 +19,20 @@ var userGroupsPanel *tview.Table
 func initGroupPage() {
 	groupNameInput = tview.NewInputField()
 	groupNameInput.
-		SetFieldBackgroundColor(tcell.GetColor("black")).
-		SetTitle("Group (name or DN)").
+		SetPlaceholder("Type a group's name or DN").
+		SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetTitle("Group").
 		SetBorder(true)
 
 	userNameInput = tview.NewInputField()
 	userNameInput.
-		SetFieldBackgroundColor(tcell.GetColor("black")).
-		SetTitle("User (sAMAccountName or DN)").
+		SetPlaceholder("Type a user's sAMAccountName or DN").
+		SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetTitle("User").
 		SetBorder(true)
 
 	groupMembersPanel = tview.NewTable()

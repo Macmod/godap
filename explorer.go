@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/Macmod/godap/v2/utils"
@@ -16,47 +14,18 @@ import (
 	"github.com/rivo/tview"
 )
 
-type SafeCache struct {
-	entries map[string]*ldap.Entry
-	lock    sync.Mutex
-}
-
-func (sc *SafeCache) Delete(key string) {
-	sc.lock.Lock()
-	delete(sc.entries, key)
-	sc.lock.Unlock()
-}
-
-func (sc *SafeCache) Clear() {
-	sc.lock.Lock()
-	clear(sc.entries)
-	sc.lock.Unlock()
-}
-
-func (sc *SafeCache) Add(key string, val *ldap.Entry) {
-	sc.lock.Lock()
-	sc.entries[key] = val
-	sc.lock.Unlock()
-}
-
-func (sc *SafeCache) Get(key string) (*ldap.Entry, bool) {
-	sc.lock.Lock()
-	defer sc.lock.Unlock()
-	entry, ok := sc.entries[key]
-	return entry, ok
-}
-
 var (
-	cache             SafeCache
-	explorerPage      *tview.Flex
-	treePanel         *tview.TreeView
-	attrsPanel        *tview.Table
-	rootDNInput       *tview.InputField
-	searchFilterInput *tview.InputField
+	explorerCache      EntryCache
+	explorerPage       *tview.Flex
+	treePanel          *tview.TreeView
+	explorerAttrsPanel *tview.Table
+	rootDNInput        *tview.InputField
+	searchFilterInput  *tview.InputField
+	treeFlex           *tview.Flex
 )
 
 func initExplorerPage() {
-	cache = SafeCache{
+	explorerCache = EntryCache{
 		entries: make(map[string]*ldap.Entry),
 	}
 
@@ -65,33 +34,34 @@ func initExplorerPage() {
 	rootNode = renderPartialTree(rootDN, searchFilter)
 	treePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 
-	attrsPanel = tview.NewTable()
-	attrsPanel.SetSelectable(true, true)
+	explorerAttrsPanel = tview.NewTable().SetSelectable(true, true)
 
 	searchFilterInput = tview.NewInputField().
+		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetText(searchFilter)
-	searchFilterInput.SetFieldBackgroundColor(tcell.GetColor("black"))
-	searchFilterInput.SetTitle("Search Filter (Single-Level)")
+	searchFilterInput.SetTitle("Expand Filter")
 	searchFilterInput.SetBorder(true)
 
 	rootDNInput = tview.NewInputField().
+		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetText(rootDN)
-	rootDNInput.SetFieldBackgroundColor(tcell.GetColor("black"))
 	rootDNInput.SetTitle("Root DN")
 	rootDNInput.SetBorder(true)
 
-	attrsPanel.SetBorder(true)
-	attrsPanel.SetTitle("Attributes")
+	explorerAttrsPanel.
+		SetEvaluateAllRows(true).
+		SetTitle("Attributes").
+		SetBorder(true)
 
 	// Event Handlers
 	searchFilterInput.SetDoneFunc(func(key tcell.Key) {
 		searchFilter = searchFilterInput.GetText()
-		reloadPage()
+		reloadExplorerPage()
 	})
 
 	rootDNInput.SetDoneFunc(func(key tcell.Key) {
 		lc.RootDN = rootDNInput.GetText()
-		reloadPage()
+		reloadExplorerPage()
 	})
 
 	treeFlex = tview.NewFlex().SetDirection(tview.FlexRow).
@@ -101,7 +71,7 @@ func initExplorerPage() {
 				AddItem(rootDNInput, 0, 1, false),
 			3, 0, false,
 		).
-		AddItem(treePanel, 0, 8, false)
+		AddItem(treePanel, 0, 1, false)
 
 	treeFlex.SetBorder(true)
 	treeFlex.SetTitle("Tree View")
@@ -109,12 +79,19 @@ func initExplorerPage() {
 		AddItem(
 			tview.NewFlex().
 				AddItem(treeFlex, 0, 1, false).
-				AddItem(attrsPanel, 0, 1, false), 0, 8, false,
+				AddItem(explorerAttrsPanel, 0, 1, false), 0, 1, false,
 		)
 
 	explorerPage.SetInputCapture(explorerPageKeyHandler)
 
-	attrsPanel.SetInputCapture(attrsPanelKeyHandler)
+	explorerAttrsPanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		currentNode := treePanel.GetCurrentNode()
+		if currentNode == nil || currentNode.GetReference() == nil {
+			return event
+		}
+
+		return attrsPanelKeyHandler(event, currentNode, &explorerCache, explorerAttrsPanel)
+	})
 
 	treePanel.SetInputCapture(treePanelKeyHandler)
 
@@ -128,10 +105,14 @@ func expandTreeNode(node *tview.TreeNode) {
 				updateLog("Loading children ("+node.GetReference().(string)+")", "yellow")
 				loadChildren(node)
 
-				node.SetExpanded(true)
+				n := len(node.GetChildren())
 
-				updateLog("Loaded children ("+node.GetReference().(string)+")", "green")
-
+				if n != 0 {
+					node.SetExpanded(true)
+					updateLog("Loaded "+strconv.Itoa(n)+" children ("+node.GetReference().(string)+")", "green")
+				} else {
+					updateLog("Node "+node.GetReference().(string)+" has no children", "green")
+				}
 				app.Draw()
 			}()
 		} else {
@@ -149,10 +130,21 @@ func collapseTreeNode(node *tview.TreeNode) {
 
 func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
 	parent := getParentNode(node)
-	collapseTreeNode(parent)
-	expandTreeNode(parent)
+
+	if parent != nil {
+		unloadChildren(parent)
+		loadChildren(parent)
+	}
+
+	go func() {
+		app.Draw()
+	}()
 
 	return parent
+}
+
+func reloadExplorerAttrsPanel(node *tview.TreeNode, useCache bool) {
+	reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
 }
 
 func getParentNode(node *tview.TreeNode) *tview.TreeNode {
@@ -199,8 +191,8 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		go func() {
 			updateLog("Reloading node "+baseDN, "yellow")
 
-			cache.Delete(baseDN)
-			reloadAttributesPanel(currentNode, false)
+			explorerCache.Delete(baseDN)
+			reloadAttributesPanel(currentNode, explorerAttrsPanel, false, &explorerCache)
 
 			unloadChildren(currentNode)
 			loadChildren(currentNode)
@@ -235,25 +227,30 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		baseDN := currentNode.GetReference().(string)
 		promptModal := tview.NewModal().
 			SetText("Do you really want to delete this object?\n" + baseDN).
-			AddButtons([]string{"Yes", "No"}).
+			AddButtons([]string{"No", "Yes"}).
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				if buttonLabel == "Yes" {
 					err := lc.DeleteObject(baseDN)
 					if err == nil {
-						cache.Delete(baseDN)
-						updateLog("Object deleted: "+baseDN, "green")
+						explorerCache.Delete(baseDN)
 
-						idx := findEntryInChildren(baseDN, parentNode)
+						if parentNode != nil {
+							idx := findEntryInChildren(baseDN, parentNode)
 
-						parent := reloadParentNode(currentNode)
-						otherNodeToSelect := parent
+							parent := reloadParentNode(currentNode)
+							otherNodeToSelect := parent
 
-						if idx > 0 {
-							siblings := parent.GetChildren()
-							otherNodeToSelect = siblings[idx-1]
+							if idx > 0 {
+								siblings := parent.GetChildren()
+								otherNodeToSelect = siblings[idx-1]
+							}
+
+							treePanel.SetCurrentNode(otherNodeToSelect)
+						} else {
+							reloadExplorerPage()
 						}
 
-						treePanel.SetCurrentNode(otherNodeToSelect)
+						updateLog("Object deleted: "+baseDN, "green")
 					}
 				}
 
@@ -262,11 +259,15 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 		app.SetRoot(promptModal, false).SetFocus(promptModal)
 	case tcell.KeyCtrlN:
-		createObjectForm := tview.NewForm().
+		createObjectForm := NewXForm().
 			AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
 			AddInputField("Object Name", "", 0, nil, nil).
 			AddInputField("Parent DN", baseDN, 0, nil, nil)
-		createObjectForm.SetInputCapture(handleEscapeToTree)
+		createObjectForm.
+			SetButtonBackgroundColor(formButtonBackgroundColor).
+			SetButtonTextColor(formButtonTextColor).
+			SetButtonActivatedStyle(formButtonActivatedStyle).
+			SetInputCapture(handleEscapeToTree)
 
 		createObjectForm.
 			AddButton("Go Back", func() {
@@ -311,7 +312,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					updateLog("Object created successfully at: "+baseDN, "green")
 				}
 
-				reloadAttributesPanel(currentNode, cacheEntries)
+				reloadExplorerAttrsPanel(currentNode, cacheEntries)
 
 				// Not the best approach but for now it works :)
 				collapseTreeNode(currentNode)
@@ -327,7 +328,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		exportMap := make(map[string]*ldap.Entry)
 		currentNode.Walk(func(node, parent *tview.TreeNode) bool {
 			nodeDN := node.GetReference().(string)
-			exportMap[nodeDN], _ = cache.Get(nodeDN)
+			exportMap[nodeDN], _ = explorerCache.Get(nodeDN)
 			return true
 		})
 
@@ -347,12 +348,16 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlA:
 		baseDN := currentNode.GetReference().(string)
 
-		updateUacForm := tview.NewForm()
+		updateUacForm := NewXForm()
+		updateUacForm.
+			SetButtonBackgroundColor(formButtonBackgroundColor).
+			SetButtonTextColor(formButtonTextColor).
+			SetButtonActivatedStyle(formButtonActivatedStyle)
 		updateUacForm.SetInputCapture(handleEscapeToTree)
 		updateUacForm.SetItemPadding(0)
 
 		var checkboxState int = 0
-		obj, _ := cache.Get(baseDN)
+		obj, _ := explorerCache.Get(baseDN)
 		if obj != nil {
 			uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))
 			if err == nil {
@@ -387,7 +392,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 					if uacPreview != nil {
 						uacPreview.SetText(strconv.Itoa(checkboxState))
 					}
-				}).SetFieldBackgroundColor(tcell.GetColor("black"))
+				})
 		}
 
 		updateUacForm.
@@ -401,19 +406,23 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				if err != nil {
 					updateLog(fmt.Sprintf("%s", err), "red")
 				} else {
+					if parentNode != nil {
+						idx := findEntryInChildren(baseDN, parentNode)
+
+						parent := reloadParentNode(currentNode)
+						siblings := parent.GetChildren()
+
+						reloadExplorerAttrsPanel(currentNode, false)
+
+						treePanel.SetCurrentNode(siblings[idx])
+					} else {
+						reloadExplorerPage()
+					}
+
 					updateLog("Object's UAC updated to "+strCheckboxState+" at: "+baseDN, "green")
 				}
 
-				idx := findEntryInChildren(baseDN, parentNode)
-
-				parent := reloadParentNode(currentNode)
-				siblings := parent.GetChildren()
-
-				reloadAttributesPanel(currentNode, cacheEntries)
-
 				app.SetRoot(appPanel, true).SetFocus(treePanel)
-
-				treePanel.SetCurrentNode(siblings[idx])
 			})
 
 		updateUacForm.SetTitle("userAccountControl Editor").SetBorder(true)
@@ -426,123 +435,8 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 func treePanelChangeHandler(node *tview.TreeNode) {
 	go func() {
 		// TODO: Implement cancellation
-		reloadAttributesPanel(node, cacheEntries)
+		reloadExplorerAttrsPanel(node, cacheEntries)
 	}()
-}
-
-func attrsPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
-	currentNode := treePanel.GetCurrentNode()
-	if currentNode == nil {
-		return event
-	}
-
-	baseDN := currentNode.GetReference().(string)
-
-	switch event.Rune() {
-	case 'r', 'R':
-		updateLog("Reloading node "+baseDN, "yellow")
-
-		cache.Delete(baseDN)
-		reloadAttributesPanel(currentNode, false)
-
-		updateLog("Node "+baseDN+" reloaded", "green")
-
-		go func() {
-			app.Draw()
-		}()
-		return event
-	}
-
-	switch event.Key() {
-	case tcell.KeyDelete:
-		attrRow, _ := attrsPanel.GetSelection()
-		attrName := attrsPanel.GetCell(attrRow, 0).Text
-
-		promptModal := tview.NewModal().
-			SetText("Do you really want to delete attribute `" + attrName + "` of this object?\n" + baseDN).
-			AddButtons([]string{"Yes", "No"}).
-			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				if buttonLabel == "Yes" {
-					err := lc.DeleteAttribute(baseDN, attrName)
-					if err != nil {
-						updateLog(fmt.Sprint(err), "red")
-					} else {
-						cache.Delete(baseDN)
-						reloadAttributesPanel(currentNode, cacheEntries)
-
-						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
-					}
-				}
-
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			})
-
-		app.SetRoot(promptModal, false).SetFocus(promptModal)
-	case tcell.KeyCtrlN:
-		createAttrForm := tview.NewForm()
-		createAttrForm.SetInputCapture(handleEscapeToTree)
-
-		baseDN := currentNode.GetReference().(string)
-
-		createAttrForm.
-			AddTextView("Object DN", baseDN, 0, 1, false, true).
-			AddInputField("Attribute Name", "", 20, nil, nil).
-			AddInputField("Attribute Value", "", 20, nil, nil).
-			SetFieldBackgroundColor(tcell.GetColor("black")).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Create", func() {
-				attrName := createAttrForm.GetFormItemByLabel("Attribute Name").(*tview.InputField).GetText()
-				attrVal := createAttrForm.GetFormItemByLabel("Attribute Value").(*tview.InputField).GetText()
-
-				err := lc.AddAttribute(baseDN, attrName, []string{attrVal})
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					cache.Delete(baseDN)
-					reloadAttributesPanel(currentNode, cacheEntries)
-
-					updateLog("Attribute added: "+attrName+" to "+baseDN, "green")
-				}
-
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			SetTitle("Attribute Creator").
-			SetBorder(true)
-
-		app.SetRoot(createAttrForm, true).SetFocus(createAttrForm)
-	case tcell.KeyDown:
-		selectedRow, selectedCol := attrsPanel.GetSelection()
-		rowCount := attrsPanel.GetRowCount()
-
-		if selectedCol == 0 {
-			s := selectedRow + 1
-			for s < rowCount && attrsPanel.GetCell(s, 0).Text == "" {
-				s = s + 1
-			}
-
-			if s == rowCount {
-				attrsPanel.Select(selectedRow-1, 0)
-			} else if s != selectedRow {
-				attrsPanel.Select(s-1, 0)
-			}
-		}
-	case tcell.KeyUp:
-		selectedRow, selectedCol := attrsPanel.GetSelection()
-		if selectedCol == 0 {
-			s := selectedRow - 1
-			for s > 0 && attrsPanel.GetCell(s, 0).Text == "" {
-				s = s - 1
-			}
-
-			if s != selectedRow {
-				attrsPanel.Select(s+1, 0)
-			}
-		}
-	}
-
-	return event
 }
 
 func explorerRotateFocus() {
@@ -550,8 +444,8 @@ func explorerRotateFocus() {
 
 	switch currentFocus {
 	case treePanel:
-		app.SetFocus(attrsPanel)
-	case attrsPanel:
+		app.SetFocus(explorerAttrsPanel)
+	case explorerAttrsPanel:
 		app.SetFocus(treePanel)
 	}
 }
@@ -567,119 +461,14 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	}
 
-	parentNode := getParentNode(currentNode)
-
 	switch event.Key() {
-	case tcell.KeyCtrlE:
-		writeAttrValsForm := tview.NewForm()
-		writeAttrValsForm.SetInputCapture(handleEscapeToTree)
-
-		attrRow, _ := attrsPanel.GetSelection()
-		baseDN := currentNode.GetReference().(string)
-		attrName := attrsPanel.GetCell(attrRow, 0).Text
-
-		entry, _ := cache.Get(baseDN)
-		attrVals := entry.GetAttributeValues(attrName)
-		if len(attrVals) == 0 {
-			return event
-		}
-
-		// Encode attribute values to hex
-		rawAttrVals := entry.GetRawAttributeValues(attrName)
-
-		var attrValsHex []string
-		for idx := range rawAttrVals {
-			hexEncoded := hex.EncodeToString(rawAttrVals[idx])
-			attrValsHex = append(attrValsHex, hexEncoded)
-		}
-
-		valIndices := []string{}
-		for idx := range attrVals {
-			valIndices = append(valIndices, strconv.Itoa(idx))
-		}
-		valIndices = append(valIndices, "New")
-
-		selectedIndex := 0
-
-		useHexEncoding := false
-
-		writeAttrValsForm = writeAttrValsForm.
-			AddTextView("Base DN", baseDN, 0, 1, false, true).
-			AddTextView("Attribute Name", attrName, 0, 1, false, true).
-			AddTextView("Current Value", attrVals[0], 0, 1, false, true).
-			AddTextView("Current Value (HEX)", attrValsHex[0], 0, 1, false, true).
-			AddDropDown("Value Index", valIndices, 0, func(option string, optionIndex int) {
-				selectedIndex = optionIndex
-
-				currentValItem := writeAttrValsForm.GetFormItemByLabel("Current Value").(*tview.TextView)
-				currentValItemHex := writeAttrValsForm.GetFormItemByLabel("Current Value (HEX)").(*tview.TextView)
-
-				if selectedIndex < len(attrVals) {
-					currentValItem.SetText(attrVals[selectedIndex])
-					currentValItemHex.SetText(attrValsHex[selectedIndex])
-				} else {
-					currentValItem.SetText("")
-					currentValItemHex.SetText("")
-				}
-			}).
-			AddInputField("New Value", "", 0, nil, nil).
-			AddCheckbox("Use HEX encoding", false, func(checked bool) {
-				useHexEncoding = checked
-			}).
-			SetFieldBackgroundColor(tcell.GetColor("black")).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Update", func() {
-				newValue := writeAttrValsForm.GetFormItemByLabel("New Value").(*tview.InputField).GetText()
-				if useHexEncoding {
-					newValueBytes, err := hex.DecodeString(newValue)
-					if err == nil {
-						newValue = string(newValueBytes)
-					} else {
-						updateLog(fmt.Sprint(err), "red")
-						return
-					}
-				}
-
-				if selectedIndex < len(attrVals) {
-					attrVals[selectedIndex] = newValue
-				} else {
-					attrVals = append(attrVals, newValue)
-				}
-
-				err := lc.ModifyAttribute(baseDN, attrName, attrVals)
-				// TODO: Don't go back immediately so that the user can
-				// change multiple values at once
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					updateLog("Attribute updated: '"+attrName+"' from '"+baseDN+"'", "green")
-				}
-
-				idx := findEntryInChildren(baseDN, parentNode)
-
-				parent := reloadParentNode(currentNode)
-				siblings := parent.GetChildren()
-
-				treePanel.SetCurrentNode(siblings[idx])
-
-				reloadAttributesPanel(currentNode, cacheEntries)
-
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			})
-
-		writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
-		app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
 	case tcell.KeyCtrlP:
-		changePasswordForm := tview.NewForm()
-		changePasswordForm.SetInputCapture(handleEscapeToTree)
+		changePasswordForm := NewXForm()
 
 		baseDN := currentNode.GetReference().(string)
-		changePasswordForm = changePasswordForm.
+		changePasswordForm.
 			AddTextView("Object DN", baseDN, 0, 1, false, true).
 			AddPasswordField("New Password", "", 20, '*', nil).
-			SetFieldBackgroundColor(tcell.GetColor("black")).
 			AddButton("Go Back", func() {
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			}).
@@ -697,15 +486,20 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			})
 
 		changePasswordForm.SetTitle("Password Editor").SetBorder(true)
+		changePasswordForm.
+			SetButtonBackgroundColor(formButtonBackgroundColor).
+			SetButtonTextColor(formButtonTextColor).
+			SetButtonActivatedStyle(formButtonActivatedStyle)
+		changePasswordForm.SetInputCapture(handleEscapeToTree)
+
 		app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
 	case tcell.KeyCtrlL:
-		moveObjectForm := tview.NewForm()
-
 		baseDN := currentNode.GetReference().(string)
-		moveObjectForm = moveObjectForm.
+
+		moveObjectForm := NewXForm()
+		moveObjectForm.
 			AddTextView("Object DN", baseDN, 0, 1, false, true).
 			AddInputField("New Object DN", baseDN, 0, nil, nil).
-			SetFieldBackgroundColor(tcell.GetColor("black")).
 			AddButton("Go Back", func() {
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			}).
@@ -732,12 +526,17 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				}
 
 				treePanel.SetCurrentNode(otherNodeToSelect)
-				reloadAttributesPanel(otherNodeToSelect, cacheEntries)
+				reloadExplorerAttrsPanel(otherNodeToSelect, cacheEntries)
 
 				app.SetRoot(appPanel, false).SetFocus(treePanel)
 			})
 
 		moveObjectForm.SetTitle("Move Object").SetBorder(true)
+		moveObjectForm.SetInputCapture(handleEscapeToTree)
+		moveObjectForm.
+			SetButtonBackgroundColor(formButtonBackgroundColor).
+			SetButtonTextColor(formButtonTextColor).
+			SetButtonActivatedStyle(formButtonActivatedStyle)
 		app.SetRoot(moveObjectForm, true).SetFocus(moveObjectForm)
 	}
 

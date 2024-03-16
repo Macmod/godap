@@ -31,7 +31,7 @@ var (
 	permsPanel              *tview.Flex
 	normalPermsForm         *tview.Form
 	objectPermsForm         *tview.Form
-	propertyPermsForm       *tview.Form
+	propertyPermsForm       *XForm
 	controlPermsForm        *tview.Form
 	validatedWritePermsForm *tview.Form
 	newAceTable             *tview.Table
@@ -286,7 +286,7 @@ func loadDeleteAceForm(aceIdx int) {
 
 // Forms
 func getNormalPermsForm(mask int, checkedFull func(bool), checkedRight func(bool, int)) *tview.Form {
-	form := tview.NewForm().SetItemPadding(0)
+	form := NewXForm()
 
 	form.AddCheckbox("Full control", false, checkedFull)
 
@@ -298,55 +298,54 @@ func getNormalPermsForm(mask int, checkedFull func(bool), checkedRight func(bool
 			mask&rightMask != 0,
 			func(checked bool) {
 				checkedRight(checked, curRightMask)
-			}).
-			SetFieldBackgroundColor(tcell.GetColor("black"))
+			})
 	}
 
-	return form
+	return form.SetItemPadding(0)
 }
 
 func getObjectPermsForm(object int, objectRight int, selectedObject func(string, int), selectedRight func(string, int)) *tview.Form {
-	form := tview.NewForm().
+	form := NewXForm().
 		AddDropDown("Object Class", classVals,
 			object, selectedObject).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
+		SetFieldBackgroundColor(fieldBackgroundColor).
 		AddDropDown(
 			"Right", []string{"Create Child", "Delete Child", "Create & Delete Child"},
 			objectRight, selectedRight).
-		SetFieldBackgroundColor(tcell.GetColor("black"))
+		SetFieldBackgroundColor(fieldBackgroundColor)
 
 	return form
 }
 
-func getPropertyPermsForm(property int, propertyRight int, selectedProperty func(string, int), selectedRight func(string, int)) *tview.Form {
-	form := tview.NewForm()
+func getPropertyPermsForm(property int, propertyRight int, selectedProperty func(string, int), selectedRight func(string, int)) *XForm {
+	form := NewXForm()
 	form.
 		AddDropDown(
 			"Property", attributesVals, property, selectedProperty).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
+		SetFieldBackgroundColor(fieldBackgroundColor).
 		AddDropDown(
 			"Right",
 			[]string{"Read Property", "Write Property", "Read & Write Property"},
 			propertyRight, selectedRight).
-		SetFieldBackgroundColor(tcell.GetColor("black"))
+		SetFieldBackgroundColor(fieldBackgroundColor)
 	return form
 }
 
 func getControlPermsForm(controlRight int, selectedRight func(string, int)) *tview.Form {
-	form := tview.NewForm().
+	form := NewXForm().
 		AddDropDown(
 			"Extended Right", extendedVals,
 			controlRight, selectedRight).
-		SetFieldBackgroundColor(tcell.GetColor("black"))
+		SetFieldBackgroundColor(fieldBackgroundColor)
 	return form
 }
 
 func getValidatedWritePermsForm(validatedWriteRight int, selectedRight func(string, int)) *tview.Form {
-	form := tview.NewForm().
+	form := NewXForm().
 		AddDropDown(
 			"Validated Write", validatedWriteRightsVals,
 			validatedWriteRight, selectedRight).
-		SetFieldBackgroundColor(tcell.GetColor("black"))
+		SetFieldBackgroundColor(fieldBackgroundColor)
 	return form
 }
 
@@ -584,7 +583,7 @@ func loadAceEditorForm(aceIdx int) {
 		SetTitle("Permissions").
 		SetBorder(true)
 
-	headerForm := tview.NewForm().SetItemPadding(0)
+	headerForm := NewXForm()
 	headerForm.
 		AddDropDown(
 			"ACE Kind",
@@ -715,15 +714,12 @@ func loadAceEditorForm(aceIdx int) {
 
 				updateACETypeCell(newAceTable, getType(newObjectGuid, newAllowOrDeny))
 			}).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
 		AddInputField("Principal", selectedPrincipal, 0, nil, nil).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
 		AddDropDown("Type", typeOptions, selectedType,
 			func(option string, optionIdx int) {
 				newAllowOrDeny = (optionIdx == 0)
 				updateACETypeCell(newAceTable, getType(newObjectGuid, newAllowOrDeny))
 			}).
-		SetFieldBackgroundColor(tcell.GetColor("black")).
 		AddCheckbox("No Propagate", selectedNoPropagate, func(checked bool) {
 			if checked {
 				newACEFlags |= sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"]
@@ -767,9 +763,10 @@ func loadAceEditorForm(aceIdx int) {
 				updateFlagsCell(newAceTable, getFlags(newObjectGuid, newInheritedGuid))
 				updateACEFlagsCell(newAceTable, newACEFlags)
 			}).
-		SetFieldBackgroundColor(tcell.GetColor("black"))
+		SetFieldBackgroundColor(fieldBackgroundColor)
 
 	headerForm.
+		SetItemPadding(0).
 		SetTitle("Options").
 		SetBorder(true)
 
