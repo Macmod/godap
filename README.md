@@ -2,7 +2,7 @@
 
 ![GitHub Release](https://img.shields.io/github/v/release/Macmod/godap) ![](https://img.shields.io/github/go-mod/go-version/Macmod/godap) ![](https://img.shields.io/github/languages/code-size/Macmod/godap) ![](https://img.shields.io/github/license/Macmod/godap) ![](https://img.shields.io/github/actions/workflow/status/Macmod/godap/release.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/Macmod/godap)](https://goreportcard.com/report/github.com/Macmod/godap) ![GitHub Downloads](https://img.shields.io/github/downloads/Macmod/godap/total)
 
-`godap` is a complete TUI for LDAP.
+<h3>A complete TUI for LDAP.</h3>
 
 # Summary
 
@@ -17,16 +17,6 @@
 * [Acknowledgements](#acknowledgements)
 * [Disclaimers](#disclaimers)
 
-# Screenshots
-
-![images/page1.png](images/page1.png)
-
-![images/page2.png](images/page2.png)
-
-![images/page3.png](images/page3.png)
-
-![images/page4.png](images/page4.png)
-
 # Features
 
 * 🗒️ Formats date/time, boolean and other categorical attributes into readable text
@@ -37,6 +27,7 @@
 * 👥 Group members & user groups lookup
 * 🎡 Supports creation, editing and removal of objects and attributes
 * 🚙 Supports moving and renaming objects
+* 🗑️ Supports searching deleted & recycled objects
 * 📁 Supports exporting specific subtrees of the directory into JSON files
 * 🕹️ Interactive userAccountControl editor
 * 🔥 Interactive DACL editor
@@ -102,6 +93,8 @@ You can also change the address of your proxy using the `l` keybinding.
 * `-L`,`--limit` - Number of attribute values to render for multi-value attributes when `-expand` is `true` (default: `20`)
 * `-F`,`--format` - Format attributes into human-readable values (default: `true`, to change use `-format=false`)
 * `-M`,`--cache` - Keep loaded entries in memory while the program is open and don't query them again (default: `true`)
+* `-D`,`--deleted` - Include deleted objects in all queries performed (default: `false`)
+* `-T`,`--timeout` - Timeout for LDAP connections in seconds (default: `10`)
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
 * `-G`,`--paging` - Paging size for regular queries (default: `800`)
@@ -113,34 +106,50 @@ You can also change the address of your proxy using the `l` keybinding.
 
 ## Keybindings
 
-| Keybinding                        | Context                                                           | Action                                                        |
-| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
-| `Ctrl` + `Enter` (or `Ctrl` + `J`) | Global                                                            | Next panel                                                    |
-| `f` / `F`                         | Global                                                            | Toggle attribute formatting                                   |
-| `e` / `E`                         | Global                                                            | Toggle emojis                                                 |
-| `c` / `C`                         | Global                                                            | Toggle colors                                                 |
-| `a` / `A`                         | Global                                                            | Toggle attribute expansion for multi-value attributes         |
-| `l` / `L`                         | Global                                                            | Change current server address & credentials                   |
-| `Ctrl` + `r / R`                         | Global                                                            | Reconnect to the server                                       |
-| `Ctrl` + `u / U`                         | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
-| `r` / `R`                         | Explorer panel   | Reload the attributes and children of the selected object |
-| `Ctrl` + `n / N`                  | Explorer panel                                                    | Create a new object under the selected object                 |
-| `Ctrl` + `s / S`                  | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file |
-| `Ctrl` + `p / P`                  | Explorer panel                                                    | Change the password of the selected user or computer account  |
-| `Ctrl` + `a / A`                  | Explorer panel                                                    | Update the userAccountControl of the object interactively     |
-| `Ctrl` + `l / L`                  | Explorer panel                                                    | Move the selected object to another location                  |
-| `Delete`                          | Explorer panel                                                    | Delete the selected object                                    |
-| `r` / `R`                         | Attributes panel                                                  | Reload the attributes for the selected object    |
-| `Ctrl` + `e / E`                  | Attributes panel                                                  | Edit the selected attribute of the selected object            |
-| `Ctrl` + `n / N`                  | Attributes panel                                                  | Create a new attribute in the selected object                 |
-| `Delete`                          | Attributes panel                                                  | Delete the selected attribute of the selected object          |
-| `Ctrl` + `o / O`                  | DACL page                                                         | Change the owner of the current DACL                          |
-| `Ctrl` + `k / K`                  | DACL page                                                         | Change the control flags of the current DACL                  |
-| `Ctrl` + `n / N`                  | DACL entries panel                                                | Create a new ACE in the current DACL                          |
-| `Ctrl` + `e / E`                  | DACL entries panel                                                | Edit the selected ACE of the current DACL                     |
-| `Delete`                          | DACL entries panel                                                | Deletes the selected ACE of the current DACL                  |
-| `h` / `H`                         | Global                                                            | Show/hide headers                                             |
-| `q`                               | Global                                                            | Exit the program                                              |
+| Keybinding                        | Context                                                           | Action                                                                          |
+| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>Ctrl</kbd> + <kbd>J</kbd>) | Global                                         | Next panel                                                    |
+| <kbd>f</kbd> / <kbd>F</kbd>                         | Global                                                            | Toggle attribute formatting                                   |
+| <kbd>e</kbd> / <kbd>E</kbd>                         | Global                                                            | Toggle emojis                                                 |
+| <kbd>c</kbd> / <kbd>C</kbd>                         | Global                                                            | Toggle colors                                                 |
+| <kbd>a</kbd> / <kbd>A</kbd>                         | Global                                                            | Toggle attribute expansion for multi-value attributes         |
+| <kbd>d</kbd> / <kbd>D</kbd>                         | Global                                                            | Toggle "include deleted objects" flag                         |
+| <kbd>l</kbd> / <kbd>L</kbd>                         | Global                                                            | Change current server address & credentials                   |
+| <kbd>Ctrl</kbd> + <kbd>r / R</kbd>                  | Global                                                            | Reconnect to the server                                       |
+| <kbd>Ctrl</kbd> + <kbd>u / U</kbd>                  | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| Right Arrow                                         | Explorer panel                                                    | Expand the children of the selected object                            |
+| Left Arrow                                          | Explorer panel                                                    | Collapse the children of the selected object                          |
+| <kbd>r</kbd> / <kbd>R</kbd>                         | Explorer panel                                                    | Reload the attributes and children of the selected object     |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Explorer panel                                                    | Create a new object under the selected object                 |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file |
+| <kbd>Ctrl</kbd> + <kbd>p</kbd>                      | Explorer panel                                                    | Change the password of the selected user or computer account  |
+| <kbd>Ctrl</kbd> + <kbd>a</kbd>                      | Explorer panel                                                    | Update the userAccountControl of the object interactively     |
+| <kbd>Ctrl</kbd> + <kbd>l</kbd>                      | Explorer panel                                                    | Move the selected object to another location                  |
+| <kbd>Delete</kbd>                                   | Explorer panel                                                    | Delete the selected object                                    |
+| <kbd>r</kbd> / <kbd>R</kbd>                         | Attributes panel                                                  | Reload the attributes for the selected object                 |
+| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | Attributes panel                                                  | Edit the selected attribute of the selected object            |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Attributes panel                                                  | Create a new attribute in the selected object                 |
+| <kbd>Delete</kbd>                                   | Attributes panel                                                  | Delete the selected attribute of the selected object          |
+| <kbd>Ctrl</kbd> + <kbd>o</kbd>                      | DACL page                                                         | Change the owner of the current DACL                          |
+| <kbd>Ctrl</kbd> + <kbd>k</kbd>                      | DACL page                                                         | Change the control flags of the current DACL                  |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | DACL entries panel                                                | Create a new ACE in the current DACL                          |
+| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | DACL entries panel                                                | Edit the selected ACE of the current DACL                     |
+| <kbd>Delete</kbd>                                   | DACL entries panel                                                | Deletes the selected ACE of the current DACL                  |
+| <kbd>h</kbd> / <kbd>H</kbd>                         | Global                                                            | Show/hide headers                                             |
+| <kbd>q</kbd>                                        | Global                                                            | Exit the program                                              |
+
+## Tree Colors
+
+The nodes in the explorer tree are colored as follows:
+
+| Scenario                                | Color          |
+| --------------------------------------- | -------------- |
+| Object exists and is enabled            | Default        |
+| Object exists and is disabled           | Yellow\*       |
+| Object was deleted and not yet recycled | Gray\*         |
+| Object was recycled already             | Red\*          |
+
+\* Before v2.2.0, disabled nodes were colored red. This was the only custom color in the tree panel; other nodes were colored with default colors (the "include deleted objects" flag had not been implemented yet).
 
 # Contributing
 
@@ -159,7 +168,6 @@ Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/
 
 * Although some features might work with OpenLDAP (mainly in the explorer/search pages), the main focus of this tool is Active Directory.
 * All features were tested and seem to be working properly on a Windows Server 2019, but this tool is highly experimental and I cannot test it extensively - I don't take responsibility for modifications that you execute and end up impacting your environment. If you observe any unexpected behaviors please [let me know](https://github.com/Macmod/godap/issues/new) so I can try to fix it.
-* I'm not prioritizing Kerberos authentication at the moment. Although `ldapper` (which was a great source of inspiration and useful code) supports it, the `ldapper` authors chose to rewrite lots of dependencies maintained by third parties in order to provide this feature. This does not seem like the best approach in terms of long-term support. Nonetheless, `go-ldap` (which is godap's main dependency) currently has [an open issue](https://github.com/go-ldap/ldap/issues/115) from 2017 regarding the lack of GSSAPI support. A pull request [has been merged](https://github.com/go-ldap/ldap/pull/402) in 2022 to deal with the issue on Windows platforms only, but that isn't a suitable option for this tool. I hope someone finds a solution for this issue (maybe [go-ldap/ldap/pull/449](https://github.com/go-ldap/ldap/pull/449)) that doesn't involve rewriting dependencies I won't have time to maintain :-)
 
 # License
 

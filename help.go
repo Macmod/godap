@@ -18,18 +18,22 @@ func initHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v2.1.0
+v2.2.0
 `
 
 	keybindings := [][]string{
-		{"Ctrl + J", "Global", "Next panel"},
+		{"Ctrl + Enter", "Global", "Next panel"},
 		{"f / F", "Global", "Toggle attribute formatting"},
 		{"e / E", "Global", "Toggle emojis"},
 		{"c / C", "Global", "Toggle colors"},
 		{"a / A", "Global", "Toggle attribute expansion for multi-value attributes"},
+		{"d / D", "Global", "Toggle \"include deleted objects\" flag"},
 		{"l / L", "Global", "Change current server address & credentials"},
-		{"r / R", "Global", "Reconnect to the server"},
-		{"u / U", "Global", "Upgrade connection to use TLS (with StartTLS)"},
+		{"Ctrl + r / R", "Global", "Reconnect to the server"},
+		{"Ctrl + u / U", "Global", "Upgrade connection to use TLS (with StartTLS)"},
+		{"Left Arrow", "Explorer panel", "Collapse the children of the selected object"},
+		{"Right Arrow", "Explorer panel", "Expand the children of the selected object"},
+		{"r / R", "Explorer panel", "Reload the attributes and children of the selected object"},
 		{"Ctrl + n / N", "Explorer panel", "Create a new object under the selected object"},
 		{"Ctrl + s / S", "Explorer panel", "Export all loaded nodes in the selected subtree into a JSON file"},
 		{"Ctrl + p / P", "Explorer panel", "Change the password of the selected user or computer account"},
