@@ -298,6 +298,11 @@ func searchPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	switch event.Key() {
+	case tcell.KeyCtrlF:
+		openFinder(&searchCache, "Object Search")
+	}
+
 	return event
 }
 

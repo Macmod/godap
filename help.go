@@ -31,6 +31,7 @@ v2.2.0
 		{"l / L", "Global", "Change current server address & credentials"},
 		{"Ctrl + r / R", "Global", "Reconnect to the server"},
 		{"Ctrl + u / U", "Global", "Upgrade connection to use TLS (with StartTLS)"},
+		{"Ctrl + f", "LDAP Explorer & Object Search pages", "Open the finder to search for cached objects & attributes with regex"},
 		{"Left Arrow", "Explorer panel", "Collapse the children of the selected object"},
 		{"Right Arrow", "Explorer panel", "Expand the children of the selected object"},
 		{"r / R", "Explorer panel", "Reload the attributes and children of the selected object"},

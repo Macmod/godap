@@ -118,6 +118,7 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>l</kbd> / <kbd>L</kbd>                         | Global                                                            | Change current server address & credentials                   |
 | <kbd>Ctrl</kbd> + <kbd>r</kbd>                  | Global                                                            | Reconnect to the server                                       |
 | <kbd>Ctrl</kbd> + <kbd>u</kbd>                  | Global                                                            | Upgrade connection to use TLS (with StartTLS)                 |
+| <kbd>Ctrl</kbd> + <kbd>f</kbd>                  | LDAP Explorer & Object Search pages                               | Open the finder to search for cached objects & attributes with regex                   |
 | Right Arrow                                         | Explorer panel                                                    | Expand the children of the selected object                            |
 | Left Arrow                                          | Explorer panel                                                    | Collapse the children of the selected object                          |
 | <kbd>r</kbd> / <kbd>R</kbd>                         | Explorer panel                                                    | Reload the attributes and children of the selected object     |

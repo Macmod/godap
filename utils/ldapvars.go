@@ -172,6 +172,7 @@ var PredefinedLdapQueries = map[string][]LibQuery{
 		LibQuery{"All Groups", "(objectCategory=group)"},
 		LibQuery{"All Computers", "(objectClass=computer)"},
 		LibQuery{"All Users", "(&(objectCategory=person)(objectClass=user))"},
+		LibQuery{"All Objects", "(objectClass=*)"},
 	},
 	"Users": []LibQuery{
 		LibQuery{"Recently Created Users", "(&(objectCategory=user)(whenCreated>=<timestamp1d>))"},

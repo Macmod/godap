@@ -462,6 +462,8 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Key() {
+	case tcell.KeyCtrlF:
+		openFinder(&explorerCache, "LDAP Explorer")
 	case tcell.KeyCtrlP:
 		changePasswordForm := NewXForm()
 
