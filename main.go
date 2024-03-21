@@ -18,6 +18,8 @@ import (
 	"h12.io/socks"
 )
 
+var godapVer = "Godap v2.3.0"
+
 var (
 	ldapServer       string
 	ldapPort         int
@@ -495,8 +497,6 @@ func setupApp() {
 
 func main() {
 	tview.Styles = baseTheme
-
-	godapVer := "Godap v2.2.0"
 
 	rootCmd := &cobra.Command{
 		Use:   "godap <server address>",

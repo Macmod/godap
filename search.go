@@ -171,6 +171,10 @@ func initSearchPage() {
 				}
 			}
 			return nil
+		case tcell.KeyCtrlS:
+			unixTimestamp := time.Now().Unix()
+			outputFilename := fmt.Sprintf("%d_results.json", unixTimestamp)
+			exportCacheToFile(currentNode, &searchCache, outputFilename)
 		}
 
 		return event

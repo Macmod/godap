@@ -177,6 +177,27 @@ func handleEscapeToTree(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
+func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFilename string) {
+	exportMap := make(map[string]*ldap.Entry)
+	currentNode.Walk(func(node, parent *tview.TreeNode) bool {
+		if node.GetReference() != nil {
+			nodeDN := node.GetReference().(string)
+			exportMap[nodeDN], _ = cache.Get(nodeDN)
+		}
+		return true
+	})
+
+	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilename+"' saved successfully!", "green")
+	}
+}
+
 func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	currentNode := treePanel.GetCurrentNode()
 	if currentNode == nil {
@@ -325,26 +346,9 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		createObjectForm.SetTitle("Object Creator").SetBorder(true)
 		app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
 	case tcell.KeyCtrlS:
-		exportMap := make(map[string]*ldap.Entry)
-		currentNode.Walk(func(node, parent *tview.TreeNode) bool {
-			nodeDN := node.GetReference().(string)
-			exportMap[nodeDN], _ = explorerCache.Get(nodeDN)
-			return true
-		})
-
-		jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
 		unixTimestamp := time.Now().Unix()
-
 		outputFilename := fmt.Sprintf("%d_objects.json", unixTimestamp)
-
-		err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-		if err != nil {
-			updateLog(fmt.Sprintf("%s", err), "red")
-		} else {
-			updateLog("File '"+outputFilename+"' saved successfully!", "green")
-		}
+		exportCacheToFile(currentNode, &explorerCache, outputFilename)
 	case tcell.KeyCtrlA:
 		baseDN := currentNode.GetReference().(string)
 

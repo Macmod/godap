@@ -18,8 +18,7 @@ func initHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-v2.3.0
-`
+` + godapVer
 
 	keybindings := [][]string{
 		{"Ctrl + Enter", "Global", "Next panel"},
