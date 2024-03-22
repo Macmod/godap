@@ -198,6 +198,175 @@ func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFil
 	}
 }
 
+func openDeleteObjectForm(node *tview.TreeNode, done func()) {
+	currentFocus := app.GetFocus()
+	baseDN := node.GetReference().(string)
+	promptModal := tview.NewModal().
+		SetText("Do you really want to delete this object?\n" + baseDN).
+		AddButtons([]string{"No", "Yes"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			if buttonLabel == "Yes" {
+				err := lc.DeleteObject(baseDN)
+				if err != nil {
+					updateLog(fmt.Sprintf("%s", err), "red")
+				} else {
+					if done != nil {
+						done()
+					}
+
+					updateLog("Object deleted: "+baseDN, "green")
+				}
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	app.SetRoot(promptModal, false).SetFocus(promptModal)
+}
+
+func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
+	currentFocus := app.GetFocus()
+	baseDN := node.GetReference().(string)
+
+	updateUacForm := NewXForm()
+	updateUacForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	updateUacForm.SetInputCapture(handleEscapeToTree)
+	updateUacForm.SetItemPadding(0)
+
+	var checkboxState int = 0
+	obj, _ := cache.Get(baseDN)
+	if obj != nil {
+		uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))
+		if err == nil {
+			checkboxState = uacValue
+		} else {
+			return
+		}
+	}
+
+	updateUacForm.
+		AddTextView("Raw UAC Value", strconv.Itoa(checkboxState), 0, 1, false, true)
+
+	uacValues := make([]int, 0)
+	for key, _ := range utils.UacFlags {
+		uacValues = append(uacValues, key)
+	}
+	sort.Ints(uacValues)
+
+	for _, val := range uacValues {
+		uacValue := val
+		updateUacForm.AddCheckbox(
+			utils.UacFlags[uacValue].Present,
+			checkboxState&uacValue != 0,
+			func(checked bool) {
+				if checked {
+					checkboxState |= uacValue
+				} else {
+					checkboxState &^= uacValue
+				}
+
+				uacPreview := updateUacForm.GetFormItemByLabel("Raw UAC Value").(*tview.TextView)
+				if uacPreview != nil {
+					uacPreview.SetText(strconv.Itoa(checkboxState))
+				}
+			})
+	}
+
+	updateUacForm.
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		}).
+		AddButton("Update", func() {
+			strCheckboxState := strconv.Itoa(checkboxState)
+			err := lc.ModifyAttribute(baseDN, "userAccountControl", []string{strCheckboxState})
+
+			if err != nil {
+				updateLog(fmt.Sprintf("%s", err), "red")
+			} else {
+				if done != nil {
+					done()
+				}
+
+				updateLog("Object's UAC updated to "+strCheckboxState+" at: "+baseDN, "green")
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	updateUacForm.SetTitle("userAccountControl Editor").SetBorder(true)
+	app.SetRoot(updateUacForm, true).SetFocus(updateUacForm)
+}
+
+func openCreateObjectForm(node *tview.TreeNode, done func()) {
+	currentFocus := app.GetFocus()
+	baseDN := node.GetReference().(string)
+
+	createObjectForm := NewXForm().
+		AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
+		AddInputField("Object Name", "", 0, nil, nil).
+		AddInputField("Parent DN", baseDN, 0, nil, nil)
+	createObjectForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle).
+		SetInputCapture(handleEscapeToTree)
+
+	createObjectForm.
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		}).
+		AddButton("Create", func() {
+			// Note: It should be possible to walk upwards in the tree
+			//   to find the first place where it's possible to place the object
+			//   but it makes sense that the user should
+			//   have full control over this behavior
+			//   rather than automatically detecting
+			//   an appropriate DN
+
+			// pathToCurrent := treePanel.GetPath(currentNode)
+			// lastNode := len(pathToCurrent) - 1
+			// for nodeInPathIdx := range pathToCurrent {
+			//   currentNodeIdx := lastNode - nodeInPathIdx
+			// }
+
+			_, objectType := createObjectForm.GetFormItemByLabel("Object Type").(*tview.DropDown).GetCurrentOption()
+
+			objectName := createObjectForm.GetFormItemByLabel("Object Name").(*tview.InputField).GetText()
+
+			var err error = nil
+
+			switch objectType {
+			case "OrganizationalUnit":
+				err = lc.AddOrganizationalUnit(objectName, baseDN)
+			case "Container":
+				err = lc.AddContainer(objectName, baseDN)
+			case "User":
+				err = lc.AddUser(objectName, baseDN)
+			case "Group":
+				err = lc.AddGroup(objectName, baseDN)
+			case "Computer":
+				err = lc.AddComputer(objectName, baseDN)
+			}
+
+			if err != nil {
+				updateLog(fmt.Sprintf("%s", err), "red")
+			} else {
+				if done != nil {
+					done()
+				}
+				updateLog("Object created successfully at: "+baseDN, "green")
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	createObjectForm.SetTitle("Object Creator").SetBorder(true)
+	app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
+}
+
 func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	currentNode := treePanel.GetCurrentNode()
 	if currentNode == nil {
@@ -245,192 +414,53 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 	case tcell.KeyDelete:
-		baseDN := currentNode.GetReference().(string)
-		promptModal := tview.NewModal().
-			SetText("Do you really want to delete this object?\n" + baseDN).
-			AddButtons([]string{"No", "Yes"}).
-			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				if buttonLabel == "Yes" {
-					err := lc.DeleteObject(baseDN)
-					if err == nil {
-						explorerCache.Delete(baseDN)
+		openDeleteObjectForm(currentNode, func() {
+			explorerCache.Delete(baseDN)
 
-						if parentNode != nil {
-							idx := findEntryInChildren(baseDN, parentNode)
+			if parentNode != nil {
+				idx := findEntryInChildren(baseDN, parentNode)
 
-							parent := reloadParentNode(currentNode)
-							otherNodeToSelect := parent
+				parent := reloadParentNode(currentNode)
+				otherNodeToSelect := parent
 
-							if idx > 0 {
-								siblings := parent.GetChildren()
-								otherNodeToSelect = siblings[idx-1]
-							}
-
-							treePanel.SetCurrentNode(otherNodeToSelect)
-						} else {
-							reloadExplorerPage()
-						}
-
-						updateLog("Object deleted: "+baseDN, "green")
-					}
+				if idx > 0 {
+					siblings := parent.GetChildren()
+					otherNodeToSelect = siblings[idx-1]
 				}
 
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			})
-
-		app.SetRoot(promptModal, false).SetFocus(promptModal)
+				treePanel.SetCurrentNode(otherNodeToSelect)
+			} else {
+				reloadExplorerPage()
+			}
+		})
 	case tcell.KeyCtrlN:
-		createObjectForm := NewXForm().
-			AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
-			AddInputField("Object Name", "", 0, nil, nil).
-			AddInputField("Parent DN", baseDN, 0, nil, nil)
-		createObjectForm.
-			SetButtonBackgroundColor(formButtonBackgroundColor).
-			SetButtonTextColor(formButtonTextColor).
-			SetButtonActivatedStyle(formButtonActivatedStyle).
-			SetInputCapture(handleEscapeToTree)
+		openCreateObjectForm(currentNode, func() {
+			reloadExplorerAttrsPanel(currentNode, cacheEntries)
 
-		createObjectForm.
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			}).
-			AddButton("Create", func() {
-				// Note: It should be possible to walk upwards in the tree
-				//   to find the first place where it's possible to place the object
-				//   but it makes sense that the user should
-				//   have full control over this behavior
-				//   rather than automatically detecting
-				//   an appropriate DN
-
-				// pathToCurrent := treePanel.GetPath(currentNode)
-				// lastNode := len(pathToCurrent) - 1
-				// for nodeInPathIdx := range pathToCurrent {
-				//   currentNodeIdx := lastNode - nodeInPathIdx
-				// }
-
-				_, objectType := createObjectForm.GetFormItemByLabel("Object Type").(*tview.DropDown).GetCurrentOption()
-
-				objectName := createObjectForm.GetFormItemByLabel("Object Name").(*tview.InputField).GetText()
-
-				var err error = nil
-
-				switch objectType {
-				case "OrganizationalUnit":
-					err = lc.AddOrganizationalUnit(objectName, baseDN)
-				case "Container":
-					err = lc.AddContainer(objectName, baseDN)
-				case "User":
-					err = lc.AddUser(objectName, baseDN)
-				case "Group":
-					err = lc.AddGroup(objectName, baseDN)
-				case "Computer":
-					err = lc.AddComputer(objectName, baseDN)
-				}
-
-				if err != nil {
-					updateLog(fmt.Sprintf("%s", err), "red")
-				} else {
-					updateLog("Object created successfully at: "+baseDN, "green")
-				}
-
-				reloadExplorerAttrsPanel(currentNode, cacheEntries)
-
-				// Not the best approach but for now it works :)
-				collapseTreeNode(currentNode)
-				expandTreeNode(currentNode)
-				treePanel.SetCurrentNode(currentNode)
-
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			})
-
-		createObjectForm.SetTitle("Object Creator").SetBorder(true)
-		app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
+			// Not the best approach but for now it works :)
+			collapseTreeNode(currentNode)
+			expandTreeNode(currentNode)
+			treePanel.SetCurrentNode(currentNode)
+		})
 	case tcell.KeyCtrlS:
 		unixTimestamp := time.Now().Unix()
 		outputFilename := fmt.Sprintf("%d_objects.json", unixTimestamp)
 		exportCacheToFile(currentNode, &explorerCache, outputFilename)
 	case tcell.KeyCtrlA:
-		baseDN := currentNode.GetReference().(string)
+		openUpdateUacForm(currentNode, &explorerCache, func() {
+			if parentNode != nil {
+				idx := findEntryInChildren(baseDN, parentNode)
 
-		updateUacForm := NewXForm()
-		updateUacForm.
-			SetButtonBackgroundColor(formButtonBackgroundColor).
-			SetButtonTextColor(formButtonTextColor).
-			SetButtonActivatedStyle(formButtonActivatedStyle)
-		updateUacForm.SetInputCapture(handleEscapeToTree)
-		updateUacForm.SetItemPadding(0)
+				parent := reloadParentNode(currentNode)
+				siblings := parent.GetChildren()
 
-		var checkboxState int = 0
-		obj, _ := explorerCache.Get(baseDN)
-		if obj != nil {
-			uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))
-			if err == nil {
-				checkboxState = uacValue
+				reloadExplorerAttrsPanel(currentNode, false)
+
+				treePanel.SetCurrentNode(siblings[idx])
 			} else {
-				return nil
+				reloadExplorerPage()
 			}
-		}
-
-		updateUacForm.
-			AddTextView("Raw UAC Value", strconv.Itoa(checkboxState), 0, 1, false, true)
-
-		uacValues := make([]int, 0)
-		for key, _ := range utils.UacFlags {
-			uacValues = append(uacValues, key)
-		}
-		sort.Ints(uacValues)
-
-		for _, val := range uacValues {
-			uacValue := val
-			updateUacForm.AddCheckbox(
-				utils.UacFlags[uacValue].Present,
-				checkboxState&uacValue != 0,
-				func(checked bool) {
-					if checked {
-						checkboxState |= uacValue
-					} else {
-						checkboxState &^= uacValue
-					}
-
-					uacPreview := updateUacForm.GetFormItemByLabel("Raw UAC Value").(*tview.TextView)
-					if uacPreview != nil {
-						uacPreview.SetText(strconv.Itoa(checkboxState))
-					}
-				})
-		}
-
-		updateUacForm.
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			}).
-			AddButton("Update", func() {
-				strCheckboxState := strconv.Itoa(checkboxState)
-				err := lc.ModifyAttribute(baseDN, "userAccountControl", []string{strCheckboxState})
-
-				if err != nil {
-					updateLog(fmt.Sprintf("%s", err), "red")
-				} else {
-					if parentNode != nil {
-						idx := findEntryInChildren(baseDN, parentNode)
-
-						parent := reloadParentNode(currentNode)
-						siblings := parent.GetChildren()
-
-						reloadExplorerAttrsPanel(currentNode, false)
-
-						treePanel.SetCurrentNode(siblings[idx])
-					} else {
-						reloadExplorerPage()
-					}
-
-					updateLog("Object's UAC updated to "+strCheckboxState+" at: "+baseDN, "green")
-				}
-
-				app.SetRoot(appPanel, true).SetFocus(treePanel)
-			})
-
-		updateUacForm.SetTitle("userAccountControl Editor").SetBorder(true)
-		app.SetRoot(updateUacForm, true).SetFocus(updateUacForm)
+		})
 	}
 
 	return event
@@ -454,6 +484,77 @@ func explorerRotateFocus() {
 	}
 }
 
+func openPasswordChangeForm(node *tview.TreeNode) {
+	currentFocus := app.GetFocus()
+	changePasswordForm := NewXForm()
+
+	baseDN := node.GetReference().(string)
+	changePasswordForm.
+		AddTextView("Object DN", baseDN, 0, 1, false, true).
+		AddPasswordField("New Password", "", 20, '*', nil).
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		}).
+		AddButton("Update", func() {
+			newPassword := changePasswordForm.GetFormItemByLabel("New Password").(*tview.InputField).GetText()
+
+			err := lc.ResetPassword(baseDN, newPassword)
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog("Password changed: "+baseDN, "green")
+			}
+
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		})
+
+	changePasswordForm.SetTitle("Password Editor").SetBorder(true)
+	changePasswordForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	changePasswordForm.SetInputCapture(handleEscapeToTree)
+
+	app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
+}
+
+func openMoveObjectForm(node *tview.TreeNode, done func(string)) {
+	baseDN := node.GetReference().(string)
+	currentFocus := app.GetFocus()
+
+	moveObjectForm := NewXForm()
+	moveObjectForm.
+		AddTextView("Object DN", baseDN, 0, 1, false, true).
+		AddInputField("New Object DN", baseDN, 0, nil, nil).
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		}).
+		AddButton("Update", func() {
+			newObjectDN := moveObjectForm.GetFormItemByLabel("New Object DN").(*tview.InputField).GetText()
+
+			err := lc.MoveObject(baseDN, newObjectDN)
+
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog("Object moved from '"+baseDN+"' to '"+newObjectDN+"'", "green")
+				if done != nil {
+					done(newObjectDN)
+				}
+			}
+
+			app.SetRoot(appPanel, false).SetFocus(currentFocus)
+		})
+
+	moveObjectForm.SetTitle("Move Object").SetBorder(true)
+	moveObjectForm.SetInputCapture(handleEscapeToTree)
+	moveObjectForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+	app.SetRoot(moveObjectForm, true).SetFocus(moveObjectForm)
+}
+
 func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	if event.Key() == tcell.KeyTab || event.Key() == tcell.KeyBacktab {
 		explorerRotateFocus()
@@ -469,81 +570,23 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlF:
 		openFinder(&explorerCache, "LDAP Explorer")
 	case tcell.KeyCtrlP:
-		changePasswordForm := NewXForm()
-
-		baseDN := currentNode.GetReference().(string)
-		changePasswordForm.
-			AddTextView("Object DN", baseDN, 0, 1, false, true).
-			AddPasswordField("New Password", "", 20, '*', nil).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Update", func() {
-				newPassword := changePasswordForm.GetFormItemByLabel("New Password").(*tview.InputField).GetText()
-
-				err := lc.ResetPassword(baseDN, newPassword)
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					updateLog("Password changed: "+baseDN, "green")
-				}
-
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			})
-
-		changePasswordForm.SetTitle("Password Editor").SetBorder(true)
-		changePasswordForm.
-			SetButtonBackgroundColor(formButtonBackgroundColor).
-			SetButtonTextColor(formButtonTextColor).
-			SetButtonActivatedStyle(formButtonActivatedStyle)
-		changePasswordForm.SetInputCapture(handleEscapeToTree)
-
-		app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
+		openPasswordChangeForm(currentNode)
 	case tcell.KeyCtrlL:
-		baseDN := currentNode.GetReference().(string)
+		openMoveObjectForm(currentNode, func(newObjectDN string) {
+			newParentNode := reloadParentNode(currentNode)
 
-		moveObjectForm := NewXForm()
-		moveObjectForm.
-			AddTextView("Object DN", baseDN, 0, 1, false, true).
-			AddInputField("New Object DN", baseDN, 0, nil, nil).
-			AddButton("Go Back", func() {
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			}).
-			AddButton("Update", func() {
-				newObjectDN := moveObjectForm.GetFormItemByLabel("New Object DN").(*tview.InputField).GetText()
+			idx := findEntryInChildren(newObjectDN, newParentNode)
 
-				err := lc.MoveObject(baseDN, newObjectDN)
+			otherNodeToSelect := newParentNode
 
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					updateLog("Object moved from '"+baseDN+"' to '"+newObjectDN+"'", "green")
-				}
+			if idx > 0 {
+				siblings := newParentNode.GetChildren()
+				otherNodeToSelect = siblings[idx]
+			}
 
-				newParentNode := reloadParentNode(currentNode)
-
-				idx := findEntryInChildren(newObjectDN, newParentNode)
-
-				otherNodeToSelect := newParentNode
-
-				if idx > 0 {
-					siblings := newParentNode.GetChildren()
-					otherNodeToSelect = siblings[idx]
-				}
-
-				treePanel.SetCurrentNode(otherNodeToSelect)
-				reloadExplorerAttrsPanel(otherNodeToSelect, cacheEntries)
-
-				app.SetRoot(appPanel, false).SetFocus(treePanel)
-			})
-
-		moveObjectForm.SetTitle("Move Object").SetBorder(true)
-		moveObjectForm.SetInputCapture(handleEscapeToTree)
-		moveObjectForm.
-			SetButtonBackgroundColor(formButtonBackgroundColor).
-			SetButtonTextColor(formButtonTextColor).
-			SetButtonActivatedStyle(formButtonActivatedStyle)
-		app.SetRoot(moveObjectForm, true).SetFocus(moveObjectForm)
+			treePanel.SetCurrentNode(otherNodeToSelect)
+			reloadExplorerAttrsPanel(otherNodeToSelect, cacheEntries)
+		})
 	}
 
 	return event

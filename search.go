@@ -171,10 +171,32 @@ func initSearchPage() {
 				}
 			}
 			return nil
+		case tcell.KeyDelete:
+			if currentNode.GetReference() != nil {
+				openDeleteObjectForm(currentNode, nil)
+			}
 		case tcell.KeyCtrlS:
-			unixTimestamp := time.Now().Unix()
-			outputFilename := fmt.Sprintf("%d_results.json", unixTimestamp)
-			exportCacheToFile(currentNode, &searchCache, outputFilename)
+			if currentNode.GetReference() != nil {
+				unixTimestamp := time.Now().Unix()
+				outputFilename := fmt.Sprintf("%d_results.json", unixTimestamp)
+				exportCacheToFile(currentNode, &searchCache, outputFilename)
+			}
+		case tcell.KeyCtrlP:
+			if currentNode.GetReference() != nil {
+				openPasswordChangeForm(currentNode)
+			}
+		case tcell.KeyCtrlL:
+			if currentNode.GetReference() != nil {
+				openMoveObjectForm(currentNode, nil)
+			}
+		case tcell.KeyCtrlA:
+			if currentNode.GetReference() != nil {
+				openUpdateUacForm(currentNode, &searchCache, nil)
+			}
+		case tcell.KeyCtrlN:
+			if currentNode.GetReference() != nil {
+				openCreateObjectForm(currentNode, nil)
+			}
 		}
 
 		return event
