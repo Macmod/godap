@@ -1,6 +1,5 @@
 # TODO (priority)
 
-* Feature: Ctrl+P, Ctrl+A, Ctrl+N, Ctrl+L and Delete should work in object search
 * Feature: Load initial cache from file
 * Feature: Kerberos authentication
 * Feature: Monitor object for real-time changes
