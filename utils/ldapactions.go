@@ -8,7 +8,11 @@ import (
 	"strings"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
+	"github.com/go-ldap/ldap/gssapi"
 	"github.com/go-ldap/ldap/v3"
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
 
 	"golang.org/x/text/encoding/unicode"
 )
@@ -70,6 +74,54 @@ func (lc *LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
 
 func (lc *LDAPConn) NTLMBindWithHash(ntlmDomain string, ntlmUsername string, ntlmHash string) error {
 	err := lc.Conn.NTLMBindWithHash(ntlmDomain, ntlmUsername, ntlmHash)
+	return err
+}
+
+func (lc *LDAPConn) KerbBindWithCCache(ccachePath string, server string, krbDomain string, spnTarget string, etype string) error {
+	var err error
+	var etypeid int32
+
+	switch etype {
+	case "rc4":
+		etypeid = 23
+	case "aes":
+		etypeid = 18
+	}
+
+	ccache, err := credentials.LoadCCache(ccachePath)
+	if err != nil {
+		return err
+	}
+
+	krbConf := config.New()
+	krbConf.LibDefaults.DefaultRealm = krbDomain
+	krbConf.LibDefaults.PermittedEnctypeIDs = []int32{etypeid}
+	krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeid}
+	krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeid}
+	krbConf.LibDefaults.UDPPreferenceLimit = 1
+
+	var realm config.Realm
+	realm.Realm = strings.ToUpper(krbDomain)
+	realm.KDC = []string{fmt.Sprintf("%s:88", server)}
+	realm.DefaultDomain = strings.ToUpper(krbDomain)
+
+	krbConf.Realms = []config.Realm{realm}
+
+	rawKrbClient, err := client.NewFromCCache(ccache, krbConf)
+	if err != nil {
+		return err
+	}
+
+	wrappedClient := &gssapi.Client{
+		Client: rawKrbClient,
+	}
+
+	err = wrappedClient.Login()
+	if err != nil {
+		return err
+	}
+
+	_, err = lc.Conn.SPNEGOBind(wrappedClient.Client, spnTarget)
 	return err
 }
 

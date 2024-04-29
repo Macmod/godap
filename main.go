@@ -18,7 +18,7 @@ import (
 	"h12.io/socks"
 )
 
-var godapVer = "Godap v2.3.0"
+var godapVer = "Godap v2.4.0"
 
 var (
 	ldapServer       string
@@ -28,9 +28,12 @@ var (
 	ldapPasswordFile string
 	ntlmHash         string
 	ntlmHashFile     string
-	ntlmDomain       string
+	domainName       string
 	socksServer      string
+	targetSpn        string
+	kdcHost          string
 
+	kerberos     bool
 	emojis       bool
 	colors       bool
 	formatAttrs  bool
@@ -340,8 +343,20 @@ func setupLDAPConn() error {
 		updateLog("Connection success", "green")
 
 		var bindType string
-		if ntlmHash != "" {
-			err = lc.NTLMBindWithHash(ntlmDomain, ldapUsername, ntlmHash)
+		if kerberos {
+			ccachePath := os.Getenv("KRB5CCNAME")
+
+			var kdcAddr string
+			if kdcHost != "" {
+				kdcAddr = kdcHost
+			} else {
+				kdcAddr = ldapServer
+			}
+
+			err = lc.KerbBindWithCCache(ccachePath, kdcAddr, domainName, targetSpn, "aes")
+			bindType = "Kerberos"
+		} else if ntlmHash != "" {
+			err = lc.NTLMBindWithHash(domainName, ldapUsername, ntlmHash)
 			bindType = "NTLM"
 		} else {
 			err = lc.LDAPBind(ldapUsername, ldapPassword)
@@ -528,8 +543,10 @@ func main() {
 	rootCmd.Flags().StringVarP(&ldapUsername, "username", "u", "", "LDAP username")
 	rootCmd.Flags().StringVarP(&ldapPassword, "password", "p", "", "LDAP password")
 	rootCmd.Flags().StringVarP(&ldapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password")
-	rootCmd.Flags().StringVarP(&ntlmDomain, "domain", "d", "", "Domain for NTLM bind")
+	rootCmd.Flags().StringVarP(&domainName, "domain", "d", "", "Domain for NTLM / Kerberos authentication")
 	rootCmd.Flags().StringVarP(&ntlmHash, "hashes", "H", "", "NTLM hash")
+	rootCmd.Flags().BoolVarP(&kerberos, "kerberos", "k", false, "Use Kerberos ticket for authentication (CCACHE specified via KRB5CCNAME environment variable)")
+	rootCmd.Flags().StringVarP(&targetSpn, "spn", "t", "", "Target SPN to use for Kerberos bind (usually ldap/dchostname)")
 	rootCmd.Flags().StringVarP(&ntlmHashFile, "hashfile", "", "", "Path to a file containing the NTLM hash")
 	rootCmd.Flags().StringVarP(&rootDN, "rootDN", "r", "", "Initial root DN")
 	rootCmd.Flags().StringVarP(&searchFilter, "filter", "f", "(objectClass=*)", "Initial LDAP search filter")
@@ -541,11 +558,12 @@ func main() {
 	rootCmd.Flags().BoolVarP(&cacheEntries, "cache", "M", true, "Keep loaded entries in memory while the program is open and don't query them again")
 	rootCmd.Flags().BoolVarP(&deleted, "deleted", "D", false, "Include deleted objects in all queries performed")
 	rootCmd.Flags().Int32VarP(&timeout, "timeout", "T", 10, "Timeout for LDAP connections in seconds")
-	rootCmd.Flags().BoolVarP(&loadSchema, "schema", "k", false, "Load schema GUIDs from the LDAP server during initialization")
+	rootCmd.Flags().BoolVarP(&loadSchema, "schema", "s", false, "Load schema GUIDs from the LDAP server during initialization")
 	rootCmd.Flags().Uint32VarP(&pagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
 	rootCmd.Flags().StringVarP(&socksServer, "socks", "x", "", "Use a SOCKS proxy for initial connection")
+	rootCmd.Flags().StringVarP(&kdcHost, "kdc", "", "", "Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)")
 
 	versionCmd := &cobra.Command{
 		Use:                   "version",

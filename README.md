@@ -30,6 +30,7 @@
 * 🚙 Supports moving and renaming objects
 * 🗑️ Supports searching deleted & recycled objects
 * 📁 Supports exporting specific subtrees of the directory into JSON files
+* 📜 GPO Viewer
 * 🕹️ Interactive userAccountControl editor
 * 🔥 Interactive DACL editor
 * 🧦 SOCKS support
@@ -52,6 +53,12 @@ $ godap <hostname or IP> -u <username>@<domain> -p <password>
 
 ```bash
 $ godap <hostname or IP> -u <username> -H <hash> [-d <domain>]
+```
+
+**Bind with a Kerberos ticket**
+
+```bash
+$ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hostname>
 ```
 
 **Anonymous Bind**
@@ -99,11 +106,14 @@ You can also change the address of your proxy using the `l` keybinding.
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
 * `-G`,`--paging` - Paging size for regular queries (default: `800`)
-* `-d`,`--domain` - Domain for NTLM bind
+* `-d`,`--domain` - Domain name for NTLM / Kerberos authentication
 * `-H`,`--hashes` - Hashes for NTLM bind
+* `-k`,`--kerberos` - Use Kerberos ticket for authentication (CCACHE specified via `KRB5CCNAME` environment variable)
+* `-t`,`--spn` - Target SPN to use for Kerberos bind (usually `ldap/dchostname`)
 * `--hashfile` - Path to a file containing the hashes for NTLM bind
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
-* `-k`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
+* `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
+* `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
 
 ## Keybindings
 
