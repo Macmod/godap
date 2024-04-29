@@ -443,6 +443,7 @@ func setupApp() {
 	initSearchPage()
 	initGroupPage()
 	initDaclPage(loadSchema)
+	initGPOPage()
 	initHelpPage()
 
 	pages.AddPage("page-0", explorerPage, true, true)
@@ -453,7 +454,9 @@ func setupApp() {
 
 	pages.AddPage("page-3", daclPage, true, false)
 
-	pages.AddPage("page-4", helpPage, true, false)
+	pages.AddPage("page-4", gpoPage, true, false)
+
+	pages.AddPage("page-5", helpPage, true, false)
 
 	info.SetDynamicColors(true).
 		SetRegions(true).
@@ -474,7 +477,8 @@ func setupApp() {
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 2, "1", "Object Search")
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 3, "2", "Group Lookups")
 	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 4, "3", "DACL Editor")
-	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 5, "4", "Help")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 5, "4", "GPO Viewer")
+	fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, 6, "5", "Help")
 
 	info.Highlight("0")
 

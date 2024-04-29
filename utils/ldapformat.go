@@ -10,6 +10,21 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
+func FormatLDAPTime(val string) string {
+	layout := "20060102150405.0Z"
+	t, err := time.Parse(layout, val)
+	if err != nil {
+		return "Invalid date format"
+	}
+
+	distString := GetTimeDistString(time.Since(t))
+
+	return fmt.Sprintf(
+		"%02d/%02d/%d %02d:%02d:%02d %s", t.Day(), t.Month(), t.Year(),
+		t.Hour(), t.Minute(), t.Second(), distString,
+	)
+}
+
 func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 	var formattedEntries = attr.Values
 
@@ -24,19 +39,8 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 		case "objectGUID", "schemaIDGUID":
 			formattedEntries = []string{"GUID{" + ConvertGUID(hex.EncodeToString(attr.ByteValues[idx])) + "}"}
 		case "whenCreated", "whenChanged":
-			layout := "20060102150405.0Z"
-			t, err := time.Parse(layout, val)
-			if err != nil {
-				return []string{"Invalid date format"}
-			}
-
-			distString := GetTimeDistString(time.Since(t))
-
 			formattedEntries = []string{
-				fmt.Sprintf(
-					"%02d/%02d/%d %02d:%02d:%02d %s", t.Day(), t.Month(), t.Year(),
-					t.Hour(), t.Minute(), t.Second(), distString,
-				),
+				FormatLDAPTime(val),
 			}
 		case "lastLogonTimestamp", "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon", "pwdLastSet", "creationTime", "lockoutTime":
 			if val == "0" {
