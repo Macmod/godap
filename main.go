@@ -115,6 +115,8 @@ func setPageFocus() {
 	case 3:
 		app.SetFocus(daclEntriesPanel)
 	case 4:
+		app.SetFocus(gpoListPanel)
+	case 5:
 		app.SetFocus(keybindingsPanel)
 	}
 }

@@ -162,16 +162,18 @@ func initGPOPage() {
 }
 
 func gpoRotateFocus() {
-	//currentFocus := app.GetFocus()
+	currentFocus := app.GetFocus()
 
-	/*
-		switch currentFocus {
-		case treePanel:
-			app.SetFocus(gpoAttrsPanel)
-		case gpoAttrsPanel:
-			app.SetFocus(treePanel)
-		}
-	*/
+	switch currentFocus {
+	case gpoListPanel:
+		app.SetFocus(gpoTargetInput)
+	case gpoTargetInput:
+		app.SetFocus(gpoPath)
+	case gpoPath:
+		app.SetFocus(gpoLinksPanel)
+	default:
+		app.SetFocus(gpoListPanel)
+	}
 }
 
 func reloadGPOPage() {
