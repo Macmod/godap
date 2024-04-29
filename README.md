@@ -38,7 +38,9 @@
 # Installation
 
 ```bash
-go install github.com/Macmod/godap/v2@latest
+$ git clone github.com/Macmod/godap
+$ cd godap
+$ go install .
 ```
 
 # Usage
