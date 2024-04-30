@@ -250,7 +250,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, er
 		groupDN = groupResult.Entries[0].DN
 	}
 
-	ldapQuery := fmt.Sprintf("(memberOf=%s)", groupDN)
+	ldapQuery := fmt.Sprintf("(memberOf=%s)", ldap.EscapeFilter(groupDN))
 
 	search := ldap.NewSearchRequest(
 		lc.RootDN,
@@ -585,10 +585,10 @@ func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
 
 func SamOrDN(object string) (string, bool) {
 	if strings.Contains(object, "=") {
-		return fmt.Sprintf("(distinguishedName=%s)", object), false
+		return fmt.Sprintf("(distinguishedName=%s)", ldap.EscapeFilter(object)), false
 	}
 
-	return fmt.Sprintf("(sAMAccountName=%s)", object), true
+	return fmt.Sprintf("(sAMAccountName=%s)", ldap.EscapeFilter(object)), true
 }
 
 func (lc *LDAPConn) ModifyDACL(objectName string, newSD string) error {

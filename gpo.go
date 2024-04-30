@@ -212,9 +212,9 @@ func reloadGPOPage() {
 
 	gpoTargetDN := gpoTarget
 	if gpoTarget != "" {
-		gpoTargetQuery := "(distinguishedName=" + gpoTarget + ")"
+		gpoTargetQuery := fmt.Sprintf("(distinguishedName=%s)", ldap.EscapeFilter(gpoTarget))
 		if !strings.Contains(gpoTarget, "=") {
-			gpoTargetQuery = "(cn=" + gpoTarget + ")"
+			gpoTargetQuery = fmt.Sprintf("(cn=%s)", ldap.EscapeFilter(gpoTarget))
 		}
 
 		entries, err := lc.Query(lc.RootDN, gpoTargetQuery, ldap.ScopeWholeSubtree, false)
@@ -248,9 +248,9 @@ func reloadGPOPage() {
 
 	gpoQuerySuffix := ""
 	if len(applicableGPOs) > 0 {
-		gpoQuerySuffix = "name=" + applicableGPOs[0]
+		gpoQuerySuffix = "name=" + ldap.EscapeFilter(applicableGPOs[0])
 		for _, gpoGuid := range applicableGPOs[1:] {
-			gpoQuerySuffix = "(|(" + gpoQuerySuffix + ")(name=" + gpoGuid + "))"
+			gpoQuerySuffix = "(|(" + gpoQuerySuffix + ")(name=" + ldap.EscapeFilter(gpoGuid) + "))"
 		}
 	}
 
