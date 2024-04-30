@@ -176,11 +176,9 @@ func initSearchPage() {
 				openDeleteObjectForm(currentNode, nil)
 			}
 		case tcell.KeyCtrlS:
-			if currentNode.GetReference() != nil {
-				unixTimestamp := time.Now().Unix()
-				outputFilename := fmt.Sprintf("%d_results.json", unixTimestamp)
-				exportCacheToFile(currentNode, &searchCache, outputFilename)
-			}
+			unixTimestamp := time.Now().UnixMilli()
+			outputFilename := fmt.Sprintf("%d_results.json", unixTimestamp)
+			exportCacheToFile(currentNode, &searchCache, outputFilename)
 		case tcell.KeyCtrlP:
 			if currentNode.GetReference() != nil {
 				openPasswordChangeForm(currentNode)
