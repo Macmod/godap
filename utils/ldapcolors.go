@@ -2,8 +2,34 @@ package utils
 
 import (
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/go-ldap/ldap/v3"
 )
+
+func GetEntryColor(entry *ldap.Entry) (tcell.Color, bool) {
+	isDeleted := strings.ToLower(entry.GetAttributeValue("isDeleted")) == "true"
+	isRecycled := strings.ToLower(entry.GetAttributeValue("isRecycled")) == "true"
+
+	if isDeleted {
+		if isRecycled {
+			return tcell.GetColor("red"), true
+		} else {
+			return tcell.GetColor("gray"), true
+		}
+	} else {
+		uac := entry.GetAttributeValue("userAccountControl")
+		uacNum, err := strconv.Atoi(uac)
+
+		if err == nil && uacNum&2 != 0 {
+			return tcell.GetColor("yellow"), true
+		}
+	}
+
+	return tcell.ColorDefault, false
+}
 
 func GetAttrCellColor(cellName string, cellValue string) (string, bool) {
 	var color string = ""

@@ -280,6 +280,13 @@ func searchQueryDoneHandler(key tcell.Key) {
 							SetReference(entry.DN).
 							SetExpanded(false).
 							SetSelectable(true)
+
+						if colors {
+							color, changed := utils.GetEntryColor(entry)
+							if changed {
+								childNode.SetColor(color)
+							}
+						}
 						currentNode.AddChild(childNode)
 
 						if firstLeaf {

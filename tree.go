@@ -27,22 +27,9 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 
 		// Helpful node coloring for deleted and disabled objects
 		if colors {
-			isDeleted := strings.ToLower(entry.GetAttributeValue("isDeleted")) == "true"
-			isRecycled := strings.ToLower(entry.GetAttributeValue("isRecycled")) == "true"
-
-			if isDeleted {
-				if isRecycled {
-					node.SetColor(tcell.GetColor("red"))
-				} else {
-					node.SetColor(tcell.GetColor("gray"))
-				}
-			} else {
-				uac := entry.GetAttributeValue("userAccountControl")
-				uacNum, err := strconv.Atoi(uac)
-
-				if err == nil && uacNum&2 != 0 {
-					node.SetColor(tcell.GetColor("yellow"))
-				}
+			color, changed := utils.GetEntryColor(entry)
+			if changed {
+				node.SetColor(color)
 			}
 		}
 
