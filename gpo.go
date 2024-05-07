@@ -355,5 +355,11 @@ func gpoPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	switch event.Key() {
+	case tcell.KeyCtrlS:
+		exportCurrentGpos()
+		return nil
+	}
+
 	return event
 }
