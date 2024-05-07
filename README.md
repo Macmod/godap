@@ -144,7 +144,7 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | Attributes panel                                                  | Edit the selected attribute of the selected object            |
 | <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Attributes panel                                                  | Create a new attribute in the selected object                 |
 | <kbd>Delete</kbd>                                   | Attributes panel                                                  | Delete the selected attribute of the selected object          |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Object groups panel                                               | Export the current groups innto a JSON file                   |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Object groups panel                                               | Export the current groups into a JSON file                    |
 | <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Group members panel                                               | Export the current group members into a JSON file             |
 | <kbd>Ctrl</kbd> + <kbd>o</kbd>                      | DACL page                                                         | Change the owner of the current security descriptor           |
 | <kbd>Ctrl</kbd> + <kbd>k</kbd>                      | DACL page                                                         | Change the control flags of the current security descriptor   |
