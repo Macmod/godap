@@ -224,32 +224,7 @@ func (lc *LDAPConn) FindRootFQDN() (string, error) {
 	return dnsRoot, nil
 }
 
-func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, err error) {
-	samOrDn, isSam := SamOrDN(groupName)
-
-	groupDN := groupName
-	if isSam {
-		groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
-		groupSearch := ldap.NewSearchRequest(
-			lc.RootDN,
-			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-			groupDNQuery,
-			[]string{"distinguishedName"},
-			nil,
-		)
-
-		groupResult, err := lc.Conn.Search(groupSearch)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(groupResult.Entries) == 0 {
-			return nil, fmt.Errorf("Group '%s' not found", groupName)
-		}
-
-		groupDN = groupResult.Entries[0].DN
-	}
-
+func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err error) {
 	ldapQuery := fmt.Sprintf("(memberOf=%s)", ldap.EscapeFilter(groupDN))
 
 	search := ldap.NewSearchRequest(
@@ -263,10 +238,6 @@ func (lc *LDAPConn) QueryGroupMembers(groupName string) (group []*ldap.Entry, er
 	result, err := lc.Conn.Search(search)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("Group '%s' has 0 members", groupName)
 	}
 
 	return result.Entries, nil

@@ -1,20 +1,34 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Macmod/godap/v2/utils"
 	"github.com/gdamore/tcell/v2"
+	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
 )
 
-var groupPage *tview.Flex
-var groupNameInput *tview.InputField
-var groupMembersPanel *tview.Table
-var userNameInput *tview.InputField
-var userGroupsPanel *tview.Table
+var (
+	groupPage      *tview.Flex
+	groupNameInput *tview.InputField
+	membersPanel   *tview.Table
+	userNameInput  *tview.InputField
+	groupsPanel    *tview.Table
+
+	groups  []string
+	members []*ldap.Entry
+
+	queryGroup  string
+	queryObject string
+	groupDN     string
+	objectDN    string
+)
 
 func initGroupPage() {
 	groupNameInput = tview.NewInputField()
@@ -35,14 +49,14 @@ func initGroupPage() {
 		SetTitle("User").
 		SetBorder(true)
 
-	groupMembersPanel = tview.NewTable()
-	groupMembersPanel.
+	membersPanel = tview.NewTable()
+	membersPanel.
 		SetSelectable(true, false).
 		SetTitle("Group Members").
 		SetBorder(true)
 
-	groupMembersPanel.SetSelectedFunc(func(row, col int) {
-		cell := groupMembersPanel.GetCell(row, col)
+	membersPanel.SetSelectedFunc(func(row, col int) {
+		cell := membersPanel.GetCell(row, col)
 		cellId, ok := cell.GetReference().(string)
 		if ok {
 			userNameInput.SetText(cellId)
@@ -50,13 +64,13 @@ func initGroupPage() {
 		}
 	})
 
-	userGroupsPanel = tview.NewTable()
-	userGroupsPanel.
+	groupsPanel = tview.NewTable()
+	groupsPanel.
 		SetSelectable(true, false).
 		SetTitle("User Groups").
 		SetBorder(true)
-	userGroupsPanel.SetSelectedFunc(func(row, col int) {
-		cell := userGroupsPanel.GetCell(row, col)
+	groupsPanel.SetSelectedFunc(func(row, col int) {
+		cell := groupsPanel.GetCell(row, col)
 		cellId, ok := cell.GetReference().(string)
 		if ok {
 			groupNameInput.SetText(cellId)
@@ -68,27 +82,52 @@ func initGroupPage() {
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexRow).
 				AddItem(groupNameInput, 3, 0, false).
-				AddItem(groupMembersPanel, 0, 8, false),
+				AddItem(membersPanel, 0, 8, false),
 			0, 1, false,
 		).
 		AddItem(
 			tview.NewFlex().SetDirection(tview.FlexRow).
 				AddItem(userNameInput, 3, 0, false).
-				AddItem(userGroupsPanel, 0, 8, false),
+				AddItem(groupsPanel, 0, 8, false),
 			0, 1, false,
 		)
 
 	groupPage.SetInputCapture(groupPageKeyHandler)
-	groupNameInput.SetDoneFunc(func(key tcell.Key) {
-		groupMembersPanel.Clear()
+	membersPanel.SetInputCapture(membersKeyHandler)
+	groupsPanel.SetInputCapture(groupsKeyHandler)
 
-		entries, err := lc.QueryGroupMembers(groupNameInput.GetText())
+	groupNameInput.SetDoneFunc(func(key tcell.Key) {
+		membersPanel.Clear()
+
+		queryGroup = groupNameInput.GetText()
+		samOrDn, isSam := utils.SamOrDN(queryGroup)
+
+		groupDN = queryGroup
+		if isSam {
+			groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
+			groupEntries, err := lc.Query(lc.RootDN, groupDNQuery, ldap.ScopeWholeSubtree, false)
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+				return
+			}
+
+			if len(groupEntries) == 0 {
+				updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
+				return
+			}
+
+			groupDN = groupEntries[0].DN
+		}
+
+		members, err = lc.QueryGroupMembers(groupDN)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
 		}
 
-		for idx, entry := range entries {
+		updateLog("Found "+strconv.Itoa(len(members))+" members of '"+groupDN+"'", "green")
+
+		for idx, entry := range members {
 			sAMAccountName := entry.GetAttributeValue("sAMAccountName")
 			categoryDN := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
 			var category string
@@ -108,40 +147,43 @@ func initGroupPage() {
 				category = "Unknown"
 			}
 
-			groupMembersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName).SetReference(entry.DN))
-			groupMembersPanel.SetCell(idx, 1, tview.NewTableCell(category).SetReference(entry.DN))
-			groupMembersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
+			membersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName).SetReference(entry.DN))
+			membersPanel.SetCell(idx, 1, tview.NewTableCell(category).SetReference(entry.DN))
+			membersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
 		}
 
-		groupMembersPanel.Select(0, 0)
-		groupMembersPanel.ScrollToBeginning()
-		app.SetFocus(groupMembersPanel)
-		updateLog("Members query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+		membersPanel.Select(0, 0)
+		membersPanel.ScrollToBeginning()
+
+		app.SetFocus(membersPanel)
 	})
 
 	userNameInput.SetDoneFunc(func(key tcell.Key) {
-		userGroupsPanel.Clear()
+		groupsPanel.Clear()
 
-		entries, err := lc.QueryUserGroups(userNameInput.GetText())
+		queryObject = userNameInput.GetText()
+		entries, err := lc.QueryUserGroups(queryObject)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
 		}
 
-		var memberOf []string
+		objectDN = queryObject
 		if len(entries) > 0 {
-			memberOf = entries[0].GetAttributeValues("memberOf")
+			objectDN = entries[0].DN
 
-			for idx, group := range memberOf {
-				userGroupsPanel.SetCell(idx, 0, tview.NewTableCell(group).SetReference(group))
+			groups = entries[0].GetAttributeValues("memberOf")
+			updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
+
+			for idx, group := range groups {
+				groupsPanel.SetCell(idx, 0, tview.NewTableCell(group).SetReference(group))
 				// Maybe: map DN and enrich with some attributes?
 			}
 		}
 
-		userGroupsPanel.Select(0, 0)
-		userGroupsPanel.ScrollToBeginning()
-		app.SetFocus(userGroupsPanel)
-		updateLog("Groups query completed ("+strconv.Itoa(len(memberOf))+" objects found)", "green")
+		groupsPanel.Select(0, 0)
+		groupsPanel.ScrollToBeginning()
+		app.SetFocus(groupsPanel)
 	})
 }
 
@@ -149,15 +191,85 @@ func groupRotateFocus() {
 	currentFocus := app.GetFocus()
 
 	switch currentFocus {
-	case groupMembersPanel:
+	case membersPanel:
 		app.SetFocus(groupNameInput)
 	case groupNameInput:
 		app.SetFocus(userNameInput)
 	case userNameInput:
-		app.SetFocus(userGroupsPanel)
-	case userGroupsPanel:
-		app.SetFocus(groupMembersPanel)
+		app.SetFocus(groupsPanel)
+	case groupsPanel:
+		app.SetFocus(membersPanel)
 	}
+}
+
+func exportCurrentGroups() {
+	if groups == nil {
+		updateLog("An object was not queried yet", "red")
+		return
+	}
+
+	unixTimestamp := time.Now().UnixMilli()
+	outputFilename := fmt.Sprintf("%d_groups.json", unixTimestamp)
+
+	exportMap := make(map[string]any)
+	exportMap["Groups"] = groups
+	exportMap["DN"] = objectDN
+	exportMap["Query"] = queryObject
+
+	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilename+"' saved successfully!", "green")
+	}
+}
+
+func exportCurrentMembers() {
+	if members == nil {
+		updateLog("An object was not queried yet", "red")
+		return
+	}
+
+	unixTimestamp := time.Now().UnixMilli()
+	outputFilename := fmt.Sprintf("%d_members.json", unixTimestamp)
+
+	exportMap := make(map[string]any)
+	exportMap["Members"] = members
+	exportMap["DN"] = groupDN
+	exportMap["Query"] = queryGroup
+
+	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilename+"' saved successfully!", "green")
+	}
+}
+
+func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Key() {
+	case tcell.KeyCtrlS:
+		exportCurrentGroups()
+		return nil
+	}
+
+	return event
+}
+
+func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Key() {
+	case tcell.KeyCtrlS:
+		exportCurrentMembers()
+		return nil
+	}
+
+	return event
 }
 
 func groupPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {

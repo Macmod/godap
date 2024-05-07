@@ -111,7 +111,7 @@ func setPageFocus() {
 	case 1:
 		app.SetFocus(searchTreePanel)
 	case 2:
-		app.SetFocus(groupMembersPanel)
+		app.SetFocus(membersPanel)
 	case 3:
 		app.SetFocus(daclEntriesPanel)
 	case 4:
