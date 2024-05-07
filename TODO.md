@@ -11,6 +11,6 @@
 * Feature: Custom themes
 * Feature: Customizable keybindings
 * Refactor: Improve the organization of files, functions and structures (among other ideas, remove the "utils" package)
-* Wish: Some way to copy data from panels
+* Wish: Some way to copy data from panels (not implemented in tview, only for the "textarea" primitive)
 * Wish: Remove dependency on personal fork of gokrb5
 * Wish: Remove dependency on personal fork of go-ldap
