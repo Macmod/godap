@@ -437,9 +437,8 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		openCreateObjectForm(currentNode, func() {
 			reloadExplorerAttrsPanel(currentNode, cacheEntries)
 
-			// Not the best approach but for now it works :)
-			collapseTreeNode(currentNode)
-			expandTreeNode(currentNode)
+			unloadChildren(currentNode)
+			loadChildren(currentNode)
 			treePanel.SetCurrentNode(currentNode)
 		})
 	case tcell.KeyCtrlS:
