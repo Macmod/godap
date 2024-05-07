@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"sort"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/Macmod/godap/v2/sdl"
 	"github.com/Macmod/godap/v2/utils"
@@ -13,9 +17,111 @@ import (
 )
 
 var (
-	object       string
-	sd           *sdl.SecurityDescriptor
-	readableAces []ParsedACE
+	runControlDacl sync.Mutex
+	runningDacl    bool
+
+	sd         *sdl.SecurityDescriptor
+	parsedAces []ParsedACE
+)
+
+func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
+	var samAccountName string
+	var sidMap map[string]string = make(map[string]string)
+	var ok bool
+
+	for idx, ace := range srcSD.DACL.Aces {
+		entry := ParsedACE{
+			Idx:            idx,
+			SamAccountName: "",
+			Type:           "",
+			Inheritance:    false,
+			Scope:          "This object only",
+			NoPropagate:    false,
+			Severity:       0,
+			Raw:            ace,
+		}
+
+		var ACEFlags int
+		switch aceVal := ace.(type) {
+		case *sdl.BASIC_ACE:
+			sid := utils.ConvertSID(aceVal.SID)
+
+			if aceVal.Header.ACEType == "00" {
+				entry.Type = "Allow"
+			} else {
+				entry.Type = "Deny"
+			}
+
+			samAccountName, ok = sidMap[sid]
+			if !ok {
+				samAccountName, err = lc.FindSamForSID(sid)
+				if err == nil {
+					sidMap[sid] = samAccountName
+					entry.SamAccountName = samAccountName
+				} else {
+					entry.SamAccountName = sid
+				}
+			} else {
+				entry.SamAccountName = samAccountName
+			}
+
+			ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
+			if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
+				entry.Inheritance = true
+			}
+
+			if ACEFlags&sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] != 0 {
+				entry.NoPropagate = true
+			}
+
+			permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
+
+			entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, "")
+		case *sdl.OBJECT_ACE:
+			sid := utils.ConvertSID(aceVal.SID)
+
+			if aceVal.Header.ACEType == "05" {
+				entry.Type = "Allow"
+			} else {
+				entry.Type = "Deny"
+			}
+			samAccountName, ok = sidMap[sid]
+			if !ok {
+				samAccountName, err = lc.FindSamForSID(sid)
+				if err == nil {
+					sidMap[sid] = samAccountName
+					entry.SamAccountName = samAccountName
+				} else {
+					entry.SamAccountName = sid
+				}
+			} else {
+				entry.SamAccountName = samAccountName
+			}
+
+			ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
+			if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
+				entry.Inheritance = true
+			}
+
+			if ACEFlags&sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] != 0 {
+				entry.NoPropagate = true
+			}
+
+			permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
+			objectType, inheritedObjectType := aceVal.GetObjectAndInheritedType()
+			entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, objectType)
+			entry.Scope = sdl.AceFlagsToText(aceVal.Header.ACEFlags, inheritedObjectType)
+		case *sdl.NOTIMPL_ACE:
+			// Should not happen under normal circumstances
+			entry.Type = "NOTIMPL"
+		}
+
+		*dst = append(*dst, entry)
+	}
+}
+
+var (
+	object string
 
 	daclPage             *tview.Flex
 	objectNameInputDacl  *tview.InputField
@@ -79,8 +185,8 @@ func initDaclPage(includeCurSchema bool) {
 		SetBorder(true)
 
 	daclEntriesPanel.SetSelectionChangedFunc(func(row, column int) {
-		if sd != nil && row <= len(readableAces) && row > 0 {
-			ace := readableAces[row-1]
+		if sd != nil && row <= len(parsedAces) && row > 0 {
+			ace := parsedAces[row-1]
 			maskInt := ace.Raw.GetMask()
 
 			aceMask.SetText(strconv.Itoa(maskInt))
@@ -109,7 +215,10 @@ func initDaclPage(includeCurSchema bool) {
 
 	daclEntriesPanel.SetInputCapture(daclEntriesPanelKeyHandler)
 	daclPage.SetInputCapture(daclPageKeyHandler)
-	objectNameInputDacl.SetDoneFunc(func(tcell.Key) { updateDaclEntries() })
+	objectNameInputDacl.SetDoneFunc(func(tcell.Key) {
+		updateLog("Fetching DACL for '"+objectNameInputDacl.GetText()+"'", "yellow")
+		go updateDaclEntries()
+	})
 }
 
 type ParsedACE struct {
@@ -125,7 +234,7 @@ type ParsedACE struct {
 }
 
 func selectDaclEntry(aceToSelect sdl.ACEInt) {
-	for idx, ace := range readableAces {
+	for idx, ace := range parsedAces {
 		if aceToSelect.Encode() == ace.Raw.Encode() {
 			daclEntriesPanel.Select(idx+1, 0)
 		}
@@ -133,6 +242,21 @@ func selectDaclEntry(aceToSelect sdl.ACEInt) {
 }
 
 func updateDaclEntries() {
+	runControlDacl.Lock()
+	if runningDacl {
+		runControlDacl.Unlock()
+		updateLog("Another query is still running...", "yellow")
+		return
+	}
+	runningDacl = true
+	runControlDacl.Unlock()
+
+	defer func() {
+		runControlDacl.Lock()
+		runningDacl = false
+		runControlDacl.Unlock()
+	}()
+
 	daclEntriesPanel.Clear()
 	daclOwnerTextView.SetText("")
 	controlFlagsTextView.SetText("")
@@ -146,22 +270,23 @@ func updateDaclEntries() {
 	daclEntriesPanel.SetCell(0, 4, tview.NewTableCell("Scope").SetSelectable(false).SetAlign(tview.AlignCenter))
 	daclEntriesPanel.SetCell(0, 5, tview.NewTableCell("No Propagate").SetSelectable(false).SetAlign(tview.AlignCenter))
 
-	var ok bool
 	var hexSD string
 	var readableMask string
 	var aceType string
 	var aceInheritance string
 	var aceNoPropagate string
-	var samAccountName string
-	sidMap := make(map[string]string)
 
 	object = objectNameInputDacl.GetText()
 	hexSD, err = lc.GetSecurityDescriptor(object)
+
+	sd = nil
+	parsedAces = nil
 
 	if err == nil {
 		sd = sdl.NewSD(hexSD)
 
 		numAces := strconv.Itoa(len(sd.DACL.Aces))
+
 		updateLog("DACL obtained for '"+object+"' ("+numAces+" ACEs)", "green")
 		app.SetFocus(daclEntriesPanel)
 		daclEntriesPanel.ScrollToBeginning()
@@ -180,96 +305,10 @@ func updateDaclEntries() {
 		// For AD, groupPrincipal is not relevant,
 		// so there's no need to show it in the UI
 
-		readableAces = nil
-		for idx, ace := range sd.DACL.Aces {
-			entry := ParsedACE{
-				Idx:            idx,
-				SamAccountName: "",
-				Type:           "",
-				Inheritance:    false,
-				Scope:          "This object only",
-				NoPropagate:    false,
-				Severity:       0,
-				Raw:            ace,
-			}
+		// Parse the ACEs from the DACL in sd into parsedAces
+		parseAces(&parsedAces, sd)
 
-			var ACEFlags int
-			switch aceVal := ace.(type) {
-			case *sdl.BASIC_ACE:
-				sid := utils.ConvertSID(aceVal.SID)
-
-				if aceVal.Header.ACEType == "00" {
-					entry.Type = "Allow"
-				} else {
-					entry.Type = "Deny"
-				}
-
-				samAccountName, ok = sidMap[sid]
-				if !ok {
-					samAccountName, err = lc.FindSamForSID(sid)
-					if err == nil {
-						sidMap[sid] = samAccountName
-						entry.SamAccountName = samAccountName
-					} else {
-						entry.SamAccountName = sid
-					}
-				} else {
-					entry.SamAccountName = samAccountName
-				}
-
-				ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
-				if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
-					entry.Inheritance = true
-				}
-
-				if ACEFlags&sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] != 0 {
-					entry.NoPropagate = true
-				}
-
-				permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
-
-				entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, "")
-			case *sdl.OBJECT_ACE:
-				sid := utils.ConvertSID(aceVal.SID)
-
-				if aceVal.Header.ACEType == "05" {
-					entry.Type = "Allow"
-				} else {
-					entry.Type = "Deny"
-				}
-				samAccountName, ok = sidMap[sid]
-				if !ok {
-					samAccountName, err = lc.FindSamForSID(sid)
-					if err == nil {
-						sidMap[sid] = samAccountName
-						entry.SamAccountName = samAccountName
-					} else {
-						entry.SamAccountName = sid
-					}
-				} else {
-					entry.SamAccountName = samAccountName
-				}
-
-				ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
-				if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
-					entry.Inheritance = true
-				}
-
-				if ACEFlags&sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] != 0 {
-					entry.NoPropagate = true
-				}
-
-				permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
-				objectType, inheritedObjectType := aceVal.GetObjectAndInheritedType()
-				entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, objectType)
-				entry.Scope = sdl.AceFlagsToText(aceVal.Header.ACEFlags, inheritedObjectType)
-			case *sdl.NOTIMPL_ACE:
-				// Should not happen under normal circumstances
-				entry.Type = "NOTIMPL"
-			}
-
-			readableAces = append(readableAces, entry)
-
+		for idx, entry := range parsedAces {
 			if len(entry.Mask) == 1 {
 				readableMask = entry.Mask[0]
 			} else {
@@ -326,10 +365,10 @@ func updateDaclEntries() {
 
 		daclEntriesPanel.Select(1, 1)
 	} else {
-		sd = nil
-		readableAces = nil
 		updateLog(fmt.Sprint(err), "red")
 	}
+
+	app.Draw()
 }
 
 func daclRotateFocus() {
@@ -418,13 +457,15 @@ func loadChangeOwnerForm() {
 			)
 
 			newSd, _ := hex.DecodeString(sd.Encode())
+
 			err = lc.ModifyDACL(object, string(newSd))
 
 			if err == nil {
 				newOwner := changeOwnerForm.GetFormItemByLabel("New Owner").(*tview.InputField).GetText()
 
-				updateDaclEntries()
 				updateLog("Owner for '"+object+"' changed to '"+newOwner+"'", "green")
+
+				go updateDaclEntries()
 			} else {
 				updateLog(fmt.Sprint(err), "red")
 			}
@@ -457,6 +498,7 @@ func loadChangeControlFlagsForm() {
 	updateControlFlagsForm := NewXForm()
 
 	controlFlags := sd.GetControl()
+
 	checkboxState := controlFlags
 
 	updateControlFlagsForm.
@@ -492,14 +534,16 @@ func loadChangeControlFlagsForm() {
 			app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
 		}).
 		AddButton("Update", func() {
-			sd.Header.Control = utils.EndianConvert(fmt.Sprintf("%04x", checkboxState))
 
+			sd.Header.Control = utils.EndianConvert(fmt.Sprintf("%04x", checkboxState))
 			newSd, _ := hex.DecodeString(sd.Encode())
+
 			err = lc.ModifyDACL(object, string(newSd))
 
 			if err == nil {
-				updateDaclEntries()
 				updateLog("Control flags updated for '"+object+"'", "green")
+
+				go updateDaclEntries()
 			} else {
 				updateLog(fmt.Sprint(err), "red")
 			}
@@ -517,41 +561,76 @@ func loadChangeControlFlagsForm() {
 	app.SetRoot(updateControlFlagsForm, true).SetFocus(updateControlFlagsForm)
 }
 
+func exportCurrentSD() {
+	if sd == nil {
+		updateLog("An object was not queried yet", "red")
+		return
+	}
+
+	encodedSD := sd.Encode()
+
+	unixTimestamp := time.Now().UnixMilli()
+	outputFilename := fmt.Sprintf("%d_sd.json", unixTimestamp)
+
+	exportMap := make(map[string]any)
+	exportMap["Query"] = object
+	exportMap["HexSD"] = encodedSD
+
+	exportMap["ParsedDACL"] = parsedAces
+
+	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilename+"' saved successfully!", "green")
+	}
+}
+
 func daclPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	if event.Key() == tcell.KeyTab || event.Key() == tcell.KeyBacktab {
 		daclRotateFocus()
 		return nil
 	}
 
-	if sd != nil {
-		switch event.Key() {
-		case tcell.KeyCtrlO:
-			loadChangeOwnerForm()
-			return nil
-		case tcell.KeyCtrlK:
-			loadChangeControlFlagsForm()
-			return nil
-		}
+	if sd == nil {
+		return event
+	}
+
+	switch event.Key() {
+	case tcell.KeyCtrlO:
+		loadChangeOwnerForm()
+		return nil
+	case tcell.KeyCtrlK:
+		loadChangeControlFlagsForm()
+		return nil
+	case tcell.KeyCtrlS:
+		exportCurrentSD()
+		return nil
 	}
 
 	return event
 }
 
 func daclEntriesPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
-	if sd != nil {
-		switch event.Key() {
-		case tcell.KeyDelete:
-			selectionIdx, _ := daclEntriesPanel.GetSelection()
-			loadDeleteAceForm(selectionIdx)
-			return nil
-		case tcell.KeyCtrlN:
-			loadAceEditorForm(-1)
-			return nil
-		case tcell.KeyCtrlE:
-			selectionIdx, _ := daclEntriesPanel.GetSelection()
-			loadAceEditorForm(selectionIdx)
-			return nil
-		}
+	if sd == nil {
+		return event
+	}
+
+	switch event.Key() {
+	case tcell.KeyDelete:
+		selectionIdx, _ := daclEntriesPanel.GetSelection()
+		loadDeleteAceForm(selectionIdx)
+		return nil
+	case tcell.KeyCtrlN:
+		loadAceEditorForm(-1)
+		return nil
+	case tcell.KeyCtrlE:
+		selectionIdx, _ := daclEntriesPanel.GetSelection()
+		loadAceEditorForm(selectionIdx)
+		return nil
 	}
 
 	return event

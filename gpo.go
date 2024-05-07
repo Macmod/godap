@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Macmod/godap/v2/utils"
 	"github.com/gdamore/tcell/v2"
@@ -13,17 +17,22 @@ import (
 )
 
 var (
+	runControlGpo sync.Mutex
+	runningGpo    bool
+
+	gpoTarget string
+
 	gpoTargetInput *tview.InputField
 	gpoPath        *tview.TextView
 	gpoPage        *tview.Flex
 	gpoListPanel   *tview.Table
 	gpoLinksPanel  *tview.Table
 	gpoFlex        *tview.Flex
-)
 
-var gpLinks map[string][]GPOLink = make(map[string][]GPOLink)
-var containerLinks map[string][]string = make(map[string][]string)
-var gpEntry map[string]*ldap.Entry = make(map[string]*ldap.Entry)
+	gpLinks        map[string][]GPOLink
+	containerLinks map[string][]string
+	gpEntry        map[string]*ldap.Entry
+)
 
 type GPOLink struct {
 	Target   string
@@ -102,7 +111,7 @@ func initGPOPage() {
 		AddItem(gpoFlex, 0, 1, false)
 
 	gpoTargetInput.SetDoneFunc(func(key tcell.Key) {
-		reloadGPOPage()
+		go updateGPOEntries()
 	})
 
 	gpoListPanel.SetSelectedFunc(func(row, col int) {
@@ -125,12 +134,12 @@ func initGPOPage() {
 			gpoPath.SetText(gpPath)
 		}
 
-		gpoLinksPanel.SetCell(0, 0, tview.NewTableCell("Target").SetSelectable(false))
-		gpoLinksPanel.SetCell(0, 1, tview.NewTableCell("Enforced").SetSelectable(false))
-		gpoLinksPanel.SetCell(0, 2, tview.NewTableCell("Enabled").SetSelectable(false))
-
 		val, ok := gpLinks[guid]
 		if ok {
+			gpoLinksPanel.SetCell(0, 0, tview.NewTableCell("Target").SetSelectable(false))
+			gpoLinksPanel.SetCell(0, 1, tview.NewTableCell("Enforced").SetSelectable(false))
+			gpoLinksPanel.SetCell(0, 2, tview.NewTableCell("Enabled").SetSelectable(false))
+
 			idx := 0
 			for linkIdx := range val {
 				enforced := "[red]No"
@@ -176,11 +185,27 @@ func gpoRotateFocus() {
 	}
 }
 
-func reloadGPOPage() {
+func updateGPOEntries() {
+	runControlGpo.Lock()
+	if runningGpo {
+		runControlGpo.Unlock()
+		updateLog("Another query is still running...", "yellow")
+		return
+	}
+	runningGpo = true
+	runControlGpo.Unlock()
+
+	defer func() {
+		runControlGpo.Lock()
+		runningGpo = false
+		runControlGpo.Unlock()
+	}()
+
 	gpLinks = make(map[string][]GPOLink)
 	gpEntry = make(map[string]*ldap.Entry)
 	containerLinks = make(map[string][]string)
 
+	gpoListPanel.SetTitle("Applied GPOs")
 	gpoLinksPanel.Clear()
 	gpoListPanel.Clear()
 	gpoPath.Clear()
@@ -208,7 +233,7 @@ func reloadGPOPage() {
 
 	// Load all GPOs from corresponding links
 	gpoQuery := "(objectClass=groupPolicyContainer)"
-	gpoTarget := gpoTargetInput.GetText()
+	gpoTarget = gpoTargetInput.GetText()
 
 	gpoTargetDN := gpoTarget
 	if gpoTarget != "" {
@@ -230,6 +255,7 @@ func reloadGPOPage() {
 			gpoTargetDN = entries[0].DN
 		} else {
 			updateLog("GPO target not found", "red")
+			app.Draw()
 			return
 		}
 	}
@@ -285,11 +311,41 @@ func reloadGPOPage() {
 		gpoListPanel.SetCellSimple(idx+1, 1, utils.FormatLDAPTime(gpoCreated))
 		gpoListPanel.SetCellSimple(idx+1, 2, utils.FormatLDAPTime(gpoChanged))
 		gpoListPanel.SetCellSimple(idx+1, 3, gpoGuid)
+	}
 
-		if len(entries) > 0 {
-			gpoListPanel.SetTitle("Applied GPOs (" + strconv.Itoa(len(entries)) + ")")
-			gpoListPanel.Select(1, 0)
-		}
+	if len(entries) > 0 {
+		gpoListPanel.SetTitle("Applied GPOs (" + strconv.Itoa(len(entries)) + ")")
+		gpoListPanel.Select(1, 0)
+
+		app.SetFocus(gpoListPanel)
+	}
+
+	app.Draw()
+}
+
+func exportCurrentGpos() {
+	if gpEntry == nil {
+		updateLog("An object was not queried yet", "red")
+		return
+	}
+
+	unixTimestamp := time.Now().UnixMilli()
+	outputFilename := fmt.Sprintf("%d_gpos.json", unixTimestamp)
+
+	exportMap := make(map[string]any)
+
+	exportMap["Links"] = gpLinks
+	exportMap["Gpos"] = gpEntry
+	exportMap["Query"] = gpoTarget
+
+	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
+
+	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilename+"' saved successfully!", "green")
 	}
 }
 

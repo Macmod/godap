@@ -125,10 +125,10 @@ func removeAce(aceIdx int) {
 	sd.SetDaclACES(updatedAces)
 
 	newSd, _ := hex.DecodeString(sd.Encode())
-	err = lc.ModifyDACL(object, string(newSd))
 
+	err = lc.ModifyDACL(object, string(newSd))
 	if err == nil {
-		updateDaclEntries()
+		go updateDaclEntries()
 		updateLog("ACE deleted for object '"+object+"'", "green")
 
 		if aceIdx > 0 {
@@ -232,10 +232,11 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 
 	// Modify the DACL to include the new ACE
 	newSd, _ := hex.DecodeString(sd.Encode())
+
 	err = lc.ModifyDACL(object, string(newSd))
 
 	if err == nil {
-		updateDaclEntries()
+		go updateDaclEntries()
 		updateLog("DACL updated successfully!", "green")
 
 		// Update selection
@@ -247,7 +248,7 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 
 func loadDeleteAceForm(aceIdx int) {
 	object := objectNameInputDacl.GetText()
-	aceEntry := readableAces[aceIdx-1]
+	aceEntry := parsedAces[aceIdx-1]
 	if aceEntry.Inheritance {
 		updateLog("Inherited ACEs cannot be deleted.", "red")
 		return
@@ -468,8 +469,8 @@ func loadAceEditorForm(aceIdx int) {
 	object := objectNameInputDacl.GetText()
 
 	// Initial values
-	if aceIdx > 0 {
-		aceEntry := readableAces[aceIdx-1]
+	if aceIdx > 0 && aceIdx < len(parsedAces) {
+		aceEntry := parsedAces[aceIdx-1]
 		if aceEntry.Inheritance {
 			updateLog("Inherited ACEs cannot be edited.", "red")
 			return
