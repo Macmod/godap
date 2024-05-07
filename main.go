@@ -18,7 +18,7 @@ import (
 	"h12.io/socks"
 )
 
-var godapVer = "Godap v2.4.0"
+var godapVer = "Godap v2.5.0"
 
 var (
 	ldapServer       string
