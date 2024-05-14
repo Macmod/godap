@@ -10,7 +10,7 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-func FormatLDAPTime(val string) string {
+func FormatLDAPTime(val, format string) string {
 	layout := "20060102150405.0Z"
 	t, err := time.Parse(layout, val)
 	if err != nil {
@@ -19,13 +19,10 @@ func FormatLDAPTime(val string) string {
 
 	distString := GetTimeDistString(time.Since(t))
 
-	return fmt.Sprintf(
-		"%02d/%02d/%d %02d:%02d:%02d %s", t.Day(), t.Month(), t.Year(),
-		t.Hour(), t.Minute(), t.Second(), distString,
-	)
+	return fmt.Sprintf("%s %s", t.Format(format), distString)
 }
 
-func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
+func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string {
 	var formattedEntries = attr.Values
 
 	if len(attr.Values) == 0 {
@@ -40,7 +37,7 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 			formattedEntries = []string{"GUID{" + ConvertGUID(hex.EncodeToString(attr.ByteValues[idx])) + "}"}
 		case "whenCreated", "whenChanged":
 			formattedEntries = []string{
-				FormatLDAPTime(val),
+				FormatLDAPTime(val, timeFormat),
 			}
 		case "lastLogonTimestamp", "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon", "pwdLastSet", "creationTime", "lockoutTime":
 			if val == "0" {
@@ -61,7 +58,7 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute) []string {
 
 			distString := GetTimeDistString(time.Since(t))
 
-			formattedEntries = []string{fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d %s", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), distString)}
+			formattedEntries = []string{fmt.Sprintf("%s %s", t.Format(timeFormat), distString)}
 		case "userAccountControl":
 			uacInt, _ := strconv.Atoi(val)
 

@@ -308,8 +308,8 @@ func updateGPOEntries() {
 		gpoChanged := entry.GetAttributeValue("whenChanged")
 
 		gpoListPanel.SetCellSimple(idx+1, 0, gpoName)
-		gpoListPanel.SetCellSimple(idx+1, 1, utils.FormatLDAPTime(gpoCreated))
-		gpoListPanel.SetCellSimple(idx+1, 2, utils.FormatLDAPTime(gpoChanged))
+		gpoListPanel.SetCellSimple(idx+1, 1, utils.FormatLDAPTime(gpoCreated, timeFormat))
+		gpoListPanel.SetCellSimple(idx+1, 2, utils.FormatLDAPTime(gpoChanged, timeFormat))
 		gpoListPanel.SetCellSimple(idx+1, 3, gpoGuid)
 	}
 

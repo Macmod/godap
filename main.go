@@ -32,6 +32,7 @@ var (
 	socksServer      string
 	targetSpn        string
 	kdcHost          string
+	timeFormat       string
 
 	kerberos     bool
 	emojis       bool
@@ -427,6 +428,9 @@ func setupApp() {
 		SetTitle("Deleted (d)").
 		SetBorder(true)
 
+	// Time format setup
+	timeFormat = setupTimeFormat(timeFormat)
+
 	err := setupLDAPConn()
 	if err != nil {
 		log.Fatal(err)
@@ -516,6 +520,24 @@ func setupApp() {
 	}
 }
 
+// setupTimeFormat returns the time format string based on the given format code.
+// The format code can be one of the following:
+// - "EU" or empty string: returns the format "02/01/2006 15:04:05" (day/month/year hour:minute:second)
+// - "US": returns the format "01/02/2006 15:04:05" (month/day/year hour:minute:second)
+// - "ISO": returns the format "2006-01-02 15:04:05" (year-month-day hour:minute:second)
+// If the format code is not recognized, it assumed to be a golang time format and is returned unchanged.
+func setupTimeFormat(f string) string {
+	switch f {
+	case "EU", "":
+		return "02/01/2006 15:04:05"
+	case "US":
+		return "01/02/2006 15:04:05"
+	case "ISO":
+		return "2006-01-02 15:04:05"
+	}
+	return f
+}
+
 func main() {
 	tview.Styles = baseTheme
 
@@ -570,6 +592,7 @@ func main() {
 	rootCmd.Flags().BoolVarP(&ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
 	rootCmd.Flags().StringVarP(&socksServer, "socks", "x", "", "Use a SOCKS proxy for initial connection")
 	rootCmd.Flags().StringVarP(&kdcHost, "kdc", "", "", "Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)")
+	rootCmd.Flags().StringVarP(&timeFormat, "timefmt", "", "", "Time format for LDAP timestamps")
 
 	versionCmd := &cobra.Command{
 		Use:                   "version",

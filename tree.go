@@ -374,7 +374,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		attrsTable.SetCell(row, 0, tview.NewTableCell(cellName))
 
 		if formatAttrs {
-			cellValues = utils.FormatLDAPAttribute(attribute)
+			cellValues = utils.FormatLDAPAttribute(attribute, timeFormat)
 		} else {
 			cellValues = attribute.Values
 		}
