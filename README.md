@@ -116,6 +116,7 @@ You can also change the address of your proxy using the `l` keybinding.
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
+* `--timefmt` - Time format for LDAP timestamps. Options: eu, us, [iso8601](https://en.wikipedia.org/wiki/ISO_8601), or define your own using [go time format](https://go.dev/src/time/format.go) (default: `eu`)
 
 ## Keybindings
 

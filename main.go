@@ -524,15 +524,15 @@ func setupApp() {
 // The format code can be one of the following:
 // - "EU" or empty string: returns the format "02/01/2006 15:04:05" (day/month/year hour:minute:second)
 // - "US": returns the format "01/02/2006 15:04:05" (month/day/year hour:minute:second)
-// - "ISO": returns the format "2006-01-02 15:04:05" (year-month-day hour:minute:second)
+// - "ISO8601": returns the format "2006-01-02 15:04:05" (year-month-day hour:minute:second)
 // If the format code is not recognized, it assumed to be a golang time format and is returned unchanged.
 func setupTimeFormat(f string) string {
-	switch f {
+	switch strings.ToUpper(f) {
 	case "EU", "":
 		return "02/01/2006 15:04:05"
 	case "US":
 		return "01/02/2006 15:04:05"
-	case "ISO":
+	case "ISO8601":
 		return "2006-01-02 15:04:05"
 	}
 	return f

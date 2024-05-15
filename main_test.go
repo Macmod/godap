@@ -12,7 +12,7 @@ func TestSetupTimeFormat(t *testing.T) {
 	}{
 		{
 			name:     "EU format",
-			input:    "EU",
+			input:    "eu",
 			expected: "02/01/2006 15:04:05",
 		},
 		{
@@ -27,7 +27,7 @@ func TestSetupTimeFormat(t *testing.T) {
 		},
 		{
 			name:     "ISO format",
-			input:    "ISO",
+			input:    "ISO8601",
 			expected: "2006-01-02 15:04:05",
 		},
 		{
