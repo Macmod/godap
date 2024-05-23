@@ -6,6 +6,7 @@
 
 # TODO (later)
 
+* Feature: View/modify ADIDNS dnsZones and dnsNodes
 * Feature: Mini tool to convert godap exports into bloodhound dumps
 * Feature: Improve object creation form (implement customizations)
 * Feature: Custom themes
