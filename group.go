@@ -253,20 +253,38 @@ func exportCurrentMembers() {
 }
 
 func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {
+    row, col := groupsPanel.GetSelection()
+
 	switch event.Key() {
 	case tcell.KeyCtrlS:
 		exportCurrentGroups()
 		return nil
+    case tcell.KeyCtrlG:
+        selCell := groupsPanel.GetCell(row, col)
+        if selCell != nil && selCell.GetReference() != nil {
+            baseDN := selCell.GetReference().(string)
+            openAddMemberToGroupForm(baseDN)
+        }
+        return nil
 	}
 
 	return event
 }
 
 func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
+    row, col := membersPanel.GetSelection()
+
 	switch event.Key() {
 	case tcell.KeyCtrlS:
 		exportCurrentMembers()
 		return nil
+    case tcell.KeyCtrlG:
+        selCell := membersPanel.GetCell(row, col)
+        if selCell != nil && selCell.GetReference() != nil {
+            baseDN := selCell.GetReference().(string)
+            openAddMemberToGroupForm(baseDN)
+        }
+        return nil
 	}
 
 	return event

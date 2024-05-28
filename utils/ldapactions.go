@@ -243,6 +243,17 @@ func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err 
 	return result.Entries, nil
 }
 
+func (lc *LDAPConn) AddMemberToGroup(memberDN string, groupDN string) error {
+	modifyRequest := ldap.NewModifyRequest(groupDN, nil)
+	modifyRequest.Add("member", []string{memberDN})
+	err := lc.Conn.Modify(modifyRequest)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
 	samOrDn, _ := SamOrDN(userName)
 
@@ -264,6 +275,21 @@ func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
 	}
 
 	return result.Entries, nil
+}
+
+func (lc *LDAPConn) FindFirstDN(identifier string) (string, error) {
+	samOrDn, _ := SamOrDN(identifier)
+
+	entries, err := lc.Query(lc.RootDN, samOrDn, ldap.ScopeWholeSubtree, false)
+	if err != nil {
+		return "", err
+	}
+
+	if len(entries) > 0 {
+		return entries[0].DN, nil
+	} else {
+		return "", fmt.Errorf("Object not found")
+	}
 }
 
 // User Passwords

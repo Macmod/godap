@@ -134,28 +134,29 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>Ctrl</kbd> + <kbd>f</kbd>                      | LDAP Explorer & Object Search pages                               | Open the finder to search for cached objects & attributes with regex  |
 | Right Arrow                                         | Explorer panel                                                    | Expand the children of the selected object                            |
 | Left Arrow                                          | Explorer panel                                                    | Collapse the children of the selected object                          |
-| <kbd>r</kbd>                                        | Explorer panel                                                    | Reload the attributes and children of the selected object     |
-| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Explorer panel                                                    | Create a new object under the selected object                 |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file |
-| <kbd>Ctrl</kbd> + <kbd>p</kbd>                      | Explorer panel                                                    | Change the password of the selected user or computer account  |
-| <kbd>Ctrl</kbd> + <kbd>a</kbd>                      | Explorer panel                                                    | Update the userAccountControl of the object interactively     |
-| <kbd>Ctrl</kbd> + <kbd>l</kbd>                      | Explorer panel                                                    | Move the selected object to another location                  |
-| <kbd>Delete</kbd>                                   | Explorer panel                                                    | Delete the selected object                                    |
-| <kbd>r</kbd>                                        | Attributes panel                                                  | Reload the attributes for the selected object                 |
-| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | Attributes panel                                                  | Edit the selected attribute of the selected object            |
-| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Attributes panel                                                  | Create a new attribute in the selected object                 |
-| <kbd>Delete</kbd>                                   | Attributes panel                                                  | Delete the selected attribute of the selected object          |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Object groups panel                                               | Export the current groups into a JSON file                    |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Group members panel                                               | Export the current group members into a JSON file             |
-| <kbd>Ctrl</kbd> + <kbd>o</kbd>                      | DACL page                                                         | Change the owner of the current security descriptor           |
-| <kbd>Ctrl</kbd> + <kbd>k</kbd>                      | DACL page                                                         | Change the control flags of the current security descriptor   |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | DACL page                                                         | Export the current security descriptor into a JSON file       |
-| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | DACL entries panel                                                | Create a new ACE in the current DACL                          |
-| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | DACL entries panel                                                | Edit the selected ACE of the current DACL                     |
-| <kbd>Delete</kbd>                                   | DACL entries panel                                                | Deletes the selected ACE of the current DACL                  |
-| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | GPO page                                                          | Export the current GPOs and their links into a JSON file      |
-| <kbd>h</kbd>                                        | Global                                                            | Show/hide headers                                             |
-| <kbd>q</kbd>                                        | Global                                                            | Exit the program                                              |
+| <kbd>r</kbd>                                        | Explorer panel                                                    | Reload the attributes and children of the selected object             |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Explorer panel                                                    | Create a new object under the selected object                         |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file      |
+| <kbd>Ctrl</kbd> + <kbd>p</kbd>                      | Explorer panel                                                    | Change the password of the selected user or computer account          |
+| <kbd>Ctrl</kbd> + <kbd>a</kbd>                      | Explorer panel                                                    | Update the userAccountControl of the object interactively             |
+| <kbd>Ctrl</kbd> + <kbd>l</kbd>                      | Explorer panel                                                    | Move the selected object to another location                          |
+| <kbd>Delete</kbd>                                   | Explorer panel                                                    | Delete the selected object                                            |
+| <kbd>r</kbd>                                        | Attributes panel                                                  | Reload the attributes for the selected object                         |
+| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | Attributes panel                                                  | Edit the selected attribute of the selected object                    |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Attributes panel                                                  | Create a new attribute in the selected object                         |
+| <kbd>Delete</kbd>                                   | Attributes panel                                                  | Delete the selected attribute of the selected object                  |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Object groups panel                                               | Export the current groups into a JSON file                            |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Group members panel                                               | Export the current group members into a JSON file                     |
+| <kbd>Ctrl</kbd> + <kbd>g</kbd>                      | Groups panels / Explorer panel / Obj. Search panel                | Add a member to the selected group                                    |
+| <kbd>Ctrl</kbd> + <kbd>o</kbd>                      | DACL page                                                         | Change the owner of the current security descriptor                   |
+| <kbd>Ctrl</kbd> + <kbd>k</kbd>                      | DACL page                                                         | Change the control flags of the current security descriptor           |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | DACL page                                                         | Export the current security descriptor into a JSON file               |
+| <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | DACL entries panel                                                | Create a new ACE in the current DACL                                  |
+| <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | DACL entries panel                                                | Edit the selected ACE of the current DACL                             |
+| <kbd>Delete</kbd>                                   | DACL entries panel                                                | Deletes the selected ACE of the current DACL                          |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | GPO page                                                          | Export the current GPOs and their links into a JSON file              |
+| <kbd>h</kbd>                                        | Global                                                            | Show/hide headers                                                     |
+| <kbd>q</kbd>                                        | Global                                                            | Exit the program                                                      |
 
 ## Tree Colors
 

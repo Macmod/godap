@@ -22,6 +22,8 @@ var (
 	rootDNInput        *tview.InputField
 	searchFilterInput  *tview.InputField
 	treeFlex           *tview.Flex
+
+	addMemberToGroupFormValidation bool
 )
 
 func initExplorerPage() {
@@ -367,6 +369,67 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 	app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
 }
 
+func openAddMemberToGroupForm(groupDN string) {
+	currentFocus := app.GetFocus()
+
+	addMemberForm := NewXForm().
+		AddInputField("Group DN", groupDN, 0, nil, nil).
+		AddInputField("Object Name", "", 0, nil, nil).
+		AddTextView("Object DN", "", 0, 1, false, true)
+
+	objectNameFormItem := addMemberForm.GetFormItemByLabel("Object Name").(*tview.InputField)
+	objectNameFormItem.
+		SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetPlaceholder("sAMAccountName or DN")
+
+	objectDNFormItem := addMemberForm.GetFormItemByLabel("Object DN").(*tview.TextView)
+	objectDNFormItem.SetDynamicColors(true)
+
+	objectNameFormItem.SetDoneFunc(func(key tcell.Key) {
+		objectDN, err := lc.FindFirstDN(objectNameFormItem.GetText())
+		if err == nil {
+			addMemberToGroupFormValidation = true
+			objectDNFormItem.SetText(objectDN)
+		} else {
+			addMemberToGroupFormValidation = false
+			objectDNFormItem.SetText("[red]Object not found")
+		}
+	})
+
+	addMemberForm.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle).
+		SetInputCapture(handleEscapeToTree)
+
+	addMemberForm.
+		AddButton("Go Back", func() {
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		}).
+		AddButton("Add", func() {
+			if !addMemberToGroupFormValidation {
+				// TODO: Provide some feedback to the user?
+				return
+			}
+
+			objectDN := addMemberForm.GetFormItemByLabel("Object DN").(*tview.TextView).GetText(true)
+
+			err = lc.AddMemberToGroup(objectDN, groupDN)
+			if err != nil {
+				updateLog(fmt.Sprintf("%s", err), "red")
+			} else {
+				updateLog("Member '"+objectDN+"' added to group '"+groupDN+"'", "green")
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	addMemberForm.SetTitle("Add Group Member").SetBorder(true)
+	app.SetRoot(addMemberForm, true).SetFocus(addMemberForm)
+}
+
 func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	currentNode := treePanel.GetCurrentNode()
 	if currentNode == nil {
@@ -460,6 +523,8 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 				reloadExplorerPage()
 			}
 		})
+	case tcell.KeyCtrlG:
+		openAddMemberToGroupForm(baseDN)
 	}
 
 	return event

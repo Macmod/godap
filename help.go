@@ -45,6 +45,7 @@ func initHelpPage() {
 		{"Delete", "Attributes panel", "Delete the selected attribute of the selected object"},
 		{"Ctrl + s", "Object groups panel", "Export the current groups innto a JSON file"},
 		{"Ctrl + s", "Group members panel", "Export the current group members into a JSON file"},
+		{"Ctrl + g", "Groups panels / Explorer panel / Obj. Search panel", "Add a member to the selected group"},
 		{"Ctrl + o", "DACL page", "Change the owner of the current security descriptor"},
 		{"Ctrl + k", "DACL page", "Change the control flags of the current security descriptor"},
 		{"Ctrl + s", "DACL page", "Export the current security descriptor into a JSON file"},

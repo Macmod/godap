@@ -195,6 +195,11 @@ func initSearchPage() {
 			if currentNode.GetReference() != nil {
 				openCreateObjectForm(currentNode, nil)
 			}
+		case tcell.KeyCtrlG:
+			if currentNode.GetReference() != nil {
+				baseDN := currentNode.GetReference().(string)
+				openAddMemberToGroupForm(baseDN)
+			}
 		}
 
 		return event
