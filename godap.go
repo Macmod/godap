@@ -1,7 +1,11 @@
 package main
 
 import (
-    "fmt"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
 )
@@ -13,6 +17,23 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			tui.LdapServer = args[0]
+
+			if tui.LdapPasswordFile != "" {
+				pw, err := os.ReadFile(tui.LdapPasswordFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+				tui.LdapPassword = strings.TrimSpace(string(pw))
+			}
+
+			if tui.NtlmHashFile != "" {
+				hash, err := os.ReadFile(tui.NtlmHashFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+				tui.NtlmHash = strings.TrimSpace(string(hash))
+			}
+
 			tui.SetupApp()
 		},
 	}
