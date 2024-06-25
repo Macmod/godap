@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 )
 
 // References
@@ -13,7 +13,7 @@ import (
 // - https://devblogs.microsoft.com/oldnewthing/20040315-00/?p=40253
 
 func getACE(rawACE string) (ACE string) {
-	aceLengthBytes, _ := strconv.Atoi(utils.HexToDecimalString(utils.EndianConvert(rawACE[4:8])))
+	aceLengthBytes, _ := strconv.Atoi(ldaputils.HexToDecimalString(ldaputils.EndianConvert(rawACE[4:8])))
 	aceLength := aceLengthBytes * 2
 	ACE = rawACE[:aceLength]
 
@@ -37,7 +37,7 @@ func combinePerms(rights []int, rightNames []string, mask int) string {
 		}
 	}
 
-	return utils.Capitalize(strings.Join(combined, "/"))
+	return ldaputils.Capitalize(strings.Join(combined, "/"))
 }
 
 // At the moment this is an experimental & testing accuracy of the parser is hard.
@@ -200,7 +200,7 @@ func AceMaskToText(mask int, guid string) ([]string, int) {
 
 func AceFlagsToText(flagsStr string, guidStr string) string {
 	propagationString := ""
-	flags := utils.HexToInt(flagsStr)
+	flags := ldaputils.HexToInt(flagsStr)
 	objectClassStr := ""
 	if guidStr != "" {
 		objectClassStr = ClassGuids[guidStr] + " "
@@ -220,5 +220,5 @@ func AceFlagsToText(flagsStr string, guidStr string) string {
 		propagationString += "descendant " + objectClassStr + "objects"
 	}
 
-	return utils.Capitalize(propagationString)
+	return ldaputils.Capitalize(propagationString)
 }

@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -26,8 +26,8 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 			SetSelectable(true)
 
 		// Helpful node coloring for deleted and disabled objects
-		if colors {
-			color, changed := utils.GetEntryColor(entry)
+		if Colors {
+			color, changed := ldaputils.GetEntryColor(entry)
 			if changed {
 				node.SetColor(color)
 			}
@@ -62,7 +62,7 @@ func unloadChildren(parentNode *tview.TreeNode) {
 // Loads child nodes and their attributes directly from LDAP
 func loadChildren(node *tview.TreeNode) {
 	baseDN := node.GetReference().(string)
-	entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeSingleLevel, deleted)
+	entries, err := lc.Query(baseDN, SearchFilter, ldap.ScopeSingleLevel, Deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return
@@ -349,7 +349,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 			return fmt.Errorf("Couldn't reload attributes: node not cached")
 		}
 	} else {
-		entries, err := lc.Query(baseDN, searchFilter, ldap.ScopeBaseObject, deleted)
+		entries, err := lc.Query(baseDN, SearchFilter, ldap.ScopeBaseObject, Deleted)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return err
@@ -373,17 +373,17 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 
 		attrsTable.SetCell(row, 0, tview.NewTableCell(cellName))
 
-		if formatAttrs {
-			cellValues = utils.FormatLDAPAttribute(attribute, timeFormat)
+		if FormatAttrs {
+			cellValues = ldaputils.FormatLDAPAttribute(attribute, TimeFormat)
 		} else {
 			cellValues = attribute.Values
 		}
 
-		if !expandAttrs {
+		if !ExpandAttrs {
 			myCell := tview.NewTableCell(strings.Join(cellValues, "; "))
 
-			if colors {
-				color, ok := utils.GetAttrCellColor(cellName, attribute.Values[0])
+			if Colors {
+				color, ok := ldaputils.GetAttrCellColor(cellName, attribute.Values[0])
 				if ok {
 					myCell.SetTextColor(tcell.GetColor(color))
 				}
@@ -397,15 +397,15 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		for idx, cellValue := range cellValues {
 			myCell := tview.NewTableCell(cellValue)
 
-			if colors {
+			if Colors {
 				var refValue string
-				if !expandAttrs || len(cellValues) == 1 {
+				if !ExpandAttrs || len(cellValues) == 1 {
 					refValue = attribute.Values[idx]
 				} else {
 					refValue = cellValue
 				}
 
-				color, ok := utils.GetAttrCellColor(cellName, refValue)
+				color, ok := ldaputils.GetAttrCellColor(cellName, refValue)
 
 				if ok {
 					myCell.SetTextColor(tcell.GetColor(color))
@@ -415,11 +415,11 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 			if idx == 0 {
 				attrsTable.SetCell(row, 1, myCell)
 			} else {
-				if expandAttrs {
-					if attrLimit == -1 || idx < attrLimit {
+				if ExpandAttrs {
+					if AttrLimit == -1 || idx < AttrLimit {
 						attrsTable.SetCell(row, 0, tview.NewTableCell(""))
 						attrsTable.SetCell(row, 1, myCell)
-						if idx == attrLimit-1 {
+						if idx == AttrLimit-1 {
 							attrsTable.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]"))
 							row = row + 2
 							break
@@ -483,7 +483,7 @@ func getNodeName(entry *ldap.Entry) string {
 			isDomain = true
 		}
 
-		if emoji, ok := utils.EmojiMap[objectClass]; ok {
+		if emoji, ok := ldaputils.EmojiMap[objectClass]; ok {
 			classEmojisBuf.WriteString(emoji)
 		}
 	}
@@ -493,10 +493,10 @@ func getNodeName(entry *ldap.Entry) string {
 	entryMarker := regexp.MustCompile("DEL:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$")
 
 	if len(emojisPrefix) == 0 {
-		emojisPrefix = utils.EmojiMap["container"]
+		emojisPrefix = ldaputils.EmojiMap["container"]
 	}
 
-	if emojis {
+	if Emojis {
 		return emojisPrefix + entryMarker.ReplaceAllString(getName(entry), "")
 	}
 
@@ -548,7 +548,7 @@ func updateEmojis() {
 }
 
 func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
-	rootEntry, err := lc.Query(rootDN, "(objectClass=*)", ldap.ScopeBaseObject, deleted)
+	rootEntry, err := lc.Query(rootDN, "(objectClass=*)", ldap.ScopeBaseObject, Deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return nil
@@ -575,7 +575,7 @@ func renderPartialTree(rootDN string, searchFilter string) *tview.TreeNode {
 	}
 
 	var rootEntries []*ldap.Entry
-	rootEntries, err = lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel, deleted)
+	rootEntries, err = lc.Query(rootDN, searchFilter, ldap.ScopeSingleLevel, Deleted)
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 		return nil
@@ -600,7 +600,7 @@ func reloadExplorerPage() {
 	explorerAttrsPanel.Clear()
 	explorerCache.Clear()
 
-	rootNode = renderPartialTree(lc.RootDN, searchFilter)
+	rootNode = renderPartialTree(lc.RootDN, SearchFilter)
 	if rootNode != nil {
 		numChildren := len(rootNode.GetChildren())
 		updateLog("Tree updated successfully ("+strconv.Itoa(numChildren)+" objects found)", "green")

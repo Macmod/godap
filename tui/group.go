@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -100,7 +100,7 @@ func initGroupPage() {
 		membersPanel.Clear()
 
 		queryGroup = groupNameInput.GetText()
-		samOrDn, isSam := utils.SamOrDN(queryGroup)
+		samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
 
 		groupDN = queryGroup
 		if isSam {
@@ -133,14 +133,14 @@ func initGroupPage() {
 			var category string
 			if len(categoryDN) > 0 {
 				category = categoryDN[0]
-				if emojis {
+				if Emojis {
 					switch category {
 					case "CN=Person":
-						category = utils.EmojiMap["person"]
+						category = ldaputils.EmojiMap["person"]
 					case "CN=Group":
-						category = utils.EmojiMap["group"]
+						category = ldaputils.EmojiMap["group"]
 					case "CN=Computer":
-						category = utils.EmojiMap["computer"]
+						category = ldaputils.EmojiMap["computer"]
 					}
 				}
 			} else {
@@ -253,38 +253,38 @@ func exportCurrentMembers() {
 }
 
 func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {
-    row, col := groupsPanel.GetSelection()
+	row, col := groupsPanel.GetSelection()
 
 	switch event.Key() {
 	case tcell.KeyCtrlS:
 		exportCurrentGroups()
 		return nil
-    case tcell.KeyCtrlG:
-        selCell := groupsPanel.GetCell(row, col)
-        if selCell != nil && selCell.GetReference() != nil {
-            baseDN := selCell.GetReference().(string)
-            openAddMemberToGroupForm(baseDN)
-        }
-        return nil
+	case tcell.KeyCtrlG:
+		selCell := groupsPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			baseDN := selCell.GetReference().(string)
+			openAddMemberToGroupForm(baseDN)
+		}
+		return nil
 	}
 
 	return event
 }
 
 func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
-    row, col := membersPanel.GetSelection()
+	row, col := membersPanel.GetSelection()
 
 	switch event.Key() {
 	case tcell.KeyCtrlS:
 		exportCurrentMembers()
 		return nil
-    case tcell.KeyCtrlG:
-        selCell := membersPanel.GetCell(row, col)
-        if selCell != nil && selCell.GetReference() != nil {
-            baseDN := selCell.GetReference().(string)
-            openAddMemberToGroupForm(baseDN)
-        }
-        return nil
+	case tcell.KeyCtrlG:
+		selCell := membersPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			baseDN := selCell.GetReference().(string)
+			openAddMemberToGroupForm(baseDN)
+		}
+		return nil
 	}
 
 	return event

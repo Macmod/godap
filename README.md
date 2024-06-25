@@ -31,6 +31,7 @@
 * 🗑️ Supports searching deleted & recycled objects
 * 📁 Supports exporting specific subtrees of the directory into JSON files
 * 📜 GPO Viewer
+* 🌐 ADIDNS Viewer
 * 🕹️ Interactive userAccountControl editor
 * 🔥 Interactive DACL editor
 * 🧦 SOCKS support
@@ -46,6 +47,12 @@ $ go install .
 # Usage
 
 **Bind with username and password**
+
+```bash
+$ godap <hostname or IP> -u <username> -p <password> -d <domain>
+```
+
+or
 
 ```bash
 $ godap <hostname or IP> -u <username>@<domain> -p <password>
@@ -131,7 +138,7 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>l</kbd>                                        | Global                                                            | Change current server address & credentials                           |
 | <kbd>Ctrl</kbd> + <kbd>r</kbd>                      | Global                                                            | Reconnect to the server                                               |
 | <kbd>Ctrl</kbd> + <kbd>u</kbd>                      | Global                                                            | Upgrade connection to use TLS (with StartTLS)                         |
-| <kbd>Ctrl</kbd> + <kbd>f</kbd>                      | LDAP Explorer & Object Search pages                               | Open the finder to search for cached objects & attributes with regex  |
+| <kbd>Ctrl</kbd> + <kbd>f</kbd>                      | Explorer & Search pages                                           | Open the finder to search for cached objects & attributes with regex  |
 | Right Arrow                                         | Explorer panel                                                    | Expand the children of the selected object                            |
 | Left Arrow                                          | Explorer panel                                                    | Collapse the children of the selected object                          |
 | <kbd>r</kbd>                                        | Explorer panel                                                    | Reload the attributes and children of the selected object             |
@@ -155,6 +162,8 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | DACL entries panel                                                | Edit the selected ACE of the current DACL                             |
 | <kbd>Delete</kbd>                                   | DACL entries panel                                                | Deletes the selected ACE of the current DACL                          |
 | <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | GPO page                                                          | Export the current GPOs and their links into a JSON file              |
+| <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | DNS zones panel                                                   | Export the selected zones and their child DNS nodes into a JSON file  |
+| <kbd>r</kbd>                                        | DNS zones panel                                                   | Reload the nodes of the selected zone / the records of the selected node |
 | <kbd>h</kbd>                                        | Global                                                            | Show/hide headers                                                     |
 | <kbd>q</kbd>                                        | Global                                                            | Exit the program                                                      |
 

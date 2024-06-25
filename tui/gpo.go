@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -308,8 +308,8 @@ func updateGPOEntries() {
 		gpoChanged := entry.GetAttributeValue("whenChanged")
 
 		gpoListPanel.SetCellSimple(idx+1, 0, gpoName)
-		gpoListPanel.SetCellSimple(idx+1, 1, utils.FormatLDAPTime(gpoCreated, timeFormat))
-		gpoListPanel.SetCellSimple(idx+1, 2, utils.FormatLDAPTime(gpoChanged, timeFormat))
+		gpoListPanel.SetCellSimple(idx+1, 1, ldaputils.FormatLDAPTime(gpoCreated, TimeFormat))
+		gpoListPanel.SetCellSimple(idx+1, 2, ldaputils.FormatLDAPTime(gpoChanged, TimeFormat))
 		gpoListPanel.SetCellSimple(idx+1, 3, gpoGuid)
 	}
 

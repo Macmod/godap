@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"encoding/hex"
@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/Macmod/godap/v2/sdl"
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
+	"github.com/Macmod/godap/v2/pkg/sdl"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -179,25 +179,25 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 	if newObjectGuid != "" {
 		newACE = new(sdl.OBJECT_ACE)
 
-		newObjectGuidEncoded, err := utils.EncodeGUID(newObjectGuid)
+		newObjectGuidEncoded, err := ldaputils.EncodeGUID(newObjectGuid)
 		if err != nil {
 			newObjectGuidEncoded = ""
 		}
-		newInheritedGuidEncoded, err := utils.EncodeGUID(newInheritedGuid)
+		newInheritedGuidEncoded, err := ldaputils.EncodeGUID(newInheritedGuid)
 		if err != nil {
 			newInheritedGuidEncoded = ""
 		}
 
 		newFlags := getFlags(newObjectGuid, newInheritedGuid)
 
-		newACE.(*sdl.OBJECT_ACE).Flags = utils.EndianConvert(fmt.Sprintf("%08x", newFlags))
+		newACE.(*sdl.OBJECT_ACE).Flags = ldaputils.EndianConvert(fmt.Sprintf("%08x", newFlags))
 		newACE.(*sdl.OBJECT_ACE).ObjectType = newObjectGuidEncoded
 		newACE.(*sdl.OBJECT_ACE).InheritedObjectType = newInheritedGuidEncoded
 	} else {
 		newACE = new(sdl.BASIC_ACE)
 	}
 
-	newACEHeader.ACEFlags = utils.EndianConvert(fmt.Sprintf("%02x", newACEFlags))
+	newACEHeader.ACEFlags = ldaputils.EndianConvert(fmt.Sprintf("%02x", newACEFlags))
 
 	// Set ACE Mask
 	newACE.SetMask(newMask)
@@ -213,7 +213,7 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 
 	// Update ACE size
 	aceSizeBytes := len(newACE.Encode()) / 2
-	newACE.GetHeader().AceSizeBytes = utils.EndianConvert(fmt.Sprintf("%04x", aceSizeBytes))
+	newACE.GetHeader().AceSizeBytes = ldaputils.EndianConvert(fmt.Sprintf("%04x", aceSizeBytes))
 
 	var updatedAces []sdl.ACEInt
 
@@ -484,7 +484,7 @@ func loadAceEditorForm(aceIdx int) {
 		selectedPrincipal = aceEntry.SamAccountName
 
 		// ACE Type
-		valType = utils.HexToInt(aceHeader.ACEType)
+		valType = ldaputils.HexToInt(aceHeader.ACEType)
 		if valType == 0 || valType == 5 {
 			selectedType = 0
 		} else {
@@ -518,7 +518,7 @@ func loadAceEditorForm(aceIdx int) {
 		valFlags = getFlags(valObjectGuid, valInheritedGuid)
 
 		// ACE Scope
-		valACEFlags = utils.HexToInt(aceHeader.ACEFlags)
+		valACEFlags = ldaputils.HexToInt(aceHeader.ACEFlags)
 		newACEFlags = valACEFlags
 
 		if valACEFlags&sdl.AceFlagsMap["NO_PROPAGATE_INHERIT_ACE"] != 0 {
@@ -540,7 +540,7 @@ func loadAceEditorForm(aceIdx int) {
 		switch valKind {
 		case 1:
 			// Object
-			selectedObject = utils.IndexOf(classVals, sdl.ClassGuids[valObjectGuid])
+			selectedObject = ldaputils.IndexOf(classVals, sdl.ClassGuids[valObjectGuid])
 			if valMask&rights["RIGHT_DS_CREATE_CHILD"] != 0 {
 				selectedObjectRight = 0
 				if valMask&rights["RIGHT_DS_DELETE_CHILD"] != 0 {
@@ -556,7 +556,7 @@ func loadAceEditorForm(aceIdx int) {
 				propertyName, ok = sdl.PropertySetGuids[valObjectGuid]
 			}
 
-			selectedProperty = utils.IndexOf(attributesVals, propertyName)
+			selectedProperty = ldaputils.IndexOf(attributesVals, propertyName)
 			if newMask&rights["RIGHT_DS_READ_PROPERTY"] != 0 {
 				selectedPropertyRight = 0
 				if newMask&rights["RIGHT_DS_WRITE_PROPERTY"] != 0 {
@@ -566,12 +566,12 @@ func loadAceEditorForm(aceIdx int) {
 				selectedPropertyRight = 1
 			}
 		case 3:
-			selectedControlRight = utils.IndexOf(
+			selectedControlRight = ldaputils.IndexOf(
 				extendedVals,
 				sdl.ExtendedGuids[valObjectGuid],
 			)
 		case 4:
-			selectedValidatedWriteRight = utils.IndexOf(
+			selectedValidatedWriteRight = ldaputils.IndexOf(
 				validatedWriteRightsVals, sdl.ValidatedWriteGuids[valObjectGuid],
 			)
 		}
@@ -782,7 +782,7 @@ func loadAceEditorForm(aceIdx int) {
 		if err == nil {
 			updatePrincipalCell(newAceTable, newPrincipalSID)
 		} else {
-			if utils.IsSID(principal) {
+			if ldaputils.IsSID(principal) {
 				newPrincipalSID = principal
 			} else {
 				newPrincipalSID = ""

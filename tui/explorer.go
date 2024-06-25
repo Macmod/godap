@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -33,20 +33,20 @@ func initExplorerPage() {
 
 	treePanel = tview.NewTreeView()
 
-	rootNode = renderPartialTree(rootDN, searchFilter)
+	rootNode = renderPartialTree(RootDN, SearchFilter)
 	treePanel.SetRoot(rootNode).SetCurrentNode(rootNode)
 
 	explorerAttrsPanel = tview.NewTable().SetSelectable(true, true)
 
 	searchFilterInput = tview.NewInputField().
 		SetFieldBackgroundColor(fieldBackgroundColor).
-		SetText(searchFilter)
+		SetText(SearchFilter)
 	searchFilterInput.SetTitle("Expand Filter")
 	searchFilterInput.SetBorder(true)
 
 	rootDNInput = tview.NewInputField().
 		SetFieldBackgroundColor(fieldBackgroundColor).
-		SetText(rootDN)
+		SetText(RootDN)
 	rootDNInput.SetTitle("Root DN")
 	rootDNInput.SetBorder(true)
 
@@ -57,7 +57,7 @@ func initExplorerPage() {
 
 	// Event Handlers
 	searchFilterInput.SetDoneFunc(func(key tcell.Key) {
-		searchFilter = searchFilterInput.GetText()
+		SearchFilter = searchFilterInput.GetText()
 		reloadExplorerPage()
 	})
 
@@ -125,7 +125,7 @@ func expandTreeNode(node *tview.TreeNode) {
 
 func collapseTreeNode(node *tview.TreeNode) {
 	node.SetExpanded(false)
-	if !cacheEntries {
+	if !CacheEntries {
 		unloadChildren(node)
 	}
 }
@@ -253,7 +253,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 		AddTextView("Raw UAC Value", strconv.Itoa(checkboxState), 0, 1, false, true)
 
 	uacValues := make([]int, 0)
-	for key, _ := range utils.UacFlags {
+	for key, _ := range ldaputils.UacFlags {
 		uacValues = append(uacValues, key)
 	}
 	sort.Ints(uacValues)
@@ -261,7 +261,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 	for _, val := range uacValues {
 		uacValue := val
 		updateUacForm.AddCheckbox(
-			utils.UacFlags[uacValue].Present,
+			ldaputils.UacFlags[uacValue].Present,
 			checkboxState&uacValue != 0,
 			func(checked bool) {
 				if checked {
@@ -498,7 +498,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		})
 	case tcell.KeyCtrlN:
 		openCreateObjectForm(currentNode, func() {
-			reloadExplorerAttrsPanel(currentNode, cacheEntries)
+			reloadExplorerAttrsPanel(currentNode, CacheEntries)
 
 			unloadChildren(currentNode)
 			loadChildren(currentNode)
@@ -533,7 +533,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 func treePanelChangeHandler(node *tview.TreeNode) {
 	go func() {
 		// TODO: Implement cancellation
-		reloadExplorerAttrsPanel(node, cacheEntries)
+		reloadExplorerAttrsPanel(node, CacheEntries)
 	}()
 }
 
@@ -649,7 +649,7 @@ func explorerPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			}
 
 			treePanel.SetCurrentNode(otherNodeToSelect)
-			reloadExplorerAttrsPanel(otherNodeToSelect, cacheEntries)
+			reloadExplorerAttrsPanel(otherNodeToSelect, CacheEntries)
 		})
 	}
 

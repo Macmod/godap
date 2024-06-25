@@ -1,11 +1,13 @@
-package main
+package tui
 
 import (
 	"github.com/rivo/tview"
 )
 
-var helpPage *tview.Flex
-var keybindingsPanel *tview.Table
+var (
+	helpPage         *tview.Flex
+	keybindingsPanel *tview.Table
+)
 
 func initHelpPage() {
 	helpText := `[blue]
@@ -18,7 +20,7 @@ func initHelpPage() {
 | (___) || (___) || (__/  )| )   ( || )      
 (_______)(_______)(______/ |/     \||/       
 
-` + godapVer
+` + GodapVer
 
 	keybindings := [][]string{
 		{"Ctrl + Enter", "Global", "Next panel"},
@@ -53,6 +55,8 @@ func initHelpPage() {
 		{"Ctrl + e", "DACL entries panel", "Edit the selected ACE of the current DACL"},
 		{"Delete", "DACL entries panel", "Deletes the selected ACE of the current DACL"},
 		{"Ctrl + s", "GPO page", "Export the current GPOs and their links into a JSON file"},
+		{"Ctrl + s", "DNS zones panel", "Export the selected zones and their child DNS nodes into a JSON file"},
+		{"r", "DNS zones panel", "Reload the nodes of the selected zone / the records of the selected node"},
 		{"h", "Global", "Show/hide headers"},
 		{"q", "Global", "Exit the program"},
 	}

@@ -1,4 +1,4 @@
-package utils
+package ldaputils
 
 import (
 	"crypto/tls"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/Macmod/godap/v2/pkg/adidns"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/gssapi"
@@ -445,6 +447,140 @@ func (lc *LDAPConn) AddUser(objectName string, parentDN string) error {
 			[]string{userPrincipalName},
 		)
 	}
+
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddADIDNSZone(objectName string, props []adidns.DNSProperty) error {
+	addRequest := ldap.NewAddRequest("DC="+objectName+",CN=MicrosoftDNS,DC=DomainDNSZones,"+lc.RootDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "dnsZone"})
+	addRequest.Attribute("cn", []string{"Zone"})
+	addRequest.Attribute("name", []string{objectName})
+
+	var dNSPropertyList []string
+	for _, prop := range props {
+		encodedProp, err := prop.Encode()
+		if err == nil {
+			dNSPropertyList = append(dNSPropertyList, string(encodedProp))
+		}
+	}
+
+	addRequest.Attribute("dNSProperty", dNSPropertyList)
+
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) GetADIDNSZones(name string, isForest bool) ([]adidns.DNSZone, error) {
+	zoneContainer := "DomainDNSZones"
+	if isForest {
+		zoneContainer = "ForestDNSZones"
+	}
+
+	queryDN := fmt.Sprintf("CN=MicrosoftDNS,DC=%s,%s", zoneContainer, lc.RootDN)
+	queryFilter := "(objectClass=dnsZone)"
+	if name != "" {
+		queryFilter = fmt.Sprintf("(&%s(name=%s))", queryFilter, ldap.EscapeFilter(name))
+	}
+
+	zoneEntries, err := lc.Query(queryDN, queryFilter, ldap.ScopeSingleLevel, false)
+	if err != nil {
+		return nil, err
+	}
+
+	zones := make([]adidns.DNSZone, 0)
+	for _, zoneEntry := range zoneEntries {
+		zoneDN := zoneEntry.DN
+		zoneName := zoneEntry.GetAttributeValue("name")
+		dnsPropsStrs := zoneEntry.GetAttributeValues("dNSProperty")
+
+		props := make([]adidns.DNSProperty, 0)
+		for _, propStr := range dnsPropsStrs {
+			dnsProp := new(adidns.DNSProperty)
+			dnsProp.Decode([]byte(propStr))
+
+			props = append(props, *dnsProp)
+		}
+
+		zones = append(zones, adidns.DNSZone{zoneDN, zoneName, props})
+	}
+
+	return zones, nil
+}
+
+func (lc *LDAPConn) GetADIDNSNode(nodeDN string) (adidns.DNSNode, error) {
+	var node adidns.DNSNode
+
+	nodeEntries, err := lc.Query(nodeDN, "(objectClass=dnsNode)", ldap.ScopeBaseObject, false)
+	if err != nil {
+		return node, err
+	}
+
+	if len(nodeEntries) > 0 {
+		nodeEntry := nodeEntries[0]
+
+		node.DN = nodeEntry.DN
+		node.Name = nodeEntry.GetAttributeValue("name")
+
+		dnsRecsStrs := nodeEntry.GetAttributeValues("dnsRecord")
+		records := make([]adidns.DNSRecord, 0)
+
+		for _, recordStr := range dnsRecsStrs {
+			dnsRec := new(adidns.DNSRecord)
+			dnsRec.Decode([]byte(recordStr))
+
+			records = append(records, *dnsRec)
+		}
+
+		node.Records = records
+	} else {
+		return node, fmt.Errorf("Node not found")
+	}
+
+	return node, nil
+}
+
+func (lc *LDAPConn) GetADIDNSNodes(zoneDN string) ([]adidns.DNSNode, error) {
+	nodeEntries, err := lc.Query(zoneDN, "(objectClass=dnsNode)", ldap.ScopeSingleLevel, false)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]adidns.DNSNode, 0)
+	for _, nodeEntry := range nodeEntries {
+		nodeDN := nodeEntry.DN
+		nodeName := nodeEntry.GetAttributeValue("name")
+		dnsRecsStrs := nodeEntry.GetAttributeValues("dnsRecord")
+
+		records := make([]adidns.DNSRecord, 0)
+
+		for _, recordStr := range dnsRecsStrs {
+			dnsRec := new(adidns.DNSRecord)
+			dnsRec.Decode([]byte(recordStr))
+
+			records = append(records, *dnsRec)
+		}
+
+		nodes = append(nodes, adidns.DNSNode{nodeDN, nodeName, records})
+	}
+
+	return nodes, nil
+}
+
+func (lc *LDAPConn) AddADIDNSNode(objectName string, records []adidns.DNSRecord) error {
+	addRequest := ldap.NewAddRequest("DC="+objectName+",CN=MicrosoftDNS,DC=DomainDNSZones,"+lc.RootDN, nil)
+	addRequest.Attribute("objectClass", []string{"top", "dnsNode"})
+	addRequest.Attribute("cn", []string{"Zone"})
+	addRequest.Attribute("name", []string{objectName})
+
+	var dNSRecordList []string
+	for _, record := range records {
+		encodedProp, err := record.Encode()
+		if err == nil {
+			dNSRecordList = append(dNSRecordList, string(encodedProp))
+		}
+	}
+
+	addRequest.Attribute("dnsRecord", dNSRecordList)
 
 	return lc.Conn.Add(addRequest)
 }

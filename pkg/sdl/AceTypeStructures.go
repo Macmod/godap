@@ -1,10 +1,10 @@
 package sdl
 
-//utils.HexToInt(ace.Header.ACEFlags)
+//ldaputils.HexToInt(ace.Header.ACEFlags)
 import (
 	"fmt"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 )
 
 // ACE Header
@@ -51,11 +51,11 @@ func (ace *BASIC_ACE) GetHeader() *ACEHEADER {
 }
 
 func (ace *BASIC_ACE) GetMask() int {
-	return utils.HexToInt(utils.EndianConvert(ace.Mask))
+	return ldaputils.HexToInt(ldaputils.EndianConvert(ace.Mask))
 }
 
 func (ace *BASIC_ACE) GetSID() string {
-	return utils.ConvertSID(ace.SID)
+	return ldaputils.ConvertSID(ace.SID)
 }
 
 func (ace *BASIC_ACE) SetHeader(header *ACEHEADER) {
@@ -63,11 +63,11 @@ func (ace *BASIC_ACE) SetHeader(header *ACEHEADER) {
 }
 
 func (ace *BASIC_ACE) SetMask(mask int) {
-	ace.Mask = utils.EndianConvert(fmt.Sprintf("%08x", mask))
+	ace.Mask = ldaputils.EndianConvert(fmt.Sprintf("%08x", mask))
 }
 
 func (ace *BASIC_ACE) SetSID(sid string) error {
-	encodedSid, err := utils.EncodeSID(sid)
+	encodedSid, err := ldaputils.EncodeSID(sid)
 
 	if err == nil {
 		ace.SID = encodedSid
@@ -106,7 +106,7 @@ func (ace *OBJECT_ACE) Parse(rawACE string) {
 	ace.ObjectType = ""
 	ace.InheritedObjectType = ""
 
-	switch utils.EndianConvert(ace.Flags) {
+	switch ldaputils.EndianConvert(ace.Flags) {
 	case "00000001":
 		ace.ObjectType = rawACE[24:56]
 	case "00000002":
@@ -139,16 +139,16 @@ func (ace *OBJECT_ACE) Encode() string {
 }
 
 func (ace *OBJECT_ACE) GetObjectAndInheritedType() (objectTypeGUID string, inheritedObjectTypeGUID string) {
-	switch utils.EndianConvert(ace.Flags) {
+	switch ldaputils.EndianConvert(ace.Flags) {
 	case "00000001":
-		objectTypeGUID = utils.ConvertGUID(ace.ObjectType)
+		objectTypeGUID = ldaputils.ConvertGUID(ace.ObjectType)
 		inheritedObjectTypeGUID = ""
 	case "00000002":
-		inheritedObjectTypeGUID = utils.ConvertGUID(ace.InheritedObjectType)
+		inheritedObjectTypeGUID = ldaputils.ConvertGUID(ace.InheritedObjectType)
 		objectTypeGUID = ""
 	case "00000003":
-		objectTypeGUID = utils.ConvertGUID(ace.ObjectType)
-		inheritedObjectTypeGUID = utils.ConvertGUID(ace.InheritedObjectType)
+		objectTypeGUID = ldaputils.ConvertGUID(ace.ObjectType)
+		inheritedObjectTypeGUID = ldaputils.ConvertGUID(ace.InheritedObjectType)
 	}
 
 	return

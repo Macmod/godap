@@ -1,4 +1,4 @@
-package utils
+package ldaputils
 
 func IndexOf[T comparable](collection []T, el T) int {
 	for i, x := range collection {

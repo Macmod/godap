@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"encoding/hex"
@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Macmod/godap/v2/sdl"
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
+	"github.com/Macmod/godap/v2/pkg/sdl"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -44,7 +44,7 @@ func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 		var ACEFlags int
 		switch aceVal := ace.(type) {
 		case *sdl.BASIC_ACE:
-			sid := utils.ConvertSID(aceVal.SID)
+			sid := ldaputils.ConvertSID(aceVal.SID)
 
 			if aceVal.Header.ACEType == "00" {
 				entry.Type = "Allow"
@@ -65,7 +65,7 @@ func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 				entry.SamAccountName = samAccountName
 			}
 
-			ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
+			ACEFlags = ldaputils.HexToInt(aceVal.Header.ACEFlags)
 			if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
 				entry.Inheritance = true
 			}
@@ -74,11 +74,11 @@ func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 				entry.NoPropagate = true
 			}
 
-			permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
+			permissions := ldaputils.HexToInt(ldaputils.EndianConvert(aceVal.Mask))
 
 			entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, "")
 		case *sdl.OBJECT_ACE:
-			sid := utils.ConvertSID(aceVal.SID)
+			sid := ldaputils.ConvertSID(aceVal.SID)
 
 			if aceVal.Header.ACEType == "05" {
 				entry.Type = "Allow"
@@ -98,7 +98,7 @@ func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 				entry.SamAccountName = samAccountName
 			}
 
-			ACEFlags = utils.HexToInt(aceVal.Header.ACEFlags)
+			ACEFlags = ldaputils.HexToInt(aceVal.Header.ACEFlags)
 			if ACEFlags&sdl.AceFlagsMap["INHERITED_ACE"] != 0 {
 				entry.Inheritance = true
 			}
@@ -107,7 +107,7 @@ func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 				entry.NoPropagate = true
 			}
 
-			permissions := utils.HexToInt(utils.EndianConvert(aceVal.Mask))
+			permissions := ldaputils.HexToInt(ldaputils.EndianConvert(aceVal.Mask))
 			objectType, inheritedObjectType := aceVal.GetObjectAndInheritedType()
 			entry.Mask, entry.Severity = sdl.AceMaskToText(permissions, objectType)
 			entry.Scope = sdl.AceFlagsToText(aceVal.Header.ACEFlags, inheritedObjectType)
@@ -294,14 +294,14 @@ func updateDaclEntries() {
 		controlFlags := sd.GetControl()
 		controlFlagsTextView.SetText(strconv.Itoa(controlFlags))
 
-		ownerSID := utils.ConvertSID(sd.Owner)
+		ownerSID := ldaputils.ConvertSID(sd.Owner)
 		ownerPrincipal, err = lc.FindSamForSID(ownerSID)
 		if err == nil {
 			daclOwnerTextView.SetText(ownerPrincipal)
 		} else {
 			daclOwnerTextView.SetText("[red]" + ownerSID)
 		}
-		groupPrincipal, err = lc.FindSamForSID(utils.ConvertSID(sd.Group))
+		groupPrincipal, err = lc.FindSamForSID(ldaputils.ConvertSID(sd.Group))
 		// For AD, groupPrincipal is not relevant,
 		// so there's no need to show it in the UI
 
@@ -342,7 +342,7 @@ func updateDaclEntries() {
 			}
 
 			principalName := entry.SamAccountName
-			if utils.IsSID(principalName) {
+			if ldaputils.IsSID(principalName) {
 				principalName = "[red]" + principalName
 			}
 
@@ -399,7 +399,7 @@ func loadChangeOwnerForm() {
 		newGroupSID := ""
 
 		text := newOwnerFormItem.(*tview.InputField).GetText()
-		if utils.IsSID(text) {
+		if ldaputils.IsSID(text) {
 			_, err := lc.FindSamForSID(text)
 			if err == nil {
 				newOwnerSID = text
@@ -437,14 +437,14 @@ func loadChangeOwnerForm() {
 				return
 			}
 
-			encodedOwnerSID, err := utils.EncodeSID(newOwnerSID)
+			encodedOwnerSID, err := ldaputils.EncodeSID(newOwnerSID)
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 				app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
 				return
 			}
 
-			encodedGroupSID, err := utils.EncodeSID(newGroupSID)
+			encodedGroupSID, err := ldaputils.EncodeSID(newGroupSID)
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 				app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
@@ -505,7 +505,7 @@ func loadChangeControlFlagsForm() {
 		AddTextView("Raw ControlFlag Value", strconv.Itoa(checkboxState), 0, 1, false, true)
 
 	controlFlagsKeys := make([]int, 0)
-	for key, _ := range utils.SDControlFlags {
+	for key, _ := range ldaputils.SDControlFlags {
 		controlFlagsKeys = append(controlFlagsKeys, key)
 	}
 	sort.Ints(controlFlagsKeys)
@@ -513,7 +513,7 @@ func loadChangeControlFlagsForm() {
 	for _, val := range controlFlagsKeys {
 		flagVal := val
 		updateControlFlagsForm.AddCheckbox(
-			utils.SDControlFlags[flagVal],
+			ldaputils.SDControlFlags[flagVal],
 			controlFlags&flagVal != 0,
 			func(checked bool) {
 				if checked {
@@ -535,7 +535,7 @@ func loadChangeControlFlagsForm() {
 		}).
 		AddButton("Update", func() {
 
-			sd.Header.Control = utils.EndianConvert(fmt.Sprintf("%04x", checkboxState))
+			sd.Header.Control = ldaputils.EndianConvert(fmt.Sprintf("%04x", checkboxState))
 			newSd, _ := hex.DecodeString(sd.Encode())
 
 			err = lc.ModifyDACL(object, string(newSd))

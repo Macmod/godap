@@ -1,4 +1,4 @@
-package main
+package tui
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Macmod/godap/v2/utils"
+	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
@@ -91,7 +91,7 @@ func initSearchPage() {
 	predefinedLdapQueriesKeys := []string{"Security", "Users", "Computers", "Enum"}
 
 	for _, key := range predefinedLdapQueriesKeys {
-		children := utils.PredefinedLdapQueries[key]
+		children := ldaputils.PredefinedLdapQueries[key]
 
 		childNode := tview.NewTreeNode(key).
 			SetSelectable(false).
@@ -257,7 +257,7 @@ func searchQueryDoneHandler(key tcell.Key) {
 		running = true
 		runControl.Unlock()
 
-		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree, deleted)
+		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree, Deleted)
 
 		firstLeaf := true
 
@@ -286,8 +286,8 @@ func searchQueryDoneHandler(key tcell.Key) {
 							SetExpanded(false).
 							SetSelectable(true)
 
-						if colors {
-							color, changed := utils.GetEntryColor(entry)
+						if Colors {
+							color, changed := ldaputils.GetEntryColor(entry)
 							if changed {
 								childNode.SetColor(color)
 							}

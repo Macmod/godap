@@ -1,4 +1,4 @@
-package utils
+package ldaputils
 
 var EmojiMap = map[string]string{
 	"root":                     "🌳",
