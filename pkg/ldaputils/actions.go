@@ -70,7 +70,13 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 }
 
 func (lc *LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
-	err := lc.Conn.Bind(ldapUsername, ldapPassword)
+	var err error
+
+	if ldapPassword == "" {
+		err = lc.Conn.UnauthenticatedBind(ldapUsername)
+	} else {
+		err = lc.Conn.Bind(ldapUsername, ldapPassword)
+	}
 	return err
 }
 

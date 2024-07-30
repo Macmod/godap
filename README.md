@@ -73,7 +73,7 @@ $ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hos
 **Anonymous Bind**
 
 ```bash
-$ godap <hostname or IP> -p anything
+$ godap <hostname or IP>
 ```
 
 **LDAPS/StartTLS**
