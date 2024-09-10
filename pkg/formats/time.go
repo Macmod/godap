@@ -21,7 +21,7 @@ func GetTimeDistString(diff time.Duration) string {
 				distString = fmt.Sprintf("(%d minutes ago)", minutesAgo)
 			}
 		} else {
-			distString = fmt.Sprintf("(%d days ago)", hoursAgo)
+			distString = fmt.Sprintf("(%d hours ago)", hoursAgo)
 		}
 	} else if daysAgo == 1 {
 		distString = "(yesterday)"
