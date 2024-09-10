@@ -219,8 +219,13 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 	var updatedAces []sdl.ACEInt
 
 	if aceIdx < 0 {
-		// Add the ACE to the end of the DACL
-		updatedAces = append(sd.DACL.Aces, newACE)
+		if newAllowOrDeny {
+			// Append new "Allow" ACEs to the end of the DACL
+			updatedAces = append(sd.DACL.Aces, newACE)
+		} else {
+			// Prepend new "Deny" ACEs to the beginning of the DACL
+			updatedAces = append([]sdl.ACEInt{newACE}, sd.DACL.Aces...)
+		}
 	} else {
 		// Add the ACE to the specified aceIdx
 		updatedAces = append(
