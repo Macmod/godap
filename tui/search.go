@@ -278,38 +278,38 @@ func searchQueryDoneHandler(key tcell.Key) {
 
 				childNode, ok := searchLoadedDNs[partialDN]
 				if !ok {
-					if i == 0 {
-						// Leaf node
-						nodeName = entryName
-						childNode = tview.NewTreeNode(nodeName).
-							SetReference(entry.DN).
-							SetExpanded(false).
-							SetSelectable(true)
+					app.QueueUpdateDraw(func() {
+						if i == 0 {
+							// Leaf node
+							nodeName = entryName
+							childNode = tview.NewTreeNode(nodeName).
+								SetReference(entry.DN).
+								SetExpanded(false).
+								SetSelectable(true)
 
-						if Colors {
-							color, changed := ldaputils.GetEntryColor(entry)
-							if changed {
-								childNode.SetColor(color)
+							if Colors {
+								color, changed := ldaputils.GetEntryColor(entry)
+								if changed {
+									childNode.SetColor(color)
+								}
 							}
+							currentNode.AddChild(childNode)
+
+							if firstLeaf {
+								searchTreePanel.SetCurrentNode(childNode)
+								firstLeaf = false
+							}
+
+							searchCache.Add(entry.DN, entry)
+						} else {
+							// Non-leaf node
+							nodeName = components[i]
+							childNode = tview.NewTreeNode(nodeName).
+								SetExpanded(true).
+								SetSelectable(true)
+							currentNode.AddChild(childNode)
 						}
-						currentNode.AddChild(childNode)
-
-						if firstLeaf {
-							searchTreePanel.SetCurrentNode(childNode)
-							firstLeaf = false
-						}
-
-						searchCache.Add(entry.DN, entry)
-					} else {
-						// Non-leaf node
-						nodeName = components[i]
-						childNode = tview.NewTreeNode(nodeName).
-							SetExpanded(true).
-							SetSelectable(true)
-						currentNode.AddChild(childNode)
-					}
-
-					app.Draw()
+					})
 
 					searchLoadedDNs[partialDN] = childNode
 				}
@@ -318,9 +318,9 @@ func searchQueryDoneHandler(key tcell.Key) {
 			}
 		}
 
-		updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
-
-		app.Draw()
+		app.QueueUpdateDraw(func() {
+			updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+		})
 
 		runControl.Lock()
 		running = false

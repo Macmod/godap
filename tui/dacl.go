@@ -217,7 +217,7 @@ func initDaclPage(includeCurSchema bool) {
 	daclPage.SetInputCapture(daclPageKeyHandler)
 	objectNameInputDacl.SetDoneFunc(func(tcell.Key) {
 		updateLog("Fetching DACL for '"+objectNameInputDacl.GetText()+"'", "yellow")
-		go updateDaclEntries()
+		go app.QueueUpdateDraw(updateDaclEntries)
 	})
 }
 
@@ -367,8 +367,6 @@ func updateDaclEntries() {
 	} else {
 		updateLog(fmt.Sprint(err), "red")
 	}
-
-	app.Draw()
 }
 
 func daclRotateFocus() {
@@ -465,7 +463,7 @@ func loadChangeOwnerForm() {
 
 				updateLog("Owner for '"+object+"' changed to '"+newOwner+"'", "green")
 
-				go updateDaclEntries()
+				go app.QueueUpdateDraw(updateDaclEntries)
 			} else {
 				updateLog(fmt.Sprint(err), "red")
 			}
@@ -542,8 +540,7 @@ func loadChangeControlFlagsForm() {
 
 			if err == nil {
 				updateLog("Control flags updated for '"+object+"'", "green")
-
-				go updateDaclEntries()
+				go app.QueueUpdateDraw(updateDaclEntries)
 			} else {
 				updateLog(fmt.Sprint(err), "red")
 			}

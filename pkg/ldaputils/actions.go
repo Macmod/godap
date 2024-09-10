@@ -457,8 +457,15 @@ func (lc *LDAPConn) AddUser(objectName string, parentDN string) error {
 	return lc.Conn.Add(addRequest)
 }
 
-func (lc *LDAPConn) AddADIDNSZone(objectName string, props []adidns.DNSProperty) error {
-	addRequest := ldap.NewAddRequest("DC="+objectName+",CN=MicrosoftDNS,DC=DomainDNSZones,"+lc.RootDN, nil)
+func (lc *LDAPConn) AddADIDNSZone(objectName string, props []adidns.DNSProperty, isForest bool) (string, error) {
+	zoneContainer := "DomainDnsZones"
+	if isForest {
+		zoneContainer = "ForestDnsZones"
+	}
+
+	zoneDN := fmt.Sprintf("DC=%s,CN=MicrosoftDNS,DC=%s,%s", objectName, zoneContainer, lc.RootDN)
+
+	addRequest := ldap.NewAddRequest(zoneDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "dnsZone"})
 	addRequest.Attribute("cn", []string{"Zone"})
 	addRequest.Attribute("name", []string{objectName})
@@ -473,7 +480,7 @@ func (lc *LDAPConn) AddADIDNSZone(objectName string, props []adidns.DNSProperty)
 
 	addRequest.Attribute("dNSProperty", dNSPropertyList)
 
-	return lc.Conn.Add(addRequest)
+	return zoneDN, lc.Conn.Add(addRequest)
 }
 
 func (lc *LDAPConn) GetADIDNSZones(name string, isForest bool) ([]adidns.DNSZone, error) {
@@ -572,11 +579,12 @@ func (lc *LDAPConn) GetADIDNSNodes(zoneDN string) ([]adidns.DNSNode, error) {
 	return nodes, nil
 }
 
-func (lc *LDAPConn) AddADIDNSNode(objectName string, records []adidns.DNSRecord) error {
-	addRequest := ldap.NewAddRequest("DC="+objectName+",CN=MicrosoftDNS,DC=DomainDNSZones,"+lc.RootDN, nil)
+func (lc *LDAPConn) AddADIDNSNode(nodeName string, zoneDN string, records []adidns.DNSRecord) (string, error) {
+	nodeDN := fmt.Sprintf("DC=%s,%s", nodeName, zoneDN)
+
+	addRequest := ldap.NewAddRequest(nodeDN, nil)
 	addRequest.Attribute("objectClass", []string{"top", "dnsNode"})
-	addRequest.Attribute("cn", []string{"Zone"})
-	addRequest.Attribute("name", []string{objectName})
+	addRequest.Attribute("name", []string{nodeName})
 
 	var dNSRecordList []string
 	for _, record := range records {
@@ -586,9 +594,47 @@ func (lc *LDAPConn) AddADIDNSNode(objectName string, records []adidns.DNSRecord)
 		}
 	}
 
-	addRequest.Attribute("dnsRecord", dNSRecordList)
+	if len(dNSRecordList) > 0 {
+		addRequest.Attribute("dnsRecord", dNSRecordList)
+	}
 
-	return lc.Conn.Add(addRequest)
+	return nodeDN, lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddADIDNSRecords(nodeDN string, records []adidns.DNSRecord) error {
+	modifyRequest := ldap.NewModifyRequest(nodeDN, nil)
+
+	var dNSRecordList []string
+	for _, record := range records {
+		encodedProp, err := record.Encode()
+		if err == nil {
+			dNSRecordList = append(dNSRecordList, string(encodedProp))
+		}
+	}
+
+	if len(dNSRecordList) > 0 {
+		modifyRequest.Add("dnsRecord", dNSRecordList)
+	}
+
+	return lc.Conn.Modify(modifyRequest)
+}
+
+func (lc *LDAPConn) ReplaceADIDNSRecords(nodeDN string, records []adidns.DNSRecord) error {
+	modifyRequest := ldap.NewModifyRequest(nodeDN, nil)
+
+	var dNSRecordList []string
+	for _, record := range records {
+		encodedProp, err := record.Encode()
+		if err == nil {
+			dNSRecordList = append(dNSRecordList, string(encodedProp))
+		}
+	}
+
+	if len(dNSRecordList) > 0 {
+		modifyRequest.Replace("dnsRecord", dNSRecordList)
+	}
+
+	return lc.Conn.Modify(modifyRequest)
 }
 
 // Attributes

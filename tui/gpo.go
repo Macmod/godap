@@ -210,117 +210,117 @@ func updateGPOEntries() {
 	gpoListPanel.Clear()
 	gpoPath.Clear()
 
-	gpoListPanel.SetCell(0, 0, tview.NewTableCell("Name").SetSelectable(false))
-	gpoListPanel.SetCell(0, 1, tview.NewTableCell("Created").SetSelectable(false))
-	gpoListPanel.SetCell(0, 2, tview.NewTableCell("Changed").SetSelectable(false))
-	gpoListPanel.SetCell(0, 3, tview.NewTableCell("GUID").SetSelectable(false))
+	app.QueueUpdateDraw(func() {
+		gpoListPanel.SetCell(0, 0, tview.NewTableCell("Name").SetSelectable(false))
+		gpoListPanel.SetCell(0, 1, tview.NewTableCell("Created").SetSelectable(false))
+		gpoListPanel.SetCell(0, 2, tview.NewTableCell("Changed").SetSelectable(false))
+		gpoListPanel.SetCell(0, 3, tview.NewTableCell("GUID").SetSelectable(false))
 
-	// Load all gpLinks
-	updateLog("Querying all gpLinks", "yellow")
-	gpLinkObjs, err := lc.Query(lc.RootDN, "(gpLink=*)", ldap.ScopeWholeSubtree, false)
+		// Load all gpLinks
+		updateLog("Querying all gpLinks", "yellow")
 
-	for _, gpLinkObj := range gpLinkObjs {
-		gpLinkVals := gpLinkObj.GetAttributeValue("gPLink")
+		gpLinkObjs, err := lc.Query(lc.RootDN, "(gpLink=*)", ldap.ScopeWholeSubtree, false)
 
-		links, _ := ParseGPLinks(gpLinkVals, gpLinkObj.DN)
+		for _, gpLinkObj := range gpLinkObjs {
+			gpLinkVals := gpLinkObj.GetAttributeValue("gPLink")
 
-		for _, link := range links {
-			gpLinks[link.GUID] = append(gpLinks[link.GUID], link)
-			containerLinks[link.Target] = append(containerLinks[link.Target], link.GUID)
+			links, _ := ParseGPLinks(gpLinkVals, gpLinkObj.DN)
+
+			for _, link := range links {
+				gpLinks[link.GUID] = append(gpLinks[link.GUID], link)
+				containerLinks[link.Target] = append(containerLinks[link.Target], link.GUID)
+			}
 		}
-	}
-	updateLog("gpLinks loaded successfully", "green")
+		updateLog("gpLinks loaded successfully", "green")
 
-	// Load all GPOs from corresponding links
-	gpoQuery := "(objectClass=groupPolicyContainer)"
-	gpoTarget = gpoTargetInput.GetText()
+		// Load all GPOs from corresponding links
+		gpoQuery := "(objectClass=groupPolicyContainer)"
+		gpoTarget = gpoTargetInput.GetText()
 
-	gpoTargetDN := gpoTarget
-	if gpoTarget != "" {
-		gpoTargetQuery := fmt.Sprintf("(distinguishedName=%s)", ldap.EscapeFilter(gpoTarget))
-		if !strings.Contains(gpoTarget, "=") {
-			gpoTargetQuery = fmt.Sprintf("(cn=%s)", ldap.EscapeFilter(gpoTarget))
+		gpoTargetDN := gpoTarget
+		if gpoTarget != "" {
+			gpoTargetQuery := fmt.Sprintf("(distinguishedName=%s)", ldap.EscapeFilter(gpoTarget))
+			if !strings.Contains(gpoTarget, "=") {
+				gpoTargetQuery = fmt.Sprintf("(cn=%s)", ldap.EscapeFilter(gpoTarget))
+			}
+
+			entries, err := lc.Query(lc.RootDN, gpoTargetQuery, ldap.ScopeWholeSubtree, false)
+
+			updateLog("Querying for '"+gpoTargetQuery+"'", "yellow")
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+				return
+			}
+
+			if len(entries) > 0 {
+				updateLog("GPO target found ("+entries[0].DN+")", "green")
+				gpoTargetDN = entries[0].DN
+			} else {
+				updateLog("GPO target not found", "red")
+				return
+			}
 		}
 
-		entries, err := lc.Query(lc.RootDN, gpoTargetQuery, ldap.ScopeWholeSubtree, false)
+		var applicableGPOs []string
 
-		updateLog("Querying for '"+gpoTargetQuery+"'", "yellow")
+		dnParts := strings.Split(gpoTargetDN, ",")
+		for idx := len(dnParts) - 1; idx >= 0; idx -= 1 {
+			candidateDN := strings.Join(dnParts[idx:], ",")
+
+			candidateGuids, ok := containerLinks[candidateDN]
+			if ok {
+				applicableGPOs = append(applicableGPOs, candidateGuids...)
+			}
+		}
+
+		gpoQuerySuffix := ""
+		if len(applicableGPOs) > 0 {
+			gpoQuerySuffix = "name=" + ldap.EscapeFilter(applicableGPOs[0])
+			for _, gpoGuid := range applicableGPOs[1:] {
+				gpoQuerySuffix = "(|(" + gpoQuerySuffix + ")(name=" + ldap.EscapeFilter(gpoGuid) + "))"
+			}
+		}
+
+		if gpoQuerySuffix != "" {
+			gpoQuery = "(&(" + gpoQuery + ")(" + gpoQuerySuffix + "))"
+		}
+
+		updateLog("Searching applicable GPOs...", "yellow")
+
+		entries, err := lc.Query(lc.RootDN, gpoQuery, ldap.ScopeWholeSubtree, false)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
 		}
 
 		if len(entries) > 0 {
-			updateLog("GPO target found ("+entries[0].DN+")", "green")
-			gpoTargetDN = entries[0].DN
+			updateLog("GPOs query completed ("+strconv.Itoa(len(entries))+" GPOs found)", "green")
 		} else {
-			updateLog("GPO target not found", "red")
-			app.Draw()
-			return
+			updateLog("No applicable GPOs found", "red")
 		}
-	}
 
-	var applicableGPOs []string
+		for idx, entry := range entries {
+			gpoGuid := entry.GetAttributeValue("cn")
+			gpEntry[gpoGuid] = entry
 
-	dnParts := strings.Split(gpoTargetDN, ",")
-	for idx := len(dnParts) - 1; idx >= 0; idx -= 1 {
-		candidateDN := strings.Join(dnParts[idx:], ",")
+			gpoName := entry.GetAttributeValue("displayName")
 
-		candidateGuids, ok := containerLinks[candidateDN]
-		if ok {
-			applicableGPOs = append(applicableGPOs, candidateGuids...)
+			gpoCreated := entry.GetAttributeValue("whenCreated")
+			gpoChanged := entry.GetAttributeValue("whenChanged")
+
+			gpoListPanel.SetCellSimple(idx+1, 0, gpoName)
+			gpoListPanel.SetCellSimple(idx+1, 1, ldaputils.FormatLDAPTime(gpoCreated, TimeFormat))
+			gpoListPanel.SetCellSimple(idx+1, 2, ldaputils.FormatLDAPTime(gpoChanged, TimeFormat))
+			gpoListPanel.SetCellSimple(idx+1, 3, gpoGuid)
 		}
-	}
 
-	gpoQuerySuffix := ""
-	if len(applicableGPOs) > 0 {
-		gpoQuerySuffix = "name=" + ldap.EscapeFilter(applicableGPOs[0])
-		for _, gpoGuid := range applicableGPOs[1:] {
-			gpoQuerySuffix = "(|(" + gpoQuerySuffix + ")(name=" + ldap.EscapeFilter(gpoGuid) + "))"
+		if len(entries) > 0 {
+			gpoListPanel.SetTitle("Applied GPOs (" + strconv.Itoa(len(entries)) + ")")
+			gpoListPanel.Select(1, 0)
+
+			app.SetFocus(gpoListPanel)
 		}
-	}
-
-	if gpoQuerySuffix != "" {
-		gpoQuery = "(&(" + gpoQuery + ")(" + gpoQuerySuffix + "))"
-	}
-
-	updateLog("Searching applicable GPOs...", "yellow")
-
-	entries, err := lc.Query(lc.RootDN, gpoQuery, ldap.ScopeWholeSubtree, false)
-	if err != nil {
-		updateLog(fmt.Sprint(err), "red")
-		return
-	}
-
-	if len(entries) > 0 {
-		updateLog("GPOs query completed ("+strconv.Itoa(len(entries))+" GPOs found)", "green")
-	} else {
-		updateLog("No applicable GPOs found", "red")
-	}
-
-	for idx, entry := range entries {
-		gpoGuid := entry.GetAttributeValue("cn")
-		gpEntry[gpoGuid] = entry
-
-		gpoName := entry.GetAttributeValue("displayName")
-
-		gpoCreated := entry.GetAttributeValue("whenCreated")
-		gpoChanged := entry.GetAttributeValue("whenChanged")
-
-		gpoListPanel.SetCellSimple(idx+1, 0, gpoName)
-		gpoListPanel.SetCellSimple(idx+1, 1, ldaputils.FormatLDAPTime(gpoCreated, TimeFormat))
-		gpoListPanel.SetCellSimple(idx+1, 2, ldaputils.FormatLDAPTime(gpoChanged, TimeFormat))
-		gpoListPanel.SetCellSimple(idx+1, 3, gpoGuid)
-	}
-
-	if len(entries) > 0 {
-		gpoListPanel.SetTitle("Applied GPOs (" + strconv.Itoa(len(entries)) + ")")
-		gpoListPanel.Select(1, 0)
-
-		app.SetFocus(gpoListPanel)
-	}
-
-	app.Draw()
+	})
 }
 
 func exportCurrentGpos() {

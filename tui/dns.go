@@ -43,7 +43,7 @@ var forestZones []adidns.DNSZone
 var zoneCache = make(map[string]adidns.DNSZone, 0)
 var nodeCache = make(map[string]adidns.DNSNode, 0)
 
-var recordCache = make(map[string][]adidns.RecordContainer, 0)
+var recordCache = make(map[string][]adidns.FriendlyRecord, 0)
 
 func getParentZone(objectDN string) (adidns.DNSZone, error) {
 	objectDNParts := strings.Split(objectDN, ",")
@@ -77,7 +77,7 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 				zoneProps := make(map[string]any, 0)
 				for _, prop := range zone.Props {
 					propName := adidns.FindPropName(prop.Id)
-					zoneProps[propName] = prop.Data
+					zoneProps[propName] = prop.ExportFormat()
 				}
 
 				exportMap[objectDN] = map[string]any{
@@ -95,9 +95,8 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 				for idx, rec := range records {
 					recordType := node.Records[idx].PrintType()
 					recordsObj = append(recordsObj, map[string]any{
-						"Type":     recordType,
-						"Name":     rec.Name,
-						"Contents": rec.Contents,
+						"Type":  recordType,
+						"Value": rec,
 					})
 				}
 
@@ -112,15 +111,28 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 					// to include in the export
 					_, alreadyExported := exportMap[parentZone.DN]
 					if !alreadyExported {
+						parentZoneProps := make(map[string]any, 0)
+						for _, prop := range parentZone.Props {
+							propName := adidns.FindPropName(prop.Id)
+							parentZoneProps[propName] = prop.ExportFormat()
+						}
+
 						exportMap[parentZone.DN] = map[string]any{
-							"Zone":  parentZone,
+							"Zone": map[string]any{
+								"Name":  parentZone.Name,
+								"DN":    parentZone.DN,
+								"Props": parentZoneProps,
+							},
 							"Nodes": nodesMap,
 						}
 					}
 
 					parentZone := (exportMap[parentZone.DN]).(map[string]any)
 					parentZoneNodes := parentZone["Nodes"].(map[string]any)
-					parentZoneNodes[node.DN] = recordsObj
+					parentZoneNodes[node.DN] = map[string]any{
+						"Name":    node.Name,
+						"Records": recordsObj,
+					}
 				}
 			}
 		}
@@ -138,53 +150,152 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 	}
 }
 
-func showZoneOrNodeDetails(objectDN string) {
+func showZoneDetails(zone *adidns.DNSZone) {
+	dnsSidePanel.SetTitle("Zone Properties")
+	dnsSidePanel.SwitchToPage("zone-props")
+
+	propsMap := make(map[uint32]adidns.DNSProperty, 0)
+	for _, prop := range zone.Props {
+		propsMap[prop.Id] = prop
+	}
+
+	dnsZoneProps.SetCell(0, 0, tview.NewTableCell("Id").SetSelectable(false))
+	dnsZoneProps.SetCell(0, 1, tview.NewTableCell("Description").SetSelectable(false))
+	dnsZoneProps.SetCell(0, 2, tview.NewTableCell("Value").SetSelectable(false))
+
+	idx := 1
+	for _, prop := range adidns.DnsPropertyIds {
+		dnsZoneProps.SetCell(idx, 0, tview.NewTableCell(fmt.Sprint(prop.Id)))
+		dnsZoneProps.SetCell(idx, 1, tview.NewTableCell(prop.Name))
+
+		mappedProp, ok := propsMap[prop.Id]
+		if ok {
+			mappedPropStr := fmt.Sprintf("%v", mappedProp.Data)
+			if FormatAttrs {
+				mappedPropStr = mappedProp.PrintFormat(TimeFormat)
+			}
+
+			if Colors {
+				color, change := adidns.GetPropCellColor(mappedProp.Id, mappedPropStr)
+				if change {
+					mappedPropStr = fmt.Sprintf("[%s]%s[c]", color, mappedPropStr)
+				}
+			}
+
+			dnsZoneProps.SetCell(idx, 2, tview.NewTableCell(mappedPropStr))
+		} else {
+			notSpecifiedVal := "Not specified"
+			if Colors {
+				notSpecifiedVal = fmt.Sprintf("[gray]%s[c]", notSpecifiedVal)
+			}
+
+			dnsZoneProps.SetCell(idx, 2, tview.NewTableCell(notSpecifiedVal))
+		}
+		idx += 1
+	}
+}
+
+type recordRef struct {
+	nodeDN string
+	idx    int
+}
+
+func reloadADIDNSZone(currentNode *tview.TreeNode) {
+	objectDN := currentNode.GetReference().(string)
+
+	updateLog("Fetching nodes for zone '"+objectDN+"'...", "yellow")
+
+	numLoadedNodes := loadZoneNodes(currentNode)
+
+	if numLoadedNodes >= 0 {
+		updateLog(fmt.Sprintf("Loaded %d nodes (%s)", numLoadedNodes, objectDN), "green")
+	}
+
+	if len(currentNode.GetChildren()) != 0 && !currentNode.IsExpanded() {
+		currentNode.SetExpanded(true)
+	}
+}
+
+func reloadADIDNSNode(currentNode *tview.TreeNode) {
+	objectDN := currentNode.GetReference().(string)
+
+	node, err := lc.GetADIDNSNode(objectDN)
+	nodeCache[node.DN] = node
+
+	if err == nil {
+		updateLog(fmt.Sprintf("Loaded node '%s'", node.DN), "green")
+	} else {
+		updateLog(fmt.Sprint(err), "red")
+	}
+
+	storeNodeRecords(node)
+	showDetails(node.DN)
+}
+
+func showNodeDetails(node *adidns.DNSNode, records []adidns.FriendlyRecord, targetTree *tview.TreeView) {
+	rootNode := tview.NewTreeNode(node.Name)
+
+	for idx, record := range node.Records {
+		unixTimestamp := record.UnixTimestamp()
+		timeObj := time.Unix(unixTimestamp, 0)
+
+		formattedTime := fmt.Sprintf("%d", unixTimestamp)
+		timeDistance := time.Since(timeObj)
+		if FormatAttrs {
+			if unixTimestamp != -1 {
+				formattedTime = timeObj.Format(TimeFormat)
+			} else {
+				formattedTime = "static"
+			}
+		}
+
+		if Colors {
+			daysDiff := timeDistance.Hours() / 24
+			color := "gray"
+			if unixTimestamp != -1 {
+				if daysDiff <= 7 {
+					color = "green"
+				} else if daysDiff <= 90 {
+					color = "yellow"
+				} else {
+					color = "red"
+				}
+			}
+
+			formattedTime = fmt.Sprintf("[%s]%s[c]", color, formattedTime)
+		}
+
+		recordName := fmt.Sprintf(
+			"%s [TTL=%d] (%s)",
+			record.PrintType(),
+			record.TTLSeconds,
+			formattedTime,
+		)
+
+		recordTreeNode := tview.NewTreeNode(recordName).
+			SetReference(recordRef{node.DN, idx})
+
+		parsedRecord := records[idx]
+		recordFields := adidns.DumpRecordFields(parsedRecord)
+		for idx, field := range recordFields {
+			fieldName := tview.Escape(fmt.Sprintf("%s=%v", field.Name, field.Value))
+			fieldTreeNode := tview.NewTreeNode(fieldName).SetReference(idx)
+			recordTreeNode.AddChild(fieldTreeNode)
+		}
+
+		rootNode.AddChild(recordTreeNode)
+	}
+
+	targetTree.SetRoot(rootNode)
+	go func() {
+		app.Draw()
+	}()
+}
+
+func showDetails(objectDN string) {
 	zone, ok := zoneCache[objectDN]
 	if ok {
-		dnsSidePanel.SetTitle("dnsZone Properties")
-		dnsSidePanel.SwitchToPage("zone-props")
-
-		propsMap := make(map[uint32]adidns.DNSProperty, 0)
-		for _, prop := range zone.Props {
-			propsMap[prop.Id] = prop
-		}
-
-		dnsZoneProps.SetCell(0, 0, tview.NewTableCell("Id").SetSelectable(false))
-		dnsZoneProps.SetCell(0, 1, tview.NewTableCell("Description").SetSelectable(false))
-		dnsZoneProps.SetCell(0, 2, tview.NewTableCell("Value").SetSelectable(false))
-
-		idx := 1
-		for _, prop := range adidns.DnsPropertyIds {
-			dnsZoneProps.SetCell(idx, 0, tview.NewTableCell(fmt.Sprint(prop.Id)))
-			dnsZoneProps.SetCell(idx, 1, tview.NewTableCell(prop.Name))
-
-			mappedProp, ok := propsMap[prop.Id]
-			if ok {
-				mappedPropStr := fmt.Sprintf("%v", mappedProp.Data)
-				if FormatAttrs {
-					mappedPropStr = mappedProp.Format(TimeFormat)
-				}
-
-				if Colors {
-					color, change := adidns.GetPropCellColor(mappedProp.Id, mappedPropStr)
-					if change {
-						mappedPropStr = fmt.Sprintf("[%s]%s[c]", color, mappedPropStr)
-					}
-				}
-
-				dnsZoneProps.SetCell(idx, 2, tview.NewTableCell(mappedPropStr))
-			} else {
-				notSpecifiedVal := "Not specified"
-				if Colors {
-					notSpecifiedVal = fmt.Sprintf("[gray]%s[c]", notSpecifiedVal)
-				}
-
-				dnsZoneProps.SetCell(idx, 2, tview.NewTableCell(notSpecifiedVal))
-			}
-			idx += 1
-		}
-
-		return
+		showZoneDetails(&zone)
 	}
 
 	node, ok := nodeCache[objectDN]
@@ -192,71 +303,18 @@ func showZoneOrNodeDetails(objectDN string) {
 		parsedRecords, _ := recordCache[objectDN]
 		parentZone, err := getParentZone(objectDN)
 		if err == nil {
-			dnsSidePanel.SetTitle(fmt.Sprintf("dnsNode Records (%s)", parentZone.Name))
+			dnsSidePanel.SetTitle(fmt.Sprintf("Records (%s)", parentZone.Name))
 		} else {
-			dnsSidePanel.SetTitle("dnsNode Records")
+			dnsSidePanel.SetTitle("Records")
 		}
-
 		dnsSidePanel.SwitchToPage("node-records")
 
-		rootNode := tview.NewTreeNode(node.Name)
-		dnsNodeRecords.SetRoot(rootNode)
-
-		for idx, record := range node.Records {
-			unixTimestamp := record.UnixTimestamp()
-			timeObj := time.Unix(unixTimestamp, 0)
-
-			formattedTime := fmt.Sprintf("%d", unixTimestamp)
-			timeDistance := time.Since(timeObj)
-			if FormatAttrs {
-				if unixTimestamp != -1 {
-					formattedTime = timeObj.Format(TimeFormat)
-				} else {
-					formattedTime = "static"
-				}
-			}
-
-			if Colors {
-				daysDiff := timeDistance.Hours() / 24
-				color := "gray"
-				if unixTimestamp != -1 {
-					if daysDiff <= 7 {
-						color = "green"
-					} else if daysDiff <= 90 {
-						color = "yellow"
-					} else {
-						color = "red"
-					}
-				}
-
-				formattedTime = fmt.Sprintf("[%s]%s[c]", color, formattedTime)
-			}
-
-			nodeName := fmt.Sprintf(
-				"%s [TTL=%d] (%s)",
-				record.PrintType(),
-				record.TTLSeconds,
-				formattedTime,
-			)
-
-			recordTreeNode := tview.NewTreeNode(nodeName).
-				SetSelectable(true)
-
-			parsedRecord := parsedRecords[idx]
-			recordFields := parsedRecord.DumpFields()
-			for _, field := range recordFields {
-				fieldName := tview.Escape(fmt.Sprintf("%s=%v", field.Name, field.Value))
-				fieldTreeNode := tview.NewTreeNode(fieldName)
-				recordTreeNode.AddChild(fieldTreeNode)
-			}
-
-			rootNode.AddChild(recordTreeNode)
-		}
+		showNodeDetails(&node, parsedRecords, dnsNodeRecords)
 	}
 }
 
 func storeNodeRecords(node adidns.DNSNode) {
-	records := make([]adidns.RecordContainer, 0)
+	records := make([]adidns.FriendlyRecord, 0)
 	var fRec adidns.FriendlyRecord
 
 	for _, record := range node.Records {
@@ -349,12 +407,7 @@ func storeNodeRecords(node adidns.DNSNode) {
 
 		fRec.Parse(record.Data)
 
-		container := adidns.RecordContainer{
-			node.Name,
-			fRec,
-		}
-
-		records = append(records, container)
+		records = append(records, fRec)
 	}
 
 	recordCache[node.DN] = records
@@ -408,29 +461,23 @@ func initADIDNSPage() {
 	dnsQueryPanel = tview.NewInputField()
 	dnsQueryPanel.
 		SetPlaceholder("Type a DNS zone or leave it blank and hit enter to query all zones").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("Zone Search").
 		SetBorder(true)
+	assignInputFieldTheme(dnsQueryPanel)
 
 	dnsNodeFilter = tview.NewInputField()
 	dnsNodeFilter.
 		SetPlaceholder("Regex for dnsNode name").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("dnsNode Filter").
 		SetBorder(true)
+	assignInputFieldTheme(dnsNodeFilter)
 
 	dnsZoneFilter = tview.NewInputField()
 	dnsZoneFilter.
 		SetPlaceholder("Regex for dnsZone name").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("dnsZone Filter").
 		SetBorder(true)
+	assignInputFieldTheme(dnsZoneFilter)
 
 	dnsZoneProps = tview.NewTable().
 		SetSelectable(true, true).
@@ -440,7 +487,7 @@ func initADIDNSPage() {
 
 	dnsTreePanel = tview.NewTreeView()
 	dnsTreePanel.
-		SetTitle("Search Results").
+		SetTitle("Zones & Nodes").
 		SetBorder(true)
 
 	dnsTreePanel.SetChangedFunc(func(objNode *tview.TreeNode) {
@@ -452,7 +499,7 @@ func initADIDNSPage() {
 		}
 
 		nodeDN := objNodeRef.(string)
-		showZoneOrNodeDetails(nodeDN)
+		showDetails(nodeDN)
 	})
 
 	dnsZoneFilter.SetChangedFunc(func(text string) {
@@ -471,43 +518,19 @@ func initADIDNSPage() {
 			return event
 		}
 
-		objectDN := currentNode.GetReference().(string)
+		level := currentNode.GetLevel()
 
 		switch event.Rune() {
 		case 'r', 'R':
-			if currentNode == dnsTreePanel.GetRoot() {
-				return nil
-			}
-
-			go func() {
-				level := currentNode.GetLevel()
-				if level == 1 {
-					updateLog("Fetching nodes for zone '"+objectDN+"'...", "yellow")
-
-					numLoadedNodes := loadZoneNodes(currentNode)
-
-					if numLoadedNodes >= 0 {
-						updateLog(fmt.Sprintf("Loaded %d nodes (%s)", numLoadedNodes, objectDN), "green")
-					}
-
-					if len(currentNode.GetChildren()) != 0 && !currentNode.IsExpanded() {
-						currentNode.SetExpanded(true)
-					}
+			go app.QueueUpdateDraw(func() {
+				if level == 0 {
+					go queryDnsZones(dnsQueryPanel.GetText())
+				} else if level == 1 {
+					reloadADIDNSZone(currentNode)
 				} else if level == 2 {
-					node, err := lc.GetADIDNSNode(objectDN)
-
-					if err == nil {
-						updateLog(fmt.Sprintf("Loaded node '%s'", node.DN), "green")
-					} else {
-						updateLog(fmt.Sprint(err), "red")
-					}
-
-					storeNodeRecords(node)
-					showZoneOrNodeDetails(node.DN)
+					reloadADIDNSNode(currentNode)
 				}
-
-				app.Draw()
-			}()
+			})
 
 			return nil
 		}
@@ -532,9 +555,24 @@ func initADIDNSPage() {
 			}
 			return nil
 		case tcell.KeyDelete:
-			if currentNode.GetReference() != nil {
-				openDeleteObjectForm(currentNode, nil)
+			if currentNode.GetReference() == nil {
+				return nil
 			}
+
+			openDeleteObjectForm(currentNode, func() {
+				level := currentNode.GetLevel()
+				if level == 1 {
+					go queryDnsZones(dnsQueryPanel.GetText())
+				} else if level == 2 {
+					pathToCurrent := dnsTreePanel.GetPath(currentNode)
+					if len(pathToCurrent) > 1 {
+						parentNode := pathToCurrent[len(pathToCurrent)-2]
+						reloadADIDNSZone(parentNode)
+					}
+				}
+			})
+
+			return nil
 		case tcell.KeyCtrlS:
 			unixTimestamp := time.Now().UnixMilli()
 			outputFilename := fmt.Sprintf("%d_dns.json", unixTimestamp)
@@ -586,6 +624,10 @@ func dnsPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func rebuildDnsTree(rootNode *tview.TreeNode) int {
+	if rootNode == nil {
+		return 0
+	}
+
 	expandedZones := make(map[string]bool)
 	childrenZones := rootNode.GetChildren()
 	for _, child := range childrenZones {
@@ -654,26 +696,24 @@ func rebuildDnsTree(rootNode *tview.TreeNode) int {
 	return totalNodes
 }
 
-func dnsQueryDoneHandler(key tcell.Key) {
+func queryDnsZones(targetZone string) {
+	dnsRunControl.Lock()
+	if dnsRunning {
+		dnsRunControl.Unlock()
+		updateLog("Another query is still running...", "yellow")
+		return
+	}
+	dnsRunning = true
+	dnsRunControl.Unlock()
+
 	clear(nodeCache)
 	clear(zoneCache)
 	clear(domainZones)
 	clear(forestZones)
 	clear(recordCache)
 
-	go func() {
-		dnsRunControl.Lock()
-		if dnsRunning {
-			dnsRunControl.Unlock()
-			updateLog("Another query is still running...", "yellow")
-			return
-		}
-		dnsRunning = true
-		dnsRunControl.Unlock()
-
+	app.QueueUpdateDraw(func() {
 		updateLog("Querying ADIDNS zones...", "yellow")
-
-		targetZone := dnsQueryPanel.GetText()
 
 		domainZones, _ = lc.GetADIDNSZones(targetZone, false)
 		forestZones, _ = lc.GetADIDNSZones(targetZone, true)
@@ -682,7 +722,6 @@ func dnsQueryDoneHandler(key tcell.Key) {
 		if totalZones == 0 {
 			updateLog("No ADIDNS zones found", "red")
 			rootNode.ClearChildren()
-			app.Draw()
 
 			dnsRunControl.Lock()
 			dnsRunning = false
@@ -702,13 +741,15 @@ func dnsQueryDoneHandler(key tcell.Key) {
 
 		updateLog(fmt.Sprintf("Found %d ADIDNS zones and %d nodes", totalZones, totalNodes), "green")
 		app.SetFocus(dnsTreePanel)
+	})
 
-		app.Draw()
+	dnsRunControl.Lock()
+	dnsRunning = false
+	dnsRunControl.Unlock()
+}
 
-		dnsRunControl.Lock()
-		dnsRunning = false
-		dnsRunControl.Unlock()
-	}()
+func dnsQueryDoneHandler(key tcell.Key) {
+	go queryDnsZones(dnsQueryPanel.GetText())
 }
 
 func dnsRotateFocus() {
@@ -718,6 +759,10 @@ func dnsRotateFocus() {
 	case dnsTreePanel:
 		app.SetFocus(dnsQueryPanel)
 	case dnsQueryPanel:
+		app.SetFocus(dnsNodeFilter)
+	case dnsNodeFilter:
+		app.SetFocus(dnsZoneFilter)
+	case dnsZoneFilter:
 		app.SetFocus(dnsZoneProps)
 	case dnsZoneProps:
 		app.SetFocus(dnsTreePanel)

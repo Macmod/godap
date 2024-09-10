@@ -169,8 +169,9 @@ func upgradeStartTLS() {
 }
 
 func reconnectLdap() {
-	// TODO: Check possible race conditions
-	go setupLDAPConn()
+	go app.QueueUpdateDraw(func() {
+		setupLDAPConn()
+	})
 }
 
 func openConfigForm() {
@@ -513,17 +514,15 @@ func setupTimeFormat(f string) string {
 }
 
 func updateStateBox(target *tview.TextView, control bool) {
-	go func() {
-		app.QueueUpdateDraw(func() {
-			if control {
-				target.SetText("ON")
-				target.SetTextColor(tcell.GetColor("green"))
-			} else {
-				target.SetText("OFF")
-				target.SetTextColor(tcell.GetColor("red"))
-			}
-		})
-	}()
+	go app.QueueUpdateDraw(func() {
+		if control {
+			target.SetText("ON")
+			target.SetTextColor(tcell.GetColor("green"))
+		} else {
+			target.SetText("OFF")
+			target.SetTextColor(tcell.GetColor("red"))
+		}
+	})
 }
 
 func updateLog(msg string, color string) {

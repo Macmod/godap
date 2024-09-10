@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -55,6 +56,16 @@ var DnsRecordTypes map[uint16]string = map[uint16]string{
 	0x00FF: "ALL",
 	0xFF01: "WINS",
 	0xFF02: "WINSR",
+}
+
+func FindRecordType(rTypeStr string) uint16 {
+	for key, val := range DnsRecordTypes {
+		if rTypeStr == val {
+			return uint16(key)
+		}
+	}
+
+	return 0
 }
 
 type DcPromoFlag struct {
@@ -124,6 +135,21 @@ type DNSRecord struct {
 	Data       []byte
 }
 
+func MakeDNSRecord(rec FriendlyRecord, recType uint16, ttl uint32) DNSRecord {
+	serial := uint32(1)
+	msTime := GetCurrentMSTime()
+	data := rec.Encode()
+
+	return DNSRecord{
+		uint16(len(data)), recType,
+		0x05, 0xF0,
+		0x0000,
+		serial, ttl,
+		0x00000000,
+		msTime, data,
+	}
+}
+
 type DNSProperty struct {
 	DataLength uint32
 	NameLength uint32
@@ -134,7 +160,57 @@ type DNSProperty struct {
 	Name       uint8
 }
 
-func (prop *DNSProperty) Format(timeFormat string) string {
+func MakeProp(id uint32, data []byte) DNSProperty {
+	return DNSProperty{
+		uint32(len(data)),
+		1, 0, 1,
+		id, data,
+		0,
+	}
+}
+
+func (prop *DNSProperty) ExportFormat() any {
+	var propDataArr [8]byte
+	copy(propDataArr[:], prop.Data)
+	propVal := binary.LittleEndian.Uint64(propDataArr[:])
+
+	switch prop.Id {
+	case 0x01, 0x02, 0x10, 0x20, 0x40, 0x83:
+		// DSPROPERTY_ZONE_TYPE
+		// DSPROPERTY_ZONE_ALLOW_UPDATE
+		// DSPROPERTY_ZONE_NOREFRESH_INTERVAL
+		// DSPROPERTY_ZONE_REFRESH_INTERVAL
+		// DSPROPERTY_ZONE_AGING_STATE
+		// DSPROPERTY_ZONE_DCPROMO_CONVERT
+		return propVal
+	case 0x00000008:
+		unixTimestamp := MSTimeToUnixTimestamp(propVal)
+		return unixTimestamp
+	case 0x00000012:
+		// DSPROPERTY_ZONE_AGING_ENABLED_TIME
+		msTime := propVal * 3600
+		unixTimestamp := MSTimeToUnixTimestamp(msTime)
+		return unixTimestamp
+	case 0x00000080:
+		// DSPROPERTY_ZONE_DELETED_FROM_HOSTNAME
+		return string(prop.Data[:])
+	case 0x00000090, 0x00000091, 0x00000092:
+		// DSPROPERTY_ZONE_SCAVENGING_SERVERS_DA
+		// DSPROPERTY_ZONE_MASTER_SERVERS_DA
+		// DSPROPERTY_ZONE_AUTO_NS_SERVERS_DA
+		return ParseAddrArray(prop.Data)
+	case 0x00000082, 0x00000011:
+		// DSPROPERTY_ZONE_SCAVENGING_SERVERS
+		// DSPROPERTY_ZONE_AUTO_NS_SERVERS
+		return ParseIP4Array(prop.Data)
+	default:
+		// DSPROPERTY_ZONE_NODE_DBFLAGS
+		// Or other unknown codes
+		return prop.Data
+	}
+}
+
+func (prop *DNSProperty) PrintFormat(timeFormat string) string {
 	var propDataArr [8]byte
 	copy(propDataArr[:], prop.Data)
 	propVal := binary.LittleEndian.Uint64(propDataArr[:])
@@ -194,11 +270,9 @@ func (prop *DNSProperty) Format(timeFormat string) string {
 		} else {
 			return "Not specified"
 		}
-
-		//return hex.EncodeToString(prop.Data)
 	case 0x00000080:
 		// DSPROPERTY_ZONE_DELETED_FROM_HOSTNAME
-		return string(propVal)
+		return string(prop.Data[:])
 	case 0x00000040:
 		// DSPROPERTY_ZONE_AGING_STATE
 		if propVal == 1 {
@@ -334,12 +408,14 @@ func (d *DNSRecord) UnixTimestamp() int64 {
 // DNS_RPC_NAME parser
 func ParseRpcName(buf *bytes.Reader) (string, error) {
 	var nameLen uint8
-	if err := binary.Read(buf, binary.LittleEndian, &nameLen); err != nil {
+
+	nameLen, err := buf.ReadByte()
+	if err != nil {
 		return "", err
 	}
 
 	nameBuf := make([]byte, nameLen)
-	if _, err := io.ReadFull(buf, nameBuf); err != nil {
+	if err := binary.Read(buf, binary.LittleEndian, &nameBuf); err != nil {
 		return "", err
 	}
 
@@ -348,27 +424,35 @@ func ParseRpcName(buf *bytes.Reader) (string, error) {
 
 func ParseRpcNameSingle(data []byte) (string, error) {
 	buf := bytes.NewReader(data)
-	return ParseCountName(buf)
+	return ParseRpcName(buf)
+}
+
+func EncodeRpcName(buf *bytes.Buffer, name string) {
+	buf.WriteByte(byte(len(name)))
+	buf.Write([]byte(name))
 }
 
 // DNS_COUNT_NAME parser
 func ParseCountName(buf *bytes.Reader) (string, error) {
-	var rawNameLen uint8
 	var labelCnt uint8
 	var labLen uint8
+	var err error
 
-	if err := binary.Read(buf, binary.LittleEndian, &rawNameLen); err != nil {
+	_, err = buf.ReadByte()
+	if err != nil {
 		return "", err
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &labelCnt); err != nil {
+	labelCnt, err = buf.ReadByte()
+	if err != nil {
 		return "", err
 	}
 
 	labels := make([]string, labelCnt)
 
 	for cnt := uint8(0); cnt < labelCnt; cnt += 1 {
-		if err := binary.Read(buf, binary.LittleEndian, &labLen); err != nil {
+		labLen, err = buf.ReadByte()
+		if err != nil {
 			return "", err
 		}
 
@@ -384,6 +468,36 @@ func ParseCountName(buf *bytes.Reader) (string, error) {
 	buf.ReadByte()
 
 	return strings.Join(labels, "."), nil
+}
+
+func EncodeCountName(buf *bytes.Buffer, name string) error {
+	labels := strings.Split(name, ".")
+
+	rawNameLen := uint8(len(name) + 2)
+	if err := binary.Write(buf, binary.LittleEndian, rawNameLen); err != nil {
+		return err
+	}
+
+	labelCnt := uint8(len(labels))
+	if err := binary.Write(buf, binary.LittleEndian, labelCnt); err != nil {
+		return err
+	}
+
+	for _, label := range labels {
+		labLen := uint8(len(label))
+		if err := binary.Write(buf, binary.LittleEndian, labLen); err != nil {
+			return err
+		}
+		if _, err := buf.WriteString(label); err != nil {
+			return err
+		}
+	}
+
+	if err := buf.WriteByte(0); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func ParseCountNameSingle(data []byte) (string, error) {
@@ -448,30 +562,29 @@ func (p *DNSProperty) Decode(data []byte) error {
 // {Reference} MS-DNSP 2.2.2.2.4 DNS_RPC_RECORD_DATA
 // IP addresses (v4 or v6) are stored using their string representations
 
-// Interface/structure to hold the parsed record fields
+// Interface to hold the parsed record fields
 type FriendlyRecord interface {
 	// Parses a record from its byte array in the Data field of the
-	// DNSRecord attribute
+	// DNSRecord AD attribute
 	Parse([]byte)
-}
 
-type RecordContainer struct {
-	Name     string
-	Contents FriendlyRecord
-}
-
-type Field struct {
-	Name  any
-	Value any
+	// Encode the record into a byte array to be used in the Data field
+	// of the DNSRecord AD attribute
+	Encode() []byte
 }
 
 // Using a bit of reflection so that
 // I don't have to manually implement a DumpField
 // method on every type
-func (rc RecordContainer) DumpFields() []Field {
+type Field struct {
+	Name  any
+	Value any
+}
+
+func DumpRecordFields(fr FriendlyRecord) []Field {
 	result := make([]Field, 0)
 
-	v := reflect.ValueOf(rc.Contents).Elem()
+	v := reflect.ValueOf(fr).Elem()
 	for i := 0; i < v.NumField(); i++ {
 		result = append(result, Field{v.Type().Field(i).Name, v.Field(i).Interface()})
 	}
@@ -491,6 +604,14 @@ func (rnn *RecordNodeName) Parse(data []byte) {
 	}
 }
 
+func (rnn *RecordNodeName) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	EncodeCountName(buf, rnn.NameNode)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.6 DNS_RPC_RECORD_STRING
 type RecordString struct {
 	StrData []string
@@ -508,6 +629,17 @@ func (rs *RecordString) Parse(data []byte) {
 	}
 
 	rs.StrData = result
+}
+
+func (rs *RecordString) Encode() []byte {
+	data := make([]byte, 0)
+
+	for _, val := range rs.StrData {
+		data = append(data, byte(len(val)))
+		data = append(data, []byte(val)...)
+	}
+
+	return data
 }
 
 // 2.2.2.2.4.7 DNS_RPC_RECORD_MAIL_ERROR
@@ -530,6 +662,16 @@ func (rs *RecordMailError) Parse(data []byte) {
 	}
 }
 
+func (rs *RecordMailError) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	EncodeCountName(buf, rs.MailBX)
+
+	EncodeCountName(buf, rs.ErrorMailBX)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.8 DNS_RPC_RECORD_NAME_PREFERENCE
 type RecordNamePreference struct {
 	Preference uint16
@@ -542,6 +684,16 @@ func (rnp *RecordNamePreference) Parse(data []byte) {
 	if err == nil {
 		rnp.Exchange = parsedName
 	}
+}
+
+func (rnp *RecordNamePreference) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, rnp.Preference)
+
+	EncodeCountName(buf, rnp.Exchange)
+
+	return buf.Bytes()
 }
 
 type NSRecord = RecordNodeName
@@ -571,6 +723,9 @@ type RTRecord = RecordNamePreference
 type ZERORecord struct{}
 
 func (zr *ZERORecord) Parse(data []byte) {}
+func (zr *ZERORecord) Encode() []byte {
+	return []byte{}
+}
 
 // 2.2.2.2.4.1 DNS_RPC_RECORD_A
 type ARecord struct {
@@ -581,6 +736,11 @@ func (v4r *ARecord) Parse(data []byte) {
 	v4r.Address = ParseIP(data)
 }
 
+func (v4r *ARecord) Encode() []byte {
+	ip := net.ParseIP(v4r.Address)
+	return []byte(net.IP.To4(ip))
+}
+
 // 2.2.2.2.4.16 DNS_RPC_RECORD_AAAA
 type AAAARecord struct {
 	Address string // Parsed from a [16]byte
@@ -588,6 +748,11 @@ type AAAARecord struct {
 
 func (v6r *AAAARecord) Parse(data []byte) {
 	v6r.Address = ParseIP(data)
+}
+
+func (v6r *AAAARecord) Encode() []byte {
+	ip := net.ParseIP(v6r.Address)
+	return []byte(net.IP.To16(ip))
 }
 
 // 2.2.2.2.4.3 DNS_RPC_RECORD_SOA
@@ -620,6 +785,22 @@ func (r *SOARecord) Parse(data []byte) {
 	}
 }
 
+func (r *SOARecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	fields := []uint32{r.Serial, r.Refresh, r.Retry, r.Expire, r.MinimumTTL}
+	for _, field := range fields {
+		binary.Write(buf, binary.BigEndian, field)
+	}
+
+	names := []string{r.NamePrimaryServer, r.ZoneAdminEmail}
+	for _, name := range names {
+		EncodeCountName(buf, name)
+	}
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.4 DNS_RPC_RECORD_NULL
 type NULLRecord struct {
 	Data []byte
@@ -627,6 +808,10 @@ type NULLRecord struct {
 
 func (r *NULLRecord) Parse(data []byte) {
 	r.Data = data
+}
+
+func (r *NULLRecord) Encode() []byte {
+	return r.Data
 }
 
 // 2.2.2.2.4.5 DNS_RPC_RECORD_WKS
@@ -640,6 +825,16 @@ func (r *WKSRecord) Parse(data []byte) {
 	r.Address = ParseIP(data[:4])
 	r.Protocol = data[4]
 	r.BitMask = data[5:]
+}
+
+func (r *WKSRecord) Encode() []byte {
+	ip := net.ParseIP(r.Address)
+
+	data := []byte(net.IP.To4(ip))
+	data = append(data, byte(r.Protocol))
+	data = append(data, r.BitMask...)
+
+	return data
 }
 
 // 2.2.2.2.4.9 DNS_RPC_RECORD_SIG
@@ -670,8 +865,28 @@ func (r *SIGRecord) Parse(data []byte) {
 		r.NameSigner = parsedName
 	}
 
-	sigInfo, err := ioutil.ReadAll(buf)
+	sigInfo, _ := ioutil.ReadAll(buf)
 	r.SignatureInfo = sigInfo
+}
+
+func (r *SIGRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.TypeCovered)
+
+	buf.WriteByte(r.Algorithm)
+	buf.WriteByte(r.Labels)
+
+	binary.Write(buf, binary.BigEndian, r.OriginalTTL)
+	binary.Write(buf, binary.BigEndian, r.SigExpiration)
+	binary.Write(buf, binary.BigEndian, r.SigInception)
+	binary.Write(buf, binary.BigEndian, r.KeyTag)
+
+	EncodeCountName(buf, r.NameSigner)
+
+	buf.Write(r.SignatureInfo)
+
+	return buf.Bytes()
 }
 
 // 2.2.2.2.4.13 DNS_RPC_RECORD_KEY
@@ -689,6 +904,28 @@ func (r *KEYRecord) Parse(data []byte) {
 	r.Key = data[4:]
 }
 
+func (r *KEYRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	if err := binary.Write(buf, binary.BigEndian, r.Flags); err != nil {
+		return []byte{}
+	}
+
+	if err := buf.WriteByte(r.Protocol); err != nil {
+		return []byte{}
+	}
+
+	if err := buf.WriteByte(r.Algorithm); err != nil {
+		return []byte{}
+	}
+
+	if _, err := buf.Write(r.Key); err != nil {
+		return []byte{}
+	}
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.17 DNS_RPC_RECORD_NXT
 type NXTRecord struct {
 	NumRecordTypes uint16
@@ -697,13 +934,12 @@ type NXTRecord struct {
 }
 
 func (r *NXTRecord) Parse(data []byte) {
+	// TODO: Fix NXT parsing
 	// This type does not seem to be following MS spec properly.
 	// I'll just ignore it for the moment and hope to figure it out later.
 
-	r.NumRecordTypes = binary.LittleEndian.Uint16(data[:2])
-	r.NextName = "<RRType NXT Not Implemented Yet>"
-
 	/*
+		r.NumRecordTypes = binary.LittleEndian.Uint16(data[:2])
 		r.TypeWords = make([]uint16, r.NumRecordTypes)
 
 		offset := 2
@@ -717,6 +953,11 @@ func (r *NXTRecord) Parse(data []byte) {
 			r.NextName = parsedName
 		}
 	*/
+}
+
+func (r *NXTRecord) Encode() []byte {
+	// TODO: Fix NXT parsing
+	return []byte{}
 }
 
 // 2.2.2.2.4.18 DNS_RPC_RECORD_SRV
@@ -738,6 +979,20 @@ func (r *SRVRecord) Parse(data []byte) {
 	}
 }
 
+func (r *SRVRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.Priority)
+
+	binary.Write(buf, binary.BigEndian, r.Weight)
+
+	binary.Write(buf, binary.BigEndian, r.Port)
+
+	EncodeCountName(buf, r.NameTarget)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.19 DNS_RPC_RECORD_ATMA
 type ATMARecord struct {
 	Format  uint8
@@ -748,6 +1003,16 @@ func (r *ATMARecord) Parse(data []byte) {
 	r.Format = data[0]
 
 	r.Address = string(data[1:])
+}
+
+func (r *ATMARecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(r.Format)
+
+	buf.WriteString(r.Address)
+
+	return buf.Bytes()
 }
 
 // 2.2.2.2.4.20 DNS_RPC_RECORD_NAPTR
@@ -789,6 +1054,24 @@ func (r *NAPTRRecord) Parse(data []byte) {
 	}
 }
 
+func (r *NAPTRRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.Order)
+
+	binary.Write(buf, binary.BigEndian, r.Preference)
+
+	EncodeRpcName(buf, r.Flags)
+
+	EncodeRpcName(buf, r.Service)
+
+	EncodeRpcName(buf, r.Substitution)
+
+	EncodeCountName(buf, r.Replacement)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.12 DNS_RPC_RECORD_DS
 type DSRecord struct {
 	KeyTag     uint16
@@ -802,6 +1085,20 @@ func (r *DSRecord) Parse(data []byte) {
 	r.Algorithm = data[2]
 	r.DigestType = data[3]
 	r.Digest = data[4:]
+}
+
+func (r *DSRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.KeyTag)
+
+	buf.WriteByte(r.Algorithm)
+
+	buf.WriteByte(r.DigestType)
+
+	buf.Write(r.Digest)
+
+	return buf.Bytes()
 }
 
 // 2.2.2.2.4.10 DNS_RPC_RECORD_RRSIG
@@ -820,7 +1117,17 @@ func (r *NSECRecord) Parse(data []byte) {
 		r.NameSigner = parsedName
 	}
 
-	binary.Read(buf, binary.LittleEndian, &r.NSECBitmap)
+	r.NSECBitmap, _ = ioutil.ReadAll(buf)
+}
+
+func (r *NSECRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	EncodeCountName(buf, r.NameSigner)
+
+	binary.Write(buf, binary.LittleEndian, r.NSECBitmap)
+
+	return buf.Bytes()
 }
 
 // 2.2.2.2.4.15 DNS_RPC_RECORD_DNSKEY
@@ -838,6 +1145,20 @@ func (r *DNSKEYRecord) Parse(data []byte) {
 	r.Key = data[4:]
 }
 
+func (r *DNSKEYRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.Flags)
+
+	buf.WriteByte(r.Protocol)
+
+	buf.WriteByte(r.Algorithm)
+
+	buf.Write(r.Key)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.14 DNS_RPC_RECORD_DHCID
 type DHCIDRecord struct {
 	Digest []byte
@@ -845,6 +1166,10 @@ type DHCIDRecord struct {
 
 func (r *DHCIDRecord) Parse(data []byte) {
 	r.Digest = data
+}
+
+func (r *DHCIDRecord) Encode() []byte {
+	return r.Digest
 }
 
 // 2.2.2.2.4.24 DNS_RPC_RECORD_NSEC3
@@ -870,6 +1195,28 @@ func (r *NSEC3Record) Parse(data []byte) {
 	r.Bitmaps = data[6+int(r.SaltLength)+int(r.HashLength):]
 }
 
+func (r *NSEC3Record) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(r.Algorithm)
+
+	buf.WriteByte(r.Flags)
+
+	binary.Write(buf, binary.BigEndian, r.Iterations)
+
+	buf.WriteByte(r.SaltLength)
+
+	buf.WriteByte(r.HashLength)
+
+	buf.Write(r.Salt)
+
+	buf.Write(r.NextHashedOwnerName)
+
+	buf.Write(r.Bitmaps)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.25 DNS_RPC_RECORD_NSEC3PARAM
 type NSEC3PARAMRecord struct {
 	Algorithm  uint8
@@ -887,6 +1234,22 @@ func (r *NSEC3PARAMRecord) Parse(data []byte) {
 	r.Salt = data[5 : 5+int(r.SaltLength)]
 }
 
+func (r *NSEC3PARAMRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(r.Algorithm)
+
+	buf.WriteByte(r.Flags)
+
+	binary.Write(buf, binary.BigEndian, r.Iterations)
+
+	buf.WriteByte(r.SaltLength)
+
+	buf.Write(r.Salt)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.26 DNS_RPC_RECORD_TLSA
 type TLSARecord struct {
 	CertificateUsage           uint8
@@ -902,33 +1265,69 @@ func (r *TLSARecord) Parse(data []byte) {
 	r.CertificateAssociationData = data[3:]
 }
 
+func (r *TLSARecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(r.CertificateUsage)
+
+	buf.WriteByte(r.Selector)
+
+	buf.WriteByte(r.MatchingType)
+
+	buf.Write(r.CertificateAssociationData)
+
+	return buf.Bytes()
+}
+
 // 2.2.2.2.4.21 DNS_RPC_RECORD_WINS
 type WINSRecord struct {
 	MappingFlag   uint32
 	LookupTimeout uint32
 	CacheTimeout  uint32
-	WinsServers   [4]uint32
+	WinsSrvCount  uint32
+	WinsServers   []uint32
 }
 
 func (r *WINSRecord) Parse(data []byte) {
 	r.MappingFlag = binary.BigEndian.Uint32(data[:4])
 	r.LookupTimeout = binary.BigEndian.Uint32(data[4:8])
 	r.CacheTimeout = binary.BigEndian.Uint32(data[8:12])
-	for i := 0; i < 4; i++ {
-		r.WinsServers[i] = binary.BigEndian.Uint32(data[12+i*4 : 16+i*4])
+	r.WinsSrvCount = binary.BigEndian.Uint32(data[12:16])
+
+	for i := uint32(0); i < r.WinsSrvCount; i++ {
+		addr := binary.BigEndian.Uint32(data[16+i*4 : 20+i*4])
+		r.WinsServers = append(r.WinsServers, addr)
 	}
+}
+
+func (r *WINSRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.MappingFlag)
+
+	binary.Write(buf, binary.BigEndian, r.LookupTimeout)
+
+	binary.Write(buf, binary.BigEndian, r.CacheTimeout)
+
+	binary.Write(buf, binary.BigEndian, r.WinsSrvCount)
+
+	for i := uint32(0); i < r.WinsSrvCount; i++ {
+		binary.Write(buf, binary.BigEndian, r.WinsServers[i])
+	}
+
+	return buf.Bytes()
 }
 
 // 2.2.2.2.4.22 DNS_RPC_RECORD_WINSR
 type WINSRRecord struct {
-	Mapping          uint32
+	MappingFlag      uint32
 	LookupTimeout    uint32
 	CacheTimeout     uint32
 	NameResultDomain string
 }
 
 func (r *WINSRRecord) Parse(data []byte) {
-	r.Mapping = binary.BigEndian.Uint32(data[:4])
+	r.MappingFlag = binary.BigEndian.Uint32(data[:4])
 	r.LookupTimeout = binary.BigEndian.Uint32(data[4:8])
 	r.CacheTimeout = binary.BigEndian.Uint32(data[8:12])
 
@@ -936,4 +1335,18 @@ func (r *WINSRRecord) Parse(data []byte) {
 	if err == nil {
 		r.NameResultDomain = parsedName
 	}
+}
+
+func (r *WINSRRecord) Encode() []byte {
+	buf := new(bytes.Buffer)
+
+	binary.Write(buf, binary.BigEndian, r.MappingFlag)
+
+	binary.Write(buf, binary.BigEndian, r.LookupTimeout)
+
+	binary.Write(buf, binary.BigEndian, r.CacheTimeout)
+
+	EncodeCountName(buf, r.NameResultDomain)
+
+	return buf.Bytes()
 }

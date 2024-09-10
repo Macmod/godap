@@ -128,7 +128,8 @@ func removeAce(aceIdx int) {
 
 	err = lc.ModifyDACL(object, string(newSd))
 	if err == nil {
-		go updateDaclEntries()
+		go app.QueueUpdateDraw(updateDaclEntries)
+
 		updateLog("ACE deleted for object '"+object+"'", "green")
 
 		if aceIdx > 0 {
@@ -236,7 +237,7 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 	err = lc.ModifyDACL(object, string(newSd))
 
 	if err == nil {
-		go updateDaclEntries()
+		go app.QueueUpdateDraw(updateDaclEntries)
 		updateLog("DACL updated successfully!", "green")
 
 		// Update selection
@@ -839,9 +840,12 @@ func loadAceEditorForm(aceIdx int) {
 			app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
 		}
 	})
+	assignButtonTheme(updateBtn)
+
 	cancelBtn := tview.NewButton("Go Back").SetSelectedFunc(func() {
 		app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
 	})
+	assignButtonTheme(cancelBtn)
 
 	currentAceTable := tview.NewTable().
 		SetBorders(false).

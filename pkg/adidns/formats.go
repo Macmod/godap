@@ -105,3 +105,17 @@ func MSTimeToUnixTimestamp(msTime uint64) int64 {
 
 	return unixTimestamp
 }
+
+func GetCurrentMSTime() uint32 {
+	baseTime := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	currentTime := time.Now().UTC()
+
+	duration := currentTime.Sub(baseTime)
+
+	targetTime := duration.Hours()
+
+	msTime := uint32(targetTime) + uint32(3234576)
+
+	return msTime
+}

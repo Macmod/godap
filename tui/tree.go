@@ -190,7 +190,7 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle)
-	writeAttrValsForm.SetInputCapture(handleEscapeToTree)
+	writeAttrValsForm.SetInputCapture(handleEscape(treePanel))
 	writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
 	app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
 }
@@ -230,7 +230,7 @@ func handleAttrsKeyCtrlN(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle)
-	createAttrForm.SetInputCapture(handleEscapeToTree)
+	createAttrForm.SetInputCapture(handleEscape(treePanel))
 
 	baseDN := currentNode.GetReference().(string)
 

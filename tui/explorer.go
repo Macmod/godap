@@ -103,7 +103,7 @@ func initExplorerPage() {
 func expandTreeNode(node *tview.TreeNode) {
 	if !node.IsExpanded() {
 		if len(node.GetChildren()) == 0 {
-			go func() {
+			go app.QueueUpdateDraw(func() {
 				updateLog("Loading children ("+node.GetReference().(string)+")", "yellow")
 				loadChildren(node)
 
@@ -115,8 +115,7 @@ func expandTreeNode(node *tview.TreeNode) {
 				} else {
 					updateLog("Node "+node.GetReference().(string)+" has no children", "green")
 				}
-				app.Draw()
-			}()
+			})
 		} else {
 			node.SetExpanded(true)
 		}
@@ -169,14 +168,6 @@ func findEntryInChildren(dn string, parent *tview.TreeNode) int {
 	}
 
 	return -1
-}
-
-func handleEscapeToTree(event *tcell.EventKey) *tcell.EventKey {
-	if event.Key() == tcell.KeyEscape {
-		app.SetRoot(appPanel, true).SetFocus(treePanel)
-		return nil
-	}
-	return event
 }
 
 func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFilename string) {
@@ -235,7 +226,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle)
-	updateUacForm.SetInputCapture(handleEscapeToTree)
+	updateUacForm.SetInputCapture(handleEscape(treePanel))
 	updateUacForm.SetItemPadding(0)
 
 	var checkboxState int = 0
@@ -314,7 +305,7 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle).
-		SetInputCapture(handleEscapeToTree)
+		SetInputCapture(handleEscape(treePanel))
 
 	createObjectForm.
 		AddButton("Go Back", func() {
@@ -402,7 +393,7 @@ func openAddMemberToGroupForm(groupDN string) {
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle).
-		SetInputCapture(handleEscapeToTree)
+		SetInputCapture(handleEscape(treePanel))
 
 	addMemberForm.
 		AddButton("Go Back", func() {
@@ -441,7 +432,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 
 	switch event.Rune() {
 	case 'r', 'R':
-		go func() {
+		go app.QueueUpdateDraw(func() {
 			updateLog("Reloading node "+baseDN, "yellow")
 
 			explorerCache.Delete(baseDN)
@@ -451,9 +442,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			loadChildren(currentNode)
 
 			updateLog("Node "+baseDN+" reloaded", "green")
-
-			app.Draw()
-		}()
+		})
 
 		return event
 	}
@@ -531,10 +520,10 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func treePanelChangeHandler(node *tview.TreeNode) {
-	go func() {
+	go app.QueueUpdateDraw(func() {
 		// TODO: Implement cancellation
 		reloadExplorerAttrsPanel(node, CacheEntries)
-	}()
+	})
 }
 
 func explorerRotateFocus() {
@@ -577,7 +566,7 @@ func openPasswordChangeForm(node *tview.TreeNode) {
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
 		SetButtonActivatedStyle(formButtonActivatedStyle)
-	changePasswordForm.SetInputCapture(handleEscapeToTree)
+	changePasswordForm.SetInputCapture(handleEscape(treePanel))
 
 	app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
 }
@@ -611,7 +600,7 @@ func openMoveObjectForm(node *tview.TreeNode, done func(string)) {
 		})
 
 	moveObjectForm.SetTitle("Move Object").SetBorder(true)
-	moveObjectForm.SetInputCapture(handleEscapeToTree)
+	moveObjectForm.SetInputCapture(handleEscape(treePanel))
 	moveObjectForm.
 		SetButtonBackgroundColor(formButtonBackgroundColor).
 		SetButtonTextColor(formButtonTextColor).
