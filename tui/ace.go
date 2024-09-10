@@ -470,7 +470,7 @@ func loadAceEditorForm(aceIdx int) {
 	object := objectNameInputDacl.GetText()
 
 	// Initial values
-	if aceIdx > 0 && aceIdx < len(parsedAces) {
+	if aceIdx > 0 && aceIdx-1 < len(parsedAces) {
 		aceEntry := parsedAces[aceIdx-1]
 		if aceEntry.Inheritance {
 			updateLog("Inherited ACEs cannot be edited.", "red")
