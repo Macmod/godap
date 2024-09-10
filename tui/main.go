@@ -199,6 +199,8 @@ func openConfigForm() {
 			SocksServer = credsForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
 
 			app.SetRoot(appPanel, false).SetFocus(treePanel)
+
+			reconnectLdap()
 		})
 
 	credsForm.SetTitle("Connection Config").SetBorder(true)
