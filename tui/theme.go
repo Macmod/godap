@@ -36,6 +36,26 @@ var formButtonTextColor = tcell.ColorBlack
 var formButtonBackgroundColor = tcell.ColorWhite
 var formButtonActivatedStyle = tcell.StyleDefault.Background(tcell.ColorGray)
 
+// Helpers to assign themes manually to primitives
+func assignInputFieldTheme(input *tview.InputField) {
+	input.SetPlaceholderStyle(placeholderStyle).
+		SetPlaceholderTextColor(placeholderTextColor).
+		SetFieldBackgroundColor(fieldBackgroundColor)
+}
+
+func assignButtonTheme(btn *tview.Button) {
+	btn.SetStyle(formButtonStyle).
+		SetLabelColor(formButtonTextColor).
+		SetActivatedStyle(formButtonActivatedStyle)
+}
+
+func assignFormTheme(form *tview.Form) {
+	form.
+		SetButtonBackgroundColor(formButtonBackgroundColor).
+		SetButtonTextColor(formButtonTextColor).
+		SetButtonActivatedStyle(formButtonActivatedStyle)
+}
+
 // Form customizations
 type XForm struct {
 	*tview.Form
