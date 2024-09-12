@@ -95,6 +95,8 @@ func initExplorerPage() {
 		return attrsPanelKeyHandler(event, currentNode, &explorerCache, explorerAttrsPanel)
 	})
 
+	explorerAttrsPanel.SetSelectionChangedFunc(storeAnchoredAttribute(explorerAttrsPanel))
+
 	treePanel.SetInputCapture(treePanelKeyHandler)
 
 	treePanel.SetChangedFunc(treePanelChangeHandler)
@@ -523,6 +525,7 @@ func treePanelChangeHandler(node *tview.TreeNode) {
 	go app.QueueUpdateDraw(func() {
 		// TODO: Implement cancellation
 		reloadExplorerAttrsPanel(node, CacheEntries)
+		selectAnchoredAttribute(explorerAttrsPanel)
 	})
 }
 

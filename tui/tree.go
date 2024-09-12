@@ -15,6 +15,43 @@ import (
 	"github.com/rivo/tview"
 )
 
+var selectedAttrName string = "objectClass"
+
+func storeAnchoredAttribute(attrsPanel *tview.Table) func(row, column int) {
+	return func(row, column int) {
+		selectedText := attrsPanel.GetCell(row, 0)
+		cellRef := selectedText.GetReference()
+		if cellRef != nil {
+			attrName, ok := cellRef.(string)
+			if ok {
+				selectedAttrName = attrName
+			}
+		}
+	}
+}
+
+func selectAnchoredAttribute(attrsPanel *tview.Table) {
+	rowCount := attrsPanel.GetRowCount()
+
+	for idx := 0; idx < rowCount; idx++ {
+		cell := attrsPanel.GetCell(idx, 0)
+		cellRef := cell.GetReference()
+		if cellRef == nil {
+			continue
+		}
+
+		cellAttrName, ok := cellRef.(string)
+		if !ok {
+			continue
+		}
+
+		if cellAttrName == selectedAttrName {
+			attrsPanel.Select(idx, 0)
+			break
+		}
+	}
+}
+
 func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 	_, ok := explorerCache.Get(entry.DN)
 
@@ -371,7 +408,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 
 		var cellValues []string
 
-		attrsTable.SetCell(row, 0, tview.NewTableCell(cellName))
+		attrsTable.SetCell(row, 0, tview.NewTableCell(cellName).SetReference(cellName))
 
 		if FormatAttrs {
 			cellValues = ldaputils.FormatLDAPAttribute(attribute, TimeFormat)
@@ -380,7 +417,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		}
 
 		if !ExpandAttrs {
-			myCell := tview.NewTableCell(strings.Join(cellValues, "; "))
+			myCell := tview.NewTableCell(strings.Join(cellValues, "; ")).SetReference(cellName)
 
 			if Colors {
 				color, ok := ldaputils.GetAttrCellColor(cellName, attribute.Values[0])
@@ -395,7 +432,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		}
 
 		for idx, cellValue := range cellValues {
-			myCell := tview.NewTableCell(cellValue)
+			myCell := tview.NewTableCell(cellValue).SetReference(cellName)
 
 			if Colors {
 				var refValue string
@@ -417,10 +454,11 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 			} else {
 				if ExpandAttrs {
 					if AttrLimit == -1 || idx < AttrLimit {
-						attrsTable.SetCell(row, 0, tview.NewTableCell(""))
+						attrsTable.SetCell(row, 0, tview.NewTableCell("").SetReference(cellName))
 						attrsTable.SetCell(row, 1, myCell)
 						if idx == AttrLimit-1 {
-							attrsTable.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]"))
+							attrsTable.SetCell(row+1, 0, tview.NewTableCell("").SetReference(cellName))
+							attrsTable.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]").SetReference(cellName))
 							row = row + 2
 							break
 						}

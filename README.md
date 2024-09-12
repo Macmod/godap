@@ -144,7 +144,7 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>r</kbd>                                        | Explorer panel                                                    | Reload the attributes and children of the selected object             |
 | <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | Explorer panel                                                    | Create a new object under the selected object                         |
 | <kbd>Ctrl</kbd> + <kbd>s</kbd>                      | Explorer panel                                                    | Export all loaded nodes in the selected subtree into a JSON file      |
-| <kbd>Ctrl</kbd> + <kbd>p</kbd>                      | Explorer panel                                                    | Change the password of the selected user or computer account          |
+| <kbd>Ctrl</kbd> + <kbd>p</kbd>                      | Explorer panel                                                    | Change the password of the selected user or computer account (requires TLS) |
 | <kbd>Ctrl</kbd> + <kbd>a</kbd>                      | Explorer panel                                                    | Update the userAccountControl of the object interactively             |
 | <kbd>Ctrl</kbd> + <kbd>l</kbd>                      | Explorer panel                                                    | Move the selected object to another location                          |
 | <kbd>Delete</kbd>                                   | Explorer panel                                                    | Delete the selected object                                            |

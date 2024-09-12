@@ -63,6 +63,7 @@ func initSearchPage() {
 	searchTreePanel.SetChangedFunc(func(node *tview.TreeNode) {
 		searchAttrsPanel.Clear()
 		reloadSearchAttrsPanel(node, true)
+		selectAnchoredAttribute(searchAttrsPanel)
 	})
 
 	searchAttrsPanel = tview.NewTable().
@@ -76,6 +77,7 @@ func initSearchPage() {
 
 		return attrsPanelKeyHandler(event, currentNode, &searchCache, searchAttrsPanel)
 	})
+	searchAttrsPanel.SetSelectionChangedFunc(storeAnchoredAttribute(searchAttrsPanel))
 
 	searchLibraryPanel = tview.NewTreeView()
 
