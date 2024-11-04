@@ -182,7 +182,9 @@ The nodes in the explorer tree are colored as follows:
 
 # Contributing
 
-Contributions are welcome by [opening an issue](https://github.com/Macmod/godap/issues/new) or by [submitting a pull request](https://github.com/Macmod/godap/pulls).
+Godap started as a fun side project, but has become a really useful tool since then. Unfortunately these days I only have limited time and there's much to be done, so if you like the tool and believe you can help please reach out to me directly at [@marzanol](https://t.me/marzanol) :-)
+
+Contributions are also welcome by [opening an issue](https://github.com/Macmod/godap/issues/new) or by [submitting a pull request](https://github.com/Macmod/godap/pulls).
 
 # Acknowledgements
 
