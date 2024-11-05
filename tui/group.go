@@ -30,6 +30,29 @@ var (
 	objectDN    string
 )
 
+func openRemoveMemberFromGroupForm(targetDN string, groupDN string) {
+	currentFocus := app.GetFocus()
+
+	confirmText := fmt.Sprintf("Do you really want to remove this member from this group?\nMember: %s\nGroup: %s", targetDN, groupDN)
+	promptModal := tview.NewModal().
+		SetText(confirmText).
+		AddButtons([]string{"No", "Yes"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			if buttonLabel == "Yes" {
+				err := lc.RemoveMemberFromGroup(targetDN, groupDN)
+				if err != nil {
+					updateLog(fmt.Sprint(err), "red")
+				} else {
+					updateLog(fmt.Sprintf("Member %s removed from group %s", targetDN, groupDN), "green")
+				}
+			}
+
+			app.SetRoot(appPanel, true).SetFocus(currentFocus)
+		})
+
+	app.SetRoot(promptModal, true).SetFocus(promptModal)
+}
+
 func initGroupPage() {
 	groupNameInput = tview.NewInputField()
 	groupNameInput.
@@ -259,6 +282,12 @@ func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlS:
 		exportCurrentGroups()
 		return nil
+	case tcell.KeyDelete:
+		selCell := groupsPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			otherGroupDN := selCell.GetReference().(string)
+			openRemoveMemberFromGroupForm(objectDN, otherGroupDN)
+		}
 	case tcell.KeyCtrlG:
 		selCell := groupsPanel.GetCell(row, col)
 		if selCell != nil && selCell.GetReference() != nil {
@@ -282,12 +311,7 @@ func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		selCell := membersPanel.GetCell(row, col)
 		if selCell != nil && selCell.GetReference() != nil {
 			baseDN := selCell.GetReference().(string)
-			err := lc.RemoveMemberFromGroup(baseDN, groupDN)
-			if err != nil {
-				updateLog(fmt.Sprint(err), "red")
-			} else {
-				updateLog(fmt.Sprintf("Member %s removed from group %s", baseDN, groupDN), "green")
-			}
+			openRemoveMemberFromGroupForm(baseDN, groupDN)
 		}
 	case tcell.KeyCtrlG:
 		selCell := membersPanel.GetCell(row, col)
