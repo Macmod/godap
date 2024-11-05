@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,29 @@ func reloadSearchAttrsPanel(node *tview.TreeNode, useCache bool) {
 	reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
 }
 
+func reloadSearchNode(currentNode *tview.TreeNode) {
+	baseDN := currentNode.GetReference().(string)
+
+	updateLog("Reloading node "+baseDN, "yellow")
+	reloadSearchAttrsPanel(currentNode, false)
+	selectAnchoredAttribute(searchAttrsPanel)
+
+	updatedEntry := searchCache.entries[baseDN]
+	entryName := getNodeName(updatedEntry)
+
+	if Colors {
+		color, _ := GetEntryColor(updatedEntry)
+		currentNode.SetColor(color)
+	}
+
+	currentNode.SetText(entryName)
+
+	// TODO:
+	// Maybe there should be a separate option to also reload the children of the node
+
+	updateLog("Node "+baseDN+" reloaded", "green")
+}
+
 func initSearchPage() {
 	searchCache = EntryCache{
 		entries: make(map[string]*ldap.Entry),
@@ -40,12 +64,10 @@ func initSearchPage() {
 
 	searchQueryPanel = tview.NewInputField()
 	searchQueryPanel.
-		SetPlaceholder("Type an LDAP search filter").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
+		SetPlaceholder("Type an LDAP search filter or the name of an object").
 		SetTitle("Search Filter (Recursive)").
 		SetBorder(true)
+	assignInputFieldTheme(searchQueryPanel)
 
 	tabs := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
@@ -137,7 +159,7 @@ func initSearchPage() {
 			lastDayTimestampStr := strconv.FormatInt(nowTimestamp-86400, 10)
 			lastMonthTimestampStr := strconv.FormatInt(nowTimestamp-2592000, 10)
 
-			editedQuery := strings.Replace(ref.(string), "DC=domain,DC=com", lc.RootDN, -1)
+			editedQuery := strings.Replace(ref.(string), "DC=domain,DC=com", lc.DefaultRootDN, -1)
 			editedQuery = strings.Replace(editedQuery, "<timestamp>", nowTimestampStr, -1)
 			editedQuery = strings.Replace(editedQuery, "<timestamp1d>", lastDayTimestampStr, -1)
 			editedQuery = strings.Replace(editedQuery, "<timestamp30d>", lastMonthTimestampStr, -1)
@@ -191,7 +213,11 @@ func initSearchPage() {
 			}
 		case tcell.KeyCtrlA:
 			if currentNode.GetReference() != nil {
-				openUpdateUacForm(currentNode, &searchCache, nil)
+				openUpdateUacForm(currentNode, &searchCache, func() {
+					go app.QueueUpdateDraw(func() {
+						reloadSearchNode(currentNode)
+					})
+				})
 			}
 		case tcell.KeyCtrlN:
 			if currentNode.GetReference() != nil {
@@ -200,7 +226,26 @@ func initSearchPage() {
 		case tcell.KeyCtrlG:
 			if currentNode.GetReference() != nil {
 				baseDN := currentNode.GetReference().(string)
-				openAddMemberToGroupForm(baseDN)
+				entry := searchCache.entries[baseDN]
+				objClasses := entry.GetAttributeValues("objectClass")
+				isGroup := slices.Contains(objClasses, "group")
+				openAddMemberToGroupForm(baseDN, isGroup)
+			}
+		case tcell.KeyCtrlD:
+			if currentNode.GetReference() != nil {
+				baseDN := currentNode.GetReference().(string)
+				info.Highlight("3")
+				objectNameInputDacl.SetText(baseDN)
+				queryDacl(baseDN)
+			}
+		}
+
+		switch event.Rune() {
+		case 'r', 'R':
+			if currentNode.GetReference() != nil {
+				go app.QueueUpdateDraw(func() {
+					reloadSearchNode(currentNode)
+				})
 			}
 		}
 
@@ -240,7 +285,7 @@ func initSearchPage() {
 func searchQueryDoneHandler(key tcell.Key) {
 	updateLog("Performing recursive query...", "yellow")
 
-	rootNode := tview.NewTreeNode(lc.RootDN).SetSelectable(true)
+	rootNode := tview.NewTreeNode(lc.DefaultRootDN).SetSelectable(true)
 	searchTreePanel.
 		SetRoot(rootNode).
 		SetCurrentNode(rootNode)
@@ -259,18 +304,25 @@ func searchQueryDoneHandler(key tcell.Key) {
 		running = true
 		runControl.Unlock()
 
-		entries, _ := lc.Query(lc.RootDN, searchQuery, ldap.ScopeWholeSubtree, Deleted)
+		if searchQuery != "" && !strings.Contains(searchQuery, "(") {
+			searchQuery = fmt.Sprintf(
+				"(|(samAccountName=%s)(cn=%s)(ou=%s)(name=%s))",
+				searchQuery, searchQuery, searchQuery, searchQuery,
+			)
+		}
+
+		entries, _ := lc.Query(lc.DefaultRootDN, searchQuery, ldap.ScopeWholeSubtree, Deleted)
 
 		firstLeaf := true
 
 		for _, entry := range entries {
-			if entry.DN == lc.RootDN {
+			if entry.DN == lc.DefaultRootDN {
 				continue
 			}
 
 			var nodeName string
 			entryName := getNodeName(entry)
-			dnPath := strings.TrimSuffix(entry.DN, ","+lc.RootDN)
+			dnPath := strings.TrimSuffix(entry.DN, ","+lc.DefaultRootDN)
 
 			components := strings.Split(dnPath, ",")
 			currentNode := searchTreePanel.GetRoot()
@@ -290,7 +342,7 @@ func searchQueryDoneHandler(key tcell.Key) {
 								SetSelectable(true)
 
 							if Colors {
-								color, changed := ldaputils.GetEntryColor(entry)
+								color, changed := GetEntryColor(entry)
 								if changed {
 									childNode.SetColor(color)
 								}

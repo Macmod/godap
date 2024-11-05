@@ -30,10 +30,10 @@ var (
 	aceEditorPage           *tview.Flex
 	permsPanel              *tview.Flex
 	normalPermsForm         *tview.Form
-	objectPermsForm         *tview.Form
+	objectPermsForm         *XForm
 	propertyPermsForm       *XForm
-	controlPermsForm        *tview.Form
-	validatedWritePermsForm *tview.Form
+	controlPermsForm        *XForm
+	validatedWritePermsForm *XForm
 	newAceTable             *tview.Table
 )
 
@@ -311,15 +311,13 @@ func getNormalPermsForm(mask int, checkedFull func(bool), checkedRight func(bool
 	return form.SetItemPadding(0)
 }
 
-func getObjectPermsForm(object int, objectRight int, selectedObject func(string, int), selectedRight func(string, int)) *tview.Form {
+func getObjectPermsForm(object int, objectRight int, selectedObject func(string, int), selectedRight func(string, int)) *XForm {
 	form := NewXForm().
 		AddDropDown("Object Class", classVals,
 			object, selectedObject).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		AddDropDown(
 			"Right", []string{"Create Child", "Delete Child", "Create & Delete Child"},
-			objectRight, selectedRight).
-		SetFieldBackgroundColor(fieldBackgroundColor)
+			objectRight, selectedRight)
 
 	return form
 }
@@ -329,30 +327,26 @@ func getPropertyPermsForm(property int, propertyRight int, selectedProperty func
 	form.
 		AddDropDown(
 			"Property", attributesVals, property, selectedProperty).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		AddDropDown(
 			"Right",
 			[]string{"Read Property", "Write Property", "Read & Write Property"},
-			propertyRight, selectedRight).
-		SetFieldBackgroundColor(fieldBackgroundColor)
+			propertyRight, selectedRight)
 	return form
 }
 
-func getControlPermsForm(controlRight int, selectedRight func(string, int)) *tview.Form {
+func getControlPermsForm(controlRight int, selectedRight func(string, int)) *XForm {
 	form := NewXForm().
 		AddDropDown(
 			"Extended Right", extendedVals,
-			controlRight, selectedRight).
-		SetFieldBackgroundColor(fieldBackgroundColor)
+			controlRight, selectedRight)
 	return form
 }
 
-func getValidatedWritePermsForm(validatedWriteRight int, selectedRight func(string, int)) *tview.Form {
+func getValidatedWritePermsForm(validatedWriteRight int, selectedRight func(string, int)) *XForm {
 	form := NewXForm().
 		AddDropDown(
 			"Validated Write", validatedWriteRightsVals,
-			validatedWriteRight, selectedRight).
-		SetFieldBackgroundColor(fieldBackgroundColor)
+			validatedWriteRight, selectedRight)
 	return form
 }
 
@@ -559,7 +553,7 @@ func loadAceEditorForm(aceIdx int) {
 			// Property
 			propertyName, ok := sdl.AttributeGuids[valObjectGuid]
 			if !ok {
-				propertyName, ok = sdl.PropertySetGuids[valObjectGuid]
+				propertyName = sdl.PropertySetGuids[valObjectGuid]
 			}
 
 			selectedProperty = ldaputils.IndexOf(attributesVals, propertyName)
@@ -769,8 +763,7 @@ func loadAceEditorForm(aceIdx int) {
 				updateInheritedGuidCell(newAceTable, newInheritedGuid)
 				updateFlagsCell(newAceTable, getFlags(newObjectGuid, newInheritedGuid))
 				updateACEFlagsCell(newAceTable, newACEFlags)
-			}).
-		SetFieldBackgroundColor(fieldBackgroundColor)
+			})
 
 	headerForm.
 		SetItemPadding(0).

@@ -1,15 +1,14 @@
 # TODO (priority)
 
-* Feature: Support deleting specific attribute values (not the entire attribute)
-* Feature: Modify ADIDNS dnsZones and dnsNodes
 * Feature: Options to manipulate (edit/create/delete) gpLinks visually
-* Feature: Load initial cache from file
+* Feature: Modify ADIDNS dnsZones and dnsNodes
 
 # TODO (later)
 
 * Feature: Improve object creation form (implement customizations)
 * Feature: Custom themes
 * Feature: Customizable keybindings
+* Feature: Load initial cache from file
 * Wish: Add tests for core functions to make sure everything is in order
 * Wish: Mini tool to convert godap exports into bloodhound dumps
 * Wish: Monitor object for real-time changes (DirSync/SyncRepl)

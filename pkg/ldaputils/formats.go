@@ -203,7 +203,7 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 			formattedEntries = []string{}
 
 			uacFlagKeys := make([]int, 0)
-			for k, _ := range UacFlags {
+			for k := range UacFlags {
 				uacFlagKeys = append(uacFlagKeys, k)
 			}
 			sort.Ints(uacFlagKeys)

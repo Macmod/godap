@@ -64,7 +64,7 @@ func createTreeNodeFromEntry(entry *ldap.Entry) *tview.TreeNode {
 
 		// Helpful node coloring for deleted and disabled objects
 		if Colors {
-			color, changed := ldaputils.GetEntryColor(entry)
+			color, changed := GetEntryColor(entry)
 			if changed {
 				node.SetColor(color)
 			}
@@ -121,19 +121,32 @@ func loadChildren(node *tview.TreeNode) {
 
 func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
 	currentFocus := app.GetFocus()
-	attrRow, _ := attrsPanel.GetSelection()
-	attrName := attrsPanel.GetCell(attrRow, 0).Text
+	attrRow, attrCol := attrsPanel.GetSelection()
+
+	// Find the correct attribute name and value index
+	selectedIndex := 0
+	parentRow := attrRow
+	if attrCol == 1 && attrsPanel.GetCell(attrRow, 0).Text == "" {
+		// Count back to find parent attribute row
+		for parentRow >= 0 && attrsPanel.GetCell(parentRow, 0).Text == "" {
+			parentRow--
+		}
+		// Calculate index by counting rows from parent
+		selectedIndex = attrRow - parentRow
+	}
+
+	attrNameRef := attrsPanel.GetCell(parentRow, 0).GetReference().(string)
 
 	baseDN := currentNode.GetReference().(string)
 
 	entry, _ := cache.Get(baseDN)
-	attrVals := entry.GetAttributeValues(attrName)
-	if len(attrVals) == 0 {
+	attrVals := entry.GetAttributeValues(attrNameRef)
+	if len(attrVals) == 0 || selectedIndex < 0 || selectedIndex >= len(attrVals) {
 		return
 	}
 
 	// Encode attribute values to hex
-	rawAttrVals := entry.GetRawAttributeValues(attrName)
+	rawAttrVals := entry.GetRawAttributeValues(attrNameRef)
 
 	var attrValsHex []string
 	for idx := range rawAttrVals {
@@ -147,17 +160,15 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 	}
 	valIndices = append(valIndices, "New")
 
-	selectedIndex := 0
-
 	useHexEncoding := false
 
 	writeAttrValsForm := NewXForm()
 	writeAttrValsForm.
 		AddTextView("Base DN", baseDN, 0, 1, false, true).
-		AddTextView("Attribute Name", attrName, 0, 1, false, true).
-		AddTextView("Current Value", attrVals[0], 0, 1, false, true).
-		AddTextView("Current Value (HEX)", attrValsHex[0], 0, 1, false, true).
-		AddDropDown("Value Index", valIndices, 0, func(option string, optionIndex int) {
+		AddTextView("Attribute Name", attrNameRef, 0, 1, false, true).
+		AddTextView("Current Value", attrVals[selectedIndex], 0, 1, false, true).
+		AddTextView("Current Value (HEX)", attrValsHex[selectedIndex], 0, 1, false, true).
+		AddDropDown("Value Index", valIndices, selectedIndex, func(option string, optionIndex int) {
 			selectedIndex = optionIndex
 
 			currentValItem := writeAttrValsForm.GetFormItemByLabel("Current Value").(*tview.TextView)
@@ -196,13 +207,13 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 				attrVals = append(attrVals, newValue)
 			}
 
-			err := lc.ModifyAttribute(baseDN, attrName, attrVals)
+			err := lc.ModifyAttribute(baseDN, attrNameRef, attrVals)
 			// TODO: Don't go back immediately so that the user can
 			// change multiple values at once
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 			} else {
-				updateLog("Attribute updated: '"+attrName+"' from '"+baseDN+"'", "green")
+				updateLog("Attribute updated: '"+attrNameRef+"' from '"+baseDN+"'", "green")
 			}
 
 			reloadAttributesPanel(currentNode, attrsPanel, false, cache)
@@ -223,50 +234,69 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 			app.SetRoot(appPanel, false).SetFocus(currentFocus)
 		})
 
-	writeAttrValsForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+	//assignFormTheme(writeAttrValsForm)
+
 	writeAttrValsForm.SetInputCapture(handleEscape(treePanel))
 	writeAttrValsForm.SetTitle("Attribute Editor").SetBorder(true)
 	app.SetRoot(writeAttrValsForm, true).SetFocus(writeAttrValsForm)
 }
-
 func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
 	currentFocus := app.GetFocus()
 	baseDN := currentNode.GetReference().(string)
 
-	attrRow, _ := attrsPanel.GetSelection()
+	attrRow, attrCol := attrsPanel.GetSelection()
 	attrName := attrsPanel.GetCell(attrRow, 0).Text
+	attrNameRef := attrsPanel.GetCell(attrRow, 0).GetReference().(string)
+	attrValue := attrsPanel.GetCell(attrRow, 1).Text
 
-	promptModal := tview.NewModal().
-		SetText("Do you really want to delete attribute `" + attrName + "` of this object?\n" + baseDN).
-		AddButtons([]string{"No", "Yes"}).
-		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-			if buttonLabel == "Yes" {
-				err := lc.DeleteAttribute(baseDN, attrName)
-				if err != nil {
-					updateLog(fmt.Sprint(err), "red")
-				} else {
-					cache.Delete(baseDN)
-					reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+	promptModal := tview.NewModal()
+	if attrCol == 0 && attrName != "" {
+		// Deleting entire attribute
+		promptModal.
+			SetText("Do you really want to delete attribute `" + attrName + "` of this object?\n" + baseDN).
+			AddButtons([]string{"No", "Yes"}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				if buttonLabel == "Yes" {
+					err := lc.DeleteAttribute(baseDN, attrName)
+					if err != nil {
+						updateLog(fmt.Sprint(err), "red")
+					} else {
+						cache.Delete(baseDN)
+						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
 
-					updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
+						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
+					}
 				}
-			}
 
-			app.SetRoot(appPanel, true).SetFocus(currentFocus)
-		})
+				app.SetRoot(appPanel, true).SetFocus(currentFocus)
+			})
+	} else {
+		// Deleting specific attribute value
+		promptModal.
+			SetText("Do you really want to delete this value from this attribute?\nValue: " + attrValue + "\nAttribute: " + attrNameRef + "\nObject: " + baseDN).
+			AddButtons([]string{"No", "Yes"}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				if buttonLabel == "Yes" {
+					err := lc.DeleteAttributeValues(baseDN, attrNameRef, []string{attrValue})
+					if err != nil {
+						updateLog(fmt.Sprint(err), "red")
+					} else {
+						cache.Delete(baseDN)
+						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+						updateLog("Value deleted: "+attrValue+" from attribute "+attrNameRef, "green")
+					}
+				}
+				app.SetRoot(appPanel, true).SetFocus(currentFocus)
+			})
+	}
 
 	app.SetRoot(promptModal, false).SetFocus(promptModal)
 }
 
 func handleAttrsKeyCtrlN(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
 	currentFocus := app.GetFocus()
-	createAttrForm := NewXForm().
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+	createAttrForm := NewXForm()
+	//assignFormTheme(createAttrForm)
 	createAttrForm.SetInputCapture(handleEscape(treePanel))
 
 	baseDN := currentNode.GetReference().(string)
@@ -318,6 +348,46 @@ func handleAttrsKeyDown(attrsPanel *tview.Table) {
 	}
 }
 
+func handleAttrsKeyEnter(currentNode *tview.TreeNode, attrsPanel *tview.Table, cache *EntryCache) {
+	selectedRow, selectedCol := attrsPanel.GetSelection()
+	selectedCell := attrsPanel.GetCell(selectedRow, selectedCol)
+	selectedCellRef := selectedCell.GetReference().(string)
+	if selectedCellRef == "[HIDDEN]" {
+		// Get the attribute name from the reference of the first cell in this row
+		attrName := attrsPanel.GetCell(selectedRow, 0).GetReference().(string)
+
+		// Get the current node's entry from the cache
+		baseDN := currentNode.GetReference().(string)
+		entry, _ := cache.Get(baseDN)
+
+		// Get all values for this attribute
+		attribute := entry.GetAttributeValues(attrName)
+
+		// Remove the "[entries hidden]" row
+		attrsPanel.RemoveRow(selectedRow)
+
+		// Add all remaining values starting from AttrLimit
+		currentRow := selectedRow
+		for i := AttrLimit; i < len(attribute); i++ {
+			attrsPanel.InsertRow(currentRow)
+			attrsPanel.SetCell(currentRow, 0, tview.NewTableCell("").SetReference(attrName))
+
+			cellValue := attribute[i]
+			myCell := tview.NewTableCell(cellValue).SetReference(attrName)
+
+			if Colors {
+				color, ok := GetAttrCellColor(attrName, cellValue)
+				if ok {
+					myCell.SetTextColor(tcell.GetColor(color))
+				}
+			}
+
+			attrsPanel.SetCell(currentRow, 1, myCell)
+			currentRow++
+		}
+	}
+}
+
 func handleAttrsKeyUp(attrsPanel *tview.Table) {
 	selectedRow, selectedCol := attrsPanel.GetSelection()
 	if selectedCol == 0 {
@@ -328,6 +398,20 @@ func handleAttrsKeyUp(attrsPanel *tview.Table) {
 
 		if s != selectedRow {
 			attrsPanel.Select(s+1, 0)
+		}
+	}
+}
+
+func handleAttrsKeyLeft(attrsPanel *tview.Table) {
+	selectedRow, selectedCol := attrsPanel.GetSelection()
+	if selectedCol == 1 {
+		s := selectedRow
+		for s > 0 && attrsPanel.GetCell(s, 0).Text == "" {
+			s = s - 1
+		}
+
+		if s != selectedRow {
+			attrsPanel.Select(s, 0)
 		}
 	}
 }
@@ -361,6 +445,10 @@ func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, ca
 		handleAttrsKeyDown(attrsPanel)
 	case tcell.KeyUp:
 		handleAttrsKeyUp(attrsPanel)
+	case tcell.KeyEnter:
+		handleAttrsKeyEnter(currentNode, attrsPanel, cache)
+	case tcell.KeyLeft:
+		handleAttrsKeyLeft(attrsPanel)
 	}
 
 	return event
@@ -420,7 +508,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 			myCell := tview.NewTableCell(strings.Join(cellValues, "; ")).SetReference(cellName)
 
 			if Colors {
-				color, ok := ldaputils.GetAttrCellColor(cellName, attribute.Values[0])
+				color, ok := GetAttrCellColor(cellName, attribute.Values[0])
 				if ok {
 					myCell.SetTextColor(tcell.GetColor(color))
 				}
@@ -442,7 +530,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 					refValue = cellValue
 				}
 
-				color, ok := ldaputils.GetAttrCellColor(cellName, refValue)
+				color, ok := GetAttrCellColor(cellName, refValue)
 
 				if ok {
 					myCell.SetTextColor(tcell.GetColor(color))
@@ -453,12 +541,17 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 				attrsTable.SetCell(row, 1, myCell)
 			} else {
 				if ExpandAttrs {
+					entriesHidden := len(cellValues) - AttrLimit
 					if AttrLimit == -1 || idx < AttrLimit {
 						attrsTable.SetCell(row, 0, tview.NewTableCell("").SetReference(cellName))
 						attrsTable.SetCell(row, 1, myCell)
-						if idx == AttrLimit-1 {
+						if entriesHidden > 0 && idx == AttrLimit-1 {
 							attrsTable.SetCell(row+1, 0, tview.NewTableCell("").SetReference(cellName))
-							attrsTable.SetCell(row+1, 1, tview.NewTableCell("[entries hidden]").SetReference(cellName))
+							attrsTable.SetCell(row+1, 1,
+								tview.NewTableCell(
+									fmt.Sprintf("[%d entries hidden]", entriesHidden),
+								).SetReference("[HIDDEN]"),
+							)
 							row = row + 2
 							break
 						}

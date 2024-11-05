@@ -17,7 +17,7 @@ import (
 	"h12.io/socks"
 )
 
-var GodapVer = "Godap v2.7.5"
+var GodapVer = "Godap v2.8.0"
 
 var (
 	LdapServer       string
@@ -204,10 +204,8 @@ func openConfigForm() {
 		})
 
 	credsForm.SetTitle("Connection Config").SetBorder(true)
-	credsForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+	//assignFormTheme(credsForm)
+
 	credsForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			app.SetRoot(appPanel, true).SetFocus(appPanel)
@@ -324,9 +322,7 @@ func setupLDAPConn() error {
 	}
 
 	updateStateBox(statusPanel, err == nil)
-	if Ldaps {
-		updateStateBox(tlsPanel, err == nil)
-	}
+	updateStateBox(tlsPanel, Ldaps)
 
 	return err
 }
@@ -369,7 +365,7 @@ func SetupApp() {
 	statusPanel = tview.NewTextView()
 	statusPanel.
 		SetTextAlign(tview.AlignCenter).
-		SetTitle("Conn (C-r)").
+		SetTitle("Bind (C-r)").
 		SetBorder(true)
 
 	formatFlagPanel = tview.NewTextView()
@@ -416,6 +412,8 @@ func SetupApp() {
 			log.Fatal(err)
 		}
 	}
+
+	lc.DefaultRootDN = RootDN
 	lc.RootDN = RootDN
 
 	// Pages setup
@@ -429,13 +427,13 @@ func SetupApp() {
 	initHelpPage()
 
 	pageVars := []GodapPage{
-		GodapPage{explorerPage, "Explorer"},
-		GodapPage{searchPage, "Search"},
-		GodapPage{groupPage, "Groups"},
-		GodapPage{daclPage, "DACLs"},
-		GodapPage{gpoPage, "GPOs"},
-		GodapPage{dnsPage, "ADIDNS"},
-		GodapPage{helpPage, "Help"},
+		{explorerPage, "Explorer"},
+		{searchPage, "Search"},
+		{groupPage, "Groups"},
+		{daclPage, "DACLs"},
+		{gpoPage, "GPOs"},
+		{dnsPage, "ADIDNS"},
+		{helpPage, "Help"},
 	}
 
 	for idx, page := range pageVars {

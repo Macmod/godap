@@ -21,9 +21,10 @@ import (
 
 // Basic LDAP connection type
 type LDAPConn struct {
-	Conn       *ldap.Conn
-	PagingSize uint32
-	RootDN     string
+	Conn          *ldap.Conn
+	PagingSize    uint32
+	RootDN        string
+	DefaultRootDN string
 }
 
 func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
@@ -236,7 +237,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err 
 	ldapQuery := fmt.Sprintf("(memberOf=%s)", ldap.EscapeFilter(groupDN))
 
 	search := ldap.NewSearchRequest(
-		lc.RootDN,
+		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		ldapQuery,
 		[]string{"sAMAccountName", "objectCategory"},
@@ -273,7 +274,7 @@ func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
 	samOrDn, _ := SamOrDN(userName)
 
 	search := ldap.NewSearchRequest(
-		lc.RootDN,
+		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		samOrDn,
 		[]string{"memberOf"},
@@ -496,7 +497,7 @@ func (lc *LDAPConn) GetADIDNSZones(name string, isForest bool) ([]adidns.DNSZone
 		zoneContainer = "ForestDNSZones"
 	}
 
-	queryDN := fmt.Sprintf("CN=MicrosoftDNS,DC=%s,%s", zoneContainer, lc.RootDN)
+	queryDN := fmt.Sprintf("CN=MicrosoftDNS,DC=%s,%s", zoneContainer, lc.DefaultRootDN)
 	queryFilter := "(objectClass=dnsZone)"
 	if name != "" {
 		queryFilter = fmt.Sprintf("(&%s(name=%s))", queryFilter, ldap.EscapeFilter(name))
@@ -580,7 +581,7 @@ func (lc *LDAPConn) GetADIDNSNodes(zoneDN string) ([]adidns.DNSNode, error) {
 			records = append(records, *dnsRec)
 		}
 
-		nodes = append(nodes, adidns.DNSNode{nodeDN, nodeName, records})
+		nodes = append(nodes, adidns.DNSNode{DN: nodeDN, Name: nodeName, Records: records})
 	}
 
 	return nodes, nil
@@ -674,6 +675,16 @@ func (lc *LDAPConn) DeleteAttribute(targetDN string, attributeToDelete string) e
 
 	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
 	modifyRequest.Delete(attributeToDelete, []string{})
+
+	err = lc.Conn.Modify(modifyRequest)
+	return err
+}
+
+func (lc *LDAPConn) DeleteAttributeValues(targetDN string, targetAttribute string, valuesToDelete []string) error {
+	var err error
+
+	modifyRequest := ldap.NewModifyRequest(targetDN, nil)
+	modifyRequest.Delete(targetAttribute, valuesToDelete)
 
 	err = lc.Conn.Modify(modifyRequest)
 	return err
@@ -809,7 +820,7 @@ func (lc *LDAPConn) FindSIDForObject(object string) (SID string, err error) {
 	found := false
 	wellKnownSID := ""
 	for key, val := range WellKnownSIDsMap {
-		if strings.ToLower(val) == strings.ToLower(object) {
+		if strings.EqualFold(val, object) {
 			found = true
 			wellKnownSID = key
 		}
@@ -830,7 +841,7 @@ func (lc *LDAPConn) FindSIDForObject(object string) (SID string, err error) {
 }
 
 func (lc *LDAPConn) FindSamForSID(SID string) (resolvedSID string, err error) {
-	for entry, _ := range WellKnownSIDsMap {
+	for entry := range WellKnownSIDsMap {
 		if SID == entry {
 			return WellKnownSIDsMap[entry], nil
 		}
@@ -838,7 +849,7 @@ func (lc *LDAPConn) FindSamForSID(SID string) (resolvedSID string, err error) {
 
 	query := fmt.Sprintf("(objectSID=%s)", SID)
 	searchReq := ldap.NewSearchRequest(
-		lc.RootDN,
+		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, 0, 0, 0, false,
 		query,
 		[]string{},

@@ -71,11 +71,9 @@ func initGPOPage() {
 	gpoTargetInput = tview.NewInputField()
 	gpoTargetInput.
 		SetPlaceholder("Type a target (DN or cn) or just leave it blank and hit enter").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("GPO Target").
 		SetBorder(true)
+	assignInputFieldTheme(gpoTargetInput)
 
 	gpoListPanel = tview.NewTable().SetSelectable(true, false)
 
@@ -219,7 +217,7 @@ func updateGPOEntries() {
 		// Load all gpLinks
 		updateLog("Querying all gpLinks", "yellow")
 
-		gpLinkObjs, err := lc.Query(lc.RootDN, "(gpLink=*)", ldap.ScopeWholeSubtree, false)
+		gpLinkObjs, _ := lc.Query(lc.DefaultRootDN, "(gpLink=*)", ldap.ScopeWholeSubtree, false)
 
 		for _, gpLinkObj := range gpLinkObjs {
 			gpLinkVals := gpLinkObj.GetAttributeValue("gPLink")
@@ -244,7 +242,7 @@ func updateGPOEntries() {
 				gpoTargetQuery = fmt.Sprintf("(cn=%s)", ldap.EscapeFilter(gpoTarget))
 			}
 
-			entries, err := lc.Query(lc.RootDN, gpoTargetQuery, ldap.ScopeWholeSubtree, false)
+			entries, err := lc.Query(lc.DefaultRootDN, gpoTargetQuery, ldap.ScopeWholeSubtree, false)
 
 			updateLog("Querying for '"+gpoTargetQuery+"'", "yellow")
 			if err != nil {
@@ -287,7 +285,7 @@ func updateGPOEntries() {
 
 		updateLog("Searching applicable GPOs...", "yellow")
 
-		entries, err := lc.Query(lc.RootDN, gpoQuery, ldap.ScopeWholeSubtree, false)
+		entries, err := lc.Query(lc.DefaultRootDN, gpoQuery, ldap.ScopeWholeSubtree, false)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -39,16 +40,16 @@ func initExplorerPage() {
 	explorerAttrsPanel = tview.NewTable().SetSelectable(true, true)
 
 	searchFilterInput = tview.NewInputField().
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetText(SearchFilter)
 	searchFilterInput.SetTitle("Expand Filter")
 	searchFilterInput.SetBorder(true)
+	assignInputFieldTheme(searchFilterInput)
 
 	rootDNInput = tview.NewInputField().
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetText(RootDN)
 	rootDNInput.SetTitle("Root DN")
 	rootDNInput.SetBorder(true)
+	assignInputFieldTheme(rootDNInput)
 
 	explorerAttrsPanel.
 		SetEvaluateAllRows(true).
@@ -224,10 +225,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 	baseDN := node.GetReference().(string)
 
 	updateUacForm := NewXForm()
-	updateUacForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+	//assignFormTheme(updateUacForm)
 	updateUacForm.SetInputCapture(handleEscape(treePanel))
 	updateUacForm.SetItemPadding(0)
 
@@ -246,7 +244,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 		AddTextView("Raw UAC Value", strconv.Itoa(checkboxState), 0, 1, false, true)
 
 	uacValues := make([]int, 0)
-	for key, _ := range ldaputils.UacFlags {
+	for key := range ldaputils.UacFlags {
 		uacValues = append(uacValues, key)
 	}
 	sort.Ints(uacValues)
@@ -304,9 +302,6 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 		AddInputField("Object Name", "", 0, nil, nil).
 		AddInputField("Parent DN", baseDN, 0, nil, nil)
 	createObjectForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle).
 		SetInputCapture(handleEscape(treePanel))
 
 	createObjectForm.
@@ -362,20 +357,26 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 	app.SetRoot(createObjectForm, true).SetFocus(createObjectForm)
 }
 
-func openAddMemberToGroupForm(groupDN string) {
+func openAddMemberToGroupForm(targetDN string, isGroup bool) {
 	currentFocus := app.GetFocus()
 
 	addMemberForm := NewXForm().
-		AddInputField("Group DN", groupDN, 0, nil, nil).
+		AddInputField("Group DN", "", 0, nil, nil).
 		AddInputField("Object Name", "", 0, nil, nil).
 		AddTextView("Object DN", "", 0, 1, false, true)
 
 	objectNameFormItem := addMemberForm.GetFormItemByLabel("Object Name").(*tview.InputField)
-	objectNameFormItem.
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
-		SetPlaceholder("sAMAccountName or DN")
+	groupDNFormItem := addMemberForm.GetFormItemByLabel("Group DN").(*tview.InputField)
+
+	groupDNFormItem.SetPlaceholder("Group DN")
+	if isGroup {
+		groupDNFormItem.SetText(targetDN)
+	} else {
+		objectNameFormItem.SetText(targetDN)
+	}
+
+	objectNameFormItem.SetPlaceholder("sAMAccountName or DN")
+	assignInputFieldTheme(objectNameFormItem)
 
 	objectDNFormItem := addMemberForm.GetFormItemByLabel("Object DN").(*tview.TextView)
 	objectDNFormItem.SetDynamicColors(true)
@@ -391,10 +392,9 @@ func openAddMemberToGroupForm(groupDN string) {
 		}
 	})
 
+	//assignFormTheme(addMemberForm)
+
 	addMemberForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle).
 		SetInputCapture(handleEscape(treePanel))
 
 	addMemberForm.
@@ -409,11 +409,11 @@ func openAddMemberToGroupForm(groupDN string) {
 
 			objectDN := addMemberForm.GetFormItemByLabel("Object DN").(*tview.TextView).GetText(true)
 
-			err = lc.AddMemberToGroup(objectDN, groupDN)
+			err = lc.AddMemberToGroup(objectDN, targetDN)
 			if err != nil {
 				updateLog(fmt.Sprintf("%s", err), "red")
 			} else {
-				updateLog("Member '"+objectDN+"' added to group '"+groupDN+"'", "green")
+				updateLog("Member '"+objectDN+"' added to group '"+targetDN+"'", "green")
 			}
 
 			app.SetRoot(appPanel, true).SetFocus(currentFocus)
@@ -515,7 +515,14 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			}
 		})
 	case tcell.KeyCtrlG:
-		openAddMemberToGroupForm(baseDN)
+		entry := explorerCache.entries[baseDN]
+		objClasses := entry.GetAttributeValues("objectClass")
+		isGroup := slices.Contains(objClasses, "group")
+		openAddMemberToGroupForm(baseDN, isGroup)
+	case tcell.KeyCtrlD:
+		info.Highlight("3")
+		objectNameInputDacl.SetText(baseDN)
+		queryDacl(baseDN)
 	}
 
 	return event
@@ -565,10 +572,9 @@ func openPasswordChangeForm(node *tview.TreeNode) {
 		})
 
 	changePasswordForm.SetTitle("Password Editor").SetBorder(true)
-	changePasswordForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+
+	//assignFormTheme(changePasswordForm)
+
 	changePasswordForm.SetInputCapture(handleEscape(treePanel))
 
 	app.SetRoot(changePasswordForm, true).SetFocus(changePasswordForm)
@@ -604,10 +610,7 @@ func openMoveObjectForm(node *tview.TreeNode, done func(string)) {
 
 	moveObjectForm.SetTitle("Move Object").SetBorder(true)
 	moveObjectForm.SetInputCapture(handleEscape(treePanel))
-	moveObjectForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+	//assignFormTheme(moveObjectForm)
 	app.SetRoot(moveObjectForm, true).SetFocus(moveObjectForm)
 }
 

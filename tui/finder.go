@@ -28,12 +28,10 @@ func openFinder(cache *EntryCache, titleLabel string) {
 
 	inputField := tview.NewInputField()
 	inputField.
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetPlaceholder("Enter a regexp to search here").
 		SetTitle("Search Query").
 		SetBorder(true)
+	assignInputFieldTheme(inputField)
 
 	table := tview.NewTable().
 		SetSelectable(true, false).
@@ -100,6 +98,7 @@ func openFinder(cache *EntryCache, titleLabel string) {
 	cancelBtn.SetSelectedFunc(func() {
 		app.SetRoot(appPanel, true).SetFocus(currentFocus)
 	})
+	assignButtonTheme(cancelBtn)
 
 	finderPanel := tview.NewFlex().SetDirection(tview.FlexRow)
 	finderPanel.

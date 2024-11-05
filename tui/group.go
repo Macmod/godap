@@ -33,7 +33,11 @@ var (
 func openRemoveMemberFromGroupForm(targetDN string, groupDN string) {
 	currentFocus := app.GetFocus()
 
-	confirmText := fmt.Sprintf("Do you really want to remove this member from this group?\nMember: %s\nGroup: %s", targetDN, groupDN)
+	confirmText := fmt.Sprintf(
+		"Do you really want to remove this member from this group?\nMember: %s\nGroup: %s",
+		targetDN, groupDN,
+	)
+
 	promptModal := tview.NewModal().
 		SetText(confirmText).
 		AddButtons([]string{"No", "Yes"}).
@@ -57,20 +61,16 @@ func initGroupPage() {
 	groupNameInput = tview.NewInputField()
 	groupNameInput.
 		SetPlaceholder("Type a group's name or DN").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("Group").
 		SetBorder(true)
+	assignInputFieldTheme(groupNameInput)
 
 	userNameInput = tview.NewInputField()
 	userNameInput.
 		SetPlaceholder("Type a user's sAMAccountName or DN").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("User").
 		SetBorder(true)
+	assignInputFieldTheme(userNameInput)
 
 	membersPanel = tview.NewTable()
 	membersPanel.
@@ -128,7 +128,7 @@ func initGroupPage() {
 		groupDN = queryGroup
 		if isSam {
 			groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
-			groupEntries, err := lc.Query(lc.RootDN, groupDNQuery, ldap.ScopeWholeSubtree, false)
+			groupEntries, err := lc.Query(lc.DefaultRootDN, groupDNQuery, ldap.ScopeWholeSubtree, false)
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 				return
@@ -292,9 +292,17 @@ func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		selCell := groupsPanel.GetCell(row, col)
 		if selCell != nil && selCell.GetReference() != nil {
 			baseDN := selCell.GetReference().(string)
-			openAddMemberToGroupForm(baseDN)
+			openAddMemberToGroupForm(baseDN, true)
 		}
 		return nil
+	case tcell.KeyCtrlD:
+		selCell := groupsPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			baseDN := selCell.GetReference().(string)
+			info.Highlight("3")
+			objectNameInputDacl.SetText(baseDN)
+			queryDacl(baseDN)
+		}
 	}
 
 	return event
@@ -317,9 +325,17 @@ func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		selCell := membersPanel.GetCell(row, col)
 		if selCell != nil && selCell.GetReference() != nil {
 			baseDN := selCell.GetReference().(string)
-			openAddMemberToGroupForm(baseDN)
+			openAddMemberToGroupForm(baseDN, false)
 		}
 		return nil
+	case tcell.KeyCtrlD:
+		selCell := membersPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			baseDN := selCell.GetReference().(string)
+			info.Highlight("3")
+			objectNameInputDacl.SetText(baseDN)
+			queryDacl(baseDN)
+		}
 	}
 
 	return event

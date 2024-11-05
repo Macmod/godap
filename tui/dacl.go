@@ -135,6 +135,11 @@ var (
 	groupPrincipal       string
 )
 
+func queryDacl(target string) {
+	updateLog("Fetching DACL for '"+target+"'", "yellow")
+	go app.QueueUpdateDraw(updateDaclEntries)
+}
+
 func initDaclPage(includeCurSchema bool) {
 	loadRightVars()
 	loadSchemaVars(includeCurSchema)
@@ -142,11 +147,9 @@ func initDaclPage(includeCurSchema bool) {
 	objectNameInputDacl = tview.NewInputField()
 	objectNameInputDacl.
 		SetPlaceholder("Type an object's sAMAccountName or DN").
-		SetPlaceholderStyle(placeholderStyle).
-		SetPlaceholderTextColor(placeholderTextColor).
-		SetFieldBackgroundColor(fieldBackgroundColor).
 		SetTitle("Object").
 		SetBorder(true)
+	assignInputFieldTheme(objectNameInputDacl)
 
 	acePanel = tview.NewList()
 	acePanel.
@@ -216,8 +219,7 @@ func initDaclPage(includeCurSchema bool) {
 	daclEntriesPanel.SetInputCapture(daclEntriesPanelKeyHandler)
 	daclPage.SetInputCapture(daclPageKeyHandler)
 	objectNameInputDacl.SetDoneFunc(func(tcell.Key) {
-		updateLog("Fetching DACL for '"+objectNameInputDacl.GetText()+"'", "yellow")
-		go app.QueueUpdateDraw(updateDaclEntries)
+		queryDacl(objectNameInputDacl.GetText())
 	})
 }
 
@@ -473,10 +475,9 @@ func loadChangeOwnerForm() {
 	changeOwnerForm.
 		SetTitle("Change DACL Owner (" + object + ")").
 		SetBorder(true)
-	changeOwnerForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+
+	//assignFormTheme(changeOwnerForm)
+
 	changeOwnerForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			app.SetRoot(appPanel, true).SetFocus(daclEntriesPanel)
@@ -503,7 +504,7 @@ func loadChangeControlFlagsForm() {
 		AddTextView("Raw ControlFlag Value", strconv.Itoa(checkboxState), 0, 1, false, true)
 
 	controlFlagsKeys := make([]int, 0)
-	for key, _ := range ldaputils.SDControlFlags {
+	for key := range ldaputils.SDControlFlags {
 		controlFlagsKeys = append(controlFlagsKeys, key)
 	}
 	sort.Ints(controlFlagsKeys)
@@ -524,7 +525,7 @@ func loadChangeControlFlagsForm() {
 				if flagPreview != nil {
 					flagPreview.SetText(strconv.Itoa(checkboxState))
 				}
-			}).SetFieldBackgroundColor(fieldBackgroundColor)
+			})
 	}
 
 	updateControlFlagsForm.
@@ -549,10 +550,8 @@ func loadChangeControlFlagsForm() {
 		})
 
 	updateControlFlagsForm.SetTitle("ControlFlags Editor").SetBorder(true)
-	updateControlFlagsForm.
-		SetButtonBackgroundColor(formButtonBackgroundColor).
-		SetButtonTextColor(formButtonTextColor).
-		SetButtonActivatedStyle(formButtonActivatedStyle)
+
+	//assignFormTheme(updateControlFlagsForm)
 	updateControlFlagsForm.SetItemPadding(0)
 
 	app.SetRoot(updateControlFlagsForm, true).SetFocus(updateControlFlagsForm)
