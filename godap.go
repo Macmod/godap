@@ -18,6 +18,14 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			tui.LdapServer = args[0]
 
+			if tui.LdapPort == 0 {
+				if tui.Ldaps {
+					tui.LdapPort = 636
+				} else {
+					tui.LdapPort = 389
+				}
+			}
+
 			if tui.LdapPasswordFile != "" {
 				pw, err := os.ReadFile(tui.LdapPasswordFile)
 				if err != nil {
@@ -38,7 +46,7 @@ func main() {
 		},
 	}
 
-	rootCmd.Flags().IntVarP(&tui.LdapPort, "port", "P", 389, "LDAP server port")
+	rootCmd.Flags().IntVarP(&tui.LdapPort, "port", "P", 0, "LDAP server port")
 	rootCmd.Flags().StringVarP(&tui.LdapUsername, "username", "u", "", "LDAP username")
 	rootCmd.Flags().StringVarP(&tui.LdapPassword, "password", "p", "", "LDAP password")
 	rootCmd.Flags().StringVarP(&tui.LdapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password")
