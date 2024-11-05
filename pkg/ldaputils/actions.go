@@ -243,7 +243,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err 
 		nil,
 	)
 
-	result, err := lc.Conn.Search(search)
+	result, err := lc.Conn.SearchWithPaging(search, lc.PagingSize)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +260,13 @@ func (lc *LDAPConn) AddMemberToGroup(memberDN string, groupDN string) error {
 	}
 
 	return nil
+}
+
+func (lc *LDAPConn) RemoveMemberFromGroup(memberDN string, groupDN string) error {
+	modifyRequest := ldap.NewModifyRequest(groupDN, nil)
+	modifyRequest.Delete("member", []string{memberDN})
+	err := lc.Conn.Modify(modifyRequest)
+	return err
 }
 
 func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
