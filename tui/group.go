@@ -278,6 +278,17 @@ func membersKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlS:
 		exportCurrentMembers()
 		return nil
+	case tcell.KeyDelete:
+		selCell := membersPanel.GetCell(row, col)
+		if selCell != nil && selCell.GetReference() != nil {
+			baseDN := selCell.GetReference().(string)
+			err := lc.RemoveMemberFromGroup(baseDN, groupDN)
+			if err != nil {
+				updateLog(fmt.Sprint(err), "red")
+			} else {
+				updateLog(fmt.Sprintf("Member %s removed from group %s", baseDN, groupDN), "green")
+			}
+		}
 	case tcell.KeyCtrlG:
 		selCell := membersPanel.GetCell(row, col)
 		if selCell != nil && selCell.GetReference() != nil {
