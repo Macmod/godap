@@ -1,5 +1,6 @@
 # TODO (priority)
 
+* Feature: Basic page for ADCS enumeration
 * Feature: Options to manipulate (edit/create/delete) gpLinks visually
 * Feature: Modify ADIDNS dnsZones and dnsNodes
 
