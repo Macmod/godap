@@ -245,10 +245,10 @@ func groupRotateFocus() {
 
 	switch currentFocus {
 	case membersPanel:
-		app.SetFocus(depthInput)
-	case depthInput:
 		app.SetFocus(groupNameInput)
 	case groupNameInput:
+		app.SetFocus(depthInput)
+	case depthInput:
 		app.SetFocus(objectNameInput)
 	case objectNameInput:
 		app.SetFocus(groupsPanel)
