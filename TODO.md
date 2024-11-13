@@ -1,7 +1,6 @@
 # TODO (priority)
 
 * Feature: Basic page for ADCS enumeration
-* Feature: Deep searches in groups page
 * Feature: Search history for the current session
 * Feature: Pivot to groups search
 * Feature: Options to manipulate (edit/create/delete) gpLinks visually

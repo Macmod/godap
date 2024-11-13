@@ -252,6 +252,66 @@ func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err 
 	return result.Entries, nil
 }
 
+type dnQueueElem struct {
+	DN    string
+	Depth int
+}
+
+func (lc *LDAPConn) QueryGroupMembersDeep(groupDN string, maxDepth int) (group []*ldap.Entry, err error) {
+	// Use LDAP_MATCHING_RULE_IN_CHAIN to avoid running multiple queries
+	if maxDepth < 0 {
+		ldapQuery := fmt.Sprintf("(memberOf:1.2.840.113556.1.4.1941:=%s)", ldap.EscapeFilter(groupDN))
+
+		search := ldap.NewSearchRequest(
+			lc.DefaultRootDN,
+			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+			ldapQuery,
+			[]string{"sAMAccountName", "objectCategory"},
+			nil,
+		)
+
+		result, err := lc.Conn.SearchWithPaging(search, lc.PagingSize)
+		if err != nil {
+			return nil, err
+		}
+
+		return result.Entries, nil
+	}
+
+	// Otherwise, query manually up to the specified depth
+	foundDNs := map[string]bool{}
+	allEntries := make([]*ldap.Entry, 0)
+
+	depth := 0
+	queriesNeeded := []dnQueueElem{{groupDN, depth}}
+	for len(queriesNeeded) > 0 && depth <= maxDepth {
+		elem := queriesNeeded[0]
+		currentDN := elem.DN
+		depth = elem.Depth
+
+		queriesNeeded = queriesNeeded[1:]
+
+		entries, err := lc.QueryGroupMembers(currentDN)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, entry := range entries {
+			if _, ok := foundDNs[entry.DN]; !ok {
+				foundDNs[entry.DN] = true
+				allEntries = append(allEntries, entry)
+			}
+
+			categories := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
+			if len(categories) > 0 && categories[0] == "CN=Group" {
+				queriesNeeded = append(queriesNeeded, dnQueueElem{entry.DN, depth + 1})
+			}
+		}
+	}
+
+	return allEntries, nil
+}
+
 func (lc *LDAPConn) AddMemberToGroup(memberDN string, groupDN string) error {
 	modifyRequest := ldap.NewModifyRequest(groupDN, nil)
 	modifyRequest.Add("member", []string{memberDN})
@@ -270,14 +330,14 @@ func (lc *LDAPConn) RemoveMemberFromGroup(memberDN string, groupDN string) error
 	return err
 }
 
-func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
-	samOrDn, _ := SamOrDN(userName)
-
+func (lc *LDAPConn) QueryObjectGroups(memberDN string) ([]*ldap.Entry, error) {
+	// Queries the immediate groups that contain the member
+	memberQuery := fmt.Sprintf("(member=%s)", memberDN)
 	search := ldap.NewSearchRequest(
 		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		samOrDn,
-		[]string{"memberOf"},
+		memberQuery,
+		[]string{},
 		nil,
 	)
 
@@ -286,17 +346,79 @@ func (lc *LDAPConn) QueryUserGroups(userName string) ([]*ldap.Entry, error) {
 		return nil, err
 	}
 
-	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("User '%s' not found", userName)
+	return result.Entries, nil
+}
+
+func (lc *LDAPConn) QueryObjectGroupsDeep(objectDN string, maxDepth int) (group []*ldap.Entry, err error) {
+	// Use LDAP_MATCHING_RULE_IN_CHAIN to avoid running multiple queries
+	if maxDepth < 0 {
+		ldapQuery := fmt.Sprintf("(member:1.2.840.113556.1.4.1941:=%s)", ldap.EscapeFilter(objectDN))
+
+		search := ldap.NewSearchRequest(
+			lc.DefaultRootDN,
+			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+			ldapQuery,
+			[]string{"name", "objectCategory"},
+			nil,
+		)
+
+		result, err := lc.Conn.SearchWithPaging(search, lc.PagingSize)
+		if err != nil {
+			return nil, err
+		}
+
+		return result.Entries, nil
 	}
 
-	return result.Entries, nil
+	foundDNs := map[string]bool{}
+	allEntries := make([]*ldap.Entry, 0)
+
+	depth := 0
+	queriesNeeded := []dnQueueElem{{objectDN, depth}}
+	for len(queriesNeeded) > 0 && depth <= maxDepth {
+		elem := queriesNeeded[0]
+		currentDN := elem.DN
+		depth = elem.Depth
+		queriesNeeded = queriesNeeded[1:]
+
+		entries, err := lc.QueryObjectGroups(currentDN)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, entry := range entries {
+			if _, ok := foundDNs[entry.DN]; !ok {
+				foundDNs[entry.DN] = true
+				allEntries = append(allEntries, entry)
+			}
+
+			categories := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
+			if len(categories) > 0 && categories[0] == "CN=Group" {
+				queriesNeeded = append(queriesNeeded, dnQueueElem{entry.DN, depth + 1})
+			}
+		}
+	}
+
+	return allEntries, nil
 }
 
 func (lc *LDAPConn) FindFirstDN(identifier string) (string, error) {
 	samOrDn, _ := SamOrDN(identifier)
 
-	entries, err := lc.Query(lc.RootDN, samOrDn, ldap.ScopeWholeSubtree, false)
+	entries, err := lc.Query(lc.DefaultRootDN, samOrDn, ldap.ScopeWholeSubtree, false)
+	if err != nil {
+		return "", err
+	}
+
+	if len(entries) > 0 {
+		return entries[0].DN, nil
+	} else {
+		return "", fmt.Errorf("Object not found")
+	}
+}
+
+func (lc *LDAPConn) QueryFirstDN(filter string) (string, error) {
+	entries, err := lc.Query(lc.DefaultRootDN, filter, ldap.ScopeWholeSubtree, false)
 	if err != nil {
 		return "", err
 	}

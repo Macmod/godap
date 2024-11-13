@@ -15,14 +15,16 @@ import (
 )
 
 var (
-	groupPage      *tview.Flex
-	groupNameInput *tview.InputField
-	membersPanel   *tview.Table
-	userNameInput  *tview.InputField
-	groupsPanel    *tview.Table
+	groupPage       *tview.Flex
+	groupNameInput  *tview.InputField
+	membersPanel    *tview.Table
+	objectNameInput *tview.InputField
+	groupsPanel     *tview.Table
+	depthInput      *tview.InputField
 
-	groups  []string
-	members []*ldap.Entry
+	groups   []*ldap.Entry
+	members  []*ldap.Entry
+	maxDepth int
 
 	queryGroup  string
 	queryObject string
@@ -57,6 +59,20 @@ func openRemoveMemberFromGroupForm(targetDN string, groupDN string) {
 	app.SetRoot(promptModal, true).SetFocus(promptModal)
 }
 
+func updateMaxDepth() {
+	depthStr := depthInput.GetText()
+
+	if depthStr == "" {
+		maxDepth = 0
+	} else {
+		maxDepth, err = strconv.Atoi(depthStr)
+		if err != nil {
+			updateLog(fmt.Sprint(err), "red")
+			return
+		}
+	}
+}
+
 func initGroupPage() {
 	groupNameInput = tview.NewInputField()
 	groupNameInput.
@@ -65,12 +81,21 @@ func initGroupPage() {
 		SetBorder(true)
 	assignInputFieldTheme(groupNameInput)
 
-	userNameInput = tview.NewInputField()
-	userNameInput.
-		SetPlaceholder("Type a user's sAMAccountName or DN").
-		SetTitle("User").
+	objectNameInput = tview.NewInputField()
+	objectNameInput.
+		SetPlaceholder("Type an object's sAMAccountName or DN").
+		SetTitle("Object").
 		SetBorder(true)
-	assignInputFieldTheme(userNameInput)
+	assignInputFieldTheme(objectNameInput)
+
+	depthInput = tview.NewInputField()
+	depthInput.
+		SetText("0").
+		SetAcceptanceFunc(tview.InputFieldInteger).
+		SetPlaceholder("Maximum depth to query for nested groups (-1 for all nested members)").
+		SetTitle("MaxDepth").
+		SetBorder(true)
+	assignInputFieldTheme(depthInput)
 
 	membersPanel = tview.NewTable()
 	membersPanel.
@@ -82,15 +107,15 @@ func initGroupPage() {
 		cell := membersPanel.GetCell(row, col)
 		cellId, ok := cell.GetReference().(string)
 		if ok {
-			userNameInput.SetText(cellId)
-			app.SetFocus(userNameInput)
+			objectNameInput.SetText(cellId)
+			app.SetFocus(objectNameInput)
 		}
 	})
 
 	groupsPanel = tview.NewTable()
 	groupsPanel.
 		SetSelectable(true, false).
-		SetTitle("User Groups").
+		SetTitle("Object Groups").
 		SetBorder(true)
 	groupsPanel.SetSelectedFunc(func(row, col int) {
 		cell := groupsPanel.GetCell(row, col)
@@ -101,17 +126,18 @@ func initGroupPage() {
 		}
 	})
 
-	groupPage = tview.NewFlex().
+	groupPage = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(depthInput, 3, 0, false).
 		AddItem(
-			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(groupNameInput, 3, 0, false).
-				AddItem(membersPanel, 0, 8, false),
-			0, 1, false,
+			tview.NewFlex().
+				AddItem(groupNameInput, 0, 1, false).
+				AddItem(objectNameInput, 0, 1, false),
+			3, 0, false,
 		).
 		AddItem(
-			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(userNameInput, 3, 0, false).
-				AddItem(groupsPanel, 0, 8, false),
+			tview.NewFlex().
+				AddItem(membersPanel, 0, 1, false).
+				AddItem(groupsPanel, 0, 1, false),
 			0, 1, false,
 		)
 
@@ -120,29 +146,25 @@ func initGroupPage() {
 	groupsPanel.SetInputCapture(groupsKeyHandler)
 
 	groupNameInput.SetDoneFunc(func(key tcell.Key) {
+		updateMaxDepth()
 		membersPanel.Clear()
 
 		queryGroup = groupNameInput.GetText()
-		samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
 
 		groupDN = queryGroup
+		samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
 		if isSam {
 			groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
-			groupEntries, err := lc.Query(lc.DefaultRootDN, groupDNQuery, ldap.ScopeWholeSubtree, false)
+			resultDN, err := lc.QueryFirstDN(groupDNQuery)
 			if err != nil {
-				updateLog(fmt.Sprint(err), "red")
-				return
-			}
-
-			if len(groupEntries) == 0 {
 				updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
 				return
 			}
 
-			groupDN = groupEntries[0].DN
+			groupDN = resultDN
 		}
 
-		members, err = lc.QueryGroupMembers(groupDN)
+		members, err = lc.QueryGroupMembersDeep(groupDN, maxDepth)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
@@ -181,27 +203,35 @@ func initGroupPage() {
 		app.SetFocus(membersPanel)
 	})
 
-	userNameInput.SetDoneFunc(func(key tcell.Key) {
+	objectNameInput.SetDoneFunc(func(key tcell.Key) {
+		updateMaxDepth()
 		groupsPanel.Clear()
 
-		queryObject = userNameInput.GetText()
-		entries, err := lc.QueryUserGroups(queryObject)
+		queryObject = objectNameInput.GetText()
+		objectDN = queryObject
+
+		resultDN, err := lc.FindFirstDN(queryObject)
+		if err != nil {
+			updateLog(fmt.Sprintf("Object '%s' not found", queryObject), "red")
+			return
+		} else {
+			objectDN = resultDN
+		}
+
+		groups, err = lc.QueryObjectGroupsDeep(objectDN, maxDepth)
 		if err != nil {
 			updateLog(fmt.Sprint(err), "red")
 			return
 		}
 
-		objectDN = queryObject
-		if len(entries) > 0 {
-			objectDN = entries[0].DN
+		updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
 
-			groups = entries[0].GetAttributeValues("memberOf")
-			updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
-
-			for idx, group := range groups {
-				groupsPanel.SetCell(idx, 0, tview.NewTableCell(group).SetReference(group))
-				// Maybe: map DN and enrich with some attributes?
-			}
+		for idx, group := range groups {
+			groupName := group.GetAttributeValue("name")
+			groupDN := group.DN
+			groupsPanel.SetCell(idx, 0, tview.NewTableCell(groupName).SetReference(group.DN))
+			groupsPanel.SetCell(idx, 1, tview.NewTableCell("👥").SetReference(group.DN))
+			groupsPanel.SetCell(idx, 2, tview.NewTableCell(groupDN).SetReference(group.DN))
 		}
 
 		groupsPanel.Select(0, 0)
@@ -215,10 +245,12 @@ func groupRotateFocus() {
 
 	switch currentFocus {
 	case membersPanel:
+		app.SetFocus(depthInput)
+	case depthInput:
 		app.SetFocus(groupNameInput)
 	case groupNameInput:
-		app.SetFocus(userNameInput)
-	case userNameInput:
+		app.SetFocus(objectNameInput)
+	case objectNameInput:
 		app.SetFocus(groupsPanel)
 	case groupsPanel:
 		app.SetFocus(membersPanel)
@@ -238,6 +270,7 @@ func exportCurrentGroups() {
 	exportMap["Groups"] = groups
 	exportMap["DN"] = objectDN
 	exportMap["Query"] = queryObject
+	exportMap["MaxDepth"] = maxDepth
 
 	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
 
@@ -263,6 +296,7 @@ func exportCurrentMembers() {
 	exportMap["Members"] = members
 	exportMap["DN"] = groupDN
 	exportMap["Query"] = queryGroup
+	exportMap["MaxDepth"] = maxDepth
 
 	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
 
