@@ -321,7 +321,7 @@ func setupLDAPConn() error {
 		updateLog(fmt.Sprint(err), "red")
 	} else {
 		updateLog("Connection success", "green")
-		updateStateBox(tlsPanel, Ldaps)
+		isSecure := Ldaps
 
 		var bindType string
 		if tlsConfig.Certificates != nil {
@@ -339,7 +339,7 @@ func setupLDAPConn() error {
 				}
 			}
 
-			updateStateBox(tlsPanel, true)
+			isSecure = true
 			bindType = "LDAP+ClientCertificate"
 		} else if Kerberos {
 			ccachePath := os.Getenv("KRB5CCNAME")
@@ -366,14 +366,15 @@ func setupLDAPConn() error {
 		}
 
 		if err != nil {
+			// Bind failed
 			updateLog(fmt.Sprint(err), "red")
 		} else {
+			updateStateBox(tlsPanel, isSecure)
 			updateLog("Bind success ("+bindType+")", "green")
 		}
 	}
 
 	updateStateBox(statusPanel, err == nil)
-	updateStateBox(tlsPanel, Ldaps)
 
 	return err
 }
