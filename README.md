@@ -72,12 +72,12 @@ $ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hos
 
 **Bind with a Certificate + Private Key**
 
-(PEM)
+PEM:
 ```bash
 $ godap <hostname or IP> -d <domain> --crt <cert.pem> --key <cert.key> -I
 ```
 
-(PKCS#12)
+PKCS#12:
 ```bash
 $ godap <hostname or IP> -d <domain> --pfx <cert.pfx> -I
 ```
