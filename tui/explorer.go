@@ -377,6 +377,7 @@ func openAddMemberToGroupForm(targetDN string, isGroup bool) {
 
 	objectNameFormItem.SetPlaceholder("sAMAccountName or DN")
 	assignInputFieldTheme(objectNameFormItem)
+	assignInputFieldTheme(groupDNFormItem)
 
 	objectDNFormItem := addMemberForm.GetFormItemByLabel("Object DN").(*tview.TextView)
 	objectDNFormItem.SetDynamicColors(true)

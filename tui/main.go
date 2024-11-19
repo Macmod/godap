@@ -321,6 +321,7 @@ func setupLDAPConn() error {
 		updateLog(fmt.Sprint(err), "red")
 	} else {
 		updateLog("Connection success", "green")
+		updateStateBox(tlsPanel, Ldaps)
 
 		var bindType string
 		if tlsConfig.Certificates != nil {
@@ -532,7 +533,6 @@ func SetupApp() {
 	app.EnableMouse(true)
 	app.SetInputCapture(appKeyHandler)
 
-	updateStateBox(tlsPanel, Ldaps)
 	updateStateBox(statusPanel, true)
 	updateStateBox(formatFlagPanel, FormatAttrs)
 	updateStateBox(colorFlagPanel, Colors)
