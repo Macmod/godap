@@ -34,6 +34,7 @@ require (
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
+	software.sslmate.com/src/go-pkcs12 v0.5.0 // indirect
 )
 
 replace github.com/jcmturner/gokrb5/v8 => github.com/Macmod/gokrb5/v8 v8.4.5-0.20240428143821-ea9a660f0f44
