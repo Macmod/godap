@@ -70,6 +70,20 @@ $ godap <hostname or IP> -u <username> -H <hash> [-d <domain>]
 $ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hostname>
 ```
 
+**Bind with a Certificate + Private Key**
+
+(PEM)
+```bash
+$ godap <hostname or IP> -d <domain> --crt <cert.pem> --key <cert.key> -I
+```
+
+(PKCS#12)
+```bash
+$ godap <hostname or IP> -d <domain> --pfx <cert.pfx> -I
+```
+
+Note. This method will either pass the certificate directly when connecting with LDAPS (`-S`), or upgrade the unencrypted LDAP connection implicitly with StartTLS, therefore you must provide `-I` if you want to use it and your server certificate is not trusted by your client.
+
 **Anonymous Bind**
 
 ```bash
@@ -197,6 +211,8 @@ Contributions are also welcome by [opening an issue](https://github.com/Macmod/g
   * [Darksteel](https://github.com/wjlab/Darksteel)
 
 * [BadBlood](https://github.com/davidprowe/BadBlood) was also very useful for testing during the development of the tool.
+
+* Thanks [@vysecurity](https://github.com/vysecurity), [@SamErde](https://github.com/samerde) & all the others that shared the tool :)
 
 # Disclaimers
 

@@ -15,9 +15,10 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
 	"h12.io/socks"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
-var GodapVer = "Godap v2.8.0"
+var GodapVer = "Godap v2.8.1"
 
 var (
 	LdapServer       string
@@ -32,6 +33,9 @@ var (
 	TargetSpn        string
 	KdcHost          string
 	TimeFormat       string
+	CertFile         string
+	KeyFile          string
+	PfxFile          string
 
 	Kerberos     bool
 	Emojis       bool
@@ -95,7 +99,6 @@ func toggleFlagF() {
 	if nodeExplorer != nil {
 		reloadExplorerAttrsPanel(nodeExplorer, CacheEntries)
 	}
-
 	nodeSearch := searchTreePanel.GetCurrentNode()
 	if nodeSearch != nil {
 		reloadSearchAttrsPanel(nodeSearch, CacheEntries)
@@ -264,6 +267,36 @@ func setupLDAPConn() error {
 		tlsConfig = insecureTlsConfig
 	}
 
+	// If a certificate and key pair is provided, store it
+	// in the TLS config to be used for the connection
+	if CertFile != "" && KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(CertFile, KeyFile)
+		if err != nil {
+			log.Fatalf("Error loading certificate / key: %v", err)
+		}
+
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	} else if PfxFile != "" {
+		pfxData, err := os.ReadFile(PfxFile)
+		if err != nil {
+			log.Fatalf("Error reading PFX file: %v", err)
+		}
+
+		// Empty password for now - can be made configurable in the future
+		privateKey, cert, err := pkcs12.Decode(pfxData, "")
+		if err != nil {
+			log.Fatalf("Error decoding PFX: %v", err)
+		}
+
+		tlsCert := tls.Certificate{
+			Certificate: [][]byte{cert.Raw},
+			PrivateKey:  privateKey,
+			Leaf:        cert,
+		}
+
+		tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	}
+
 	var proxyConn net.Conn = nil
 	var err error = nil
 
@@ -290,7 +323,24 @@ func setupLDAPConn() error {
 		updateLog("Connection success", "green")
 
 		var bindType string
-		if Kerberos {
+		if tlsConfig.Certificates != nil {
+			if !Ldaps {
+				// If the connection was not using LDAPS, upgrade it with StartTLS
+				// and then perform an ExternalBind
+				err = lc.UpgradeToTLS(tlsConfig)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				err = lc.ExternalBind()
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			updateStateBox(tlsPanel, true)
+			bindType = "LDAP+ClientCertificate"
+		} else if Kerberos {
 			ccachePath := os.Getenv("KRB5CCNAME")
 
 			var KdcAddr string

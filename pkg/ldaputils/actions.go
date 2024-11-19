@@ -70,6 +70,15 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 	}, nil
 }
 
+func (lc *LDAPConn) ExternalBind() error {
+	err := lc.Conn.ExternalBind()
+	if err != nil {
+		return fmt.Errorf("External bind failed: %v", err)
+	}
+
+	return nil
+}
+
 func (lc *LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
 	var err error
 
@@ -240,7 +249,7 @@ func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err 
 		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		ldapQuery,
-		[]string{"sAMAccountName", "objectCategory"},
+		[]string{"sAMAccountName", "objectCategory", "objectSid"},
 		nil,
 	)
 
@@ -266,7 +275,7 @@ func (lc *LDAPConn) QueryGroupMembersDeep(groupDN string, maxDepth int) (group [
 			lc.DefaultRootDN,
 			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 			ldapQuery,
-			[]string{"sAMAccountName", "objectCategory"},
+			[]string{"sAMAccountName", "objectCategory", "objectSid"},
 			nil,
 		)
 
@@ -337,7 +346,7 @@ func (lc *LDAPConn) QueryObjectGroups(memberDN string) ([]*ldap.Entry, error) {
 		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		memberQuery,
-		[]string{},
+		[]string{"name", "objectCategory", "objectSid"},
 		nil,
 	)
 
@@ -358,7 +367,7 @@ func (lc *LDAPConn) QueryObjectGroupsDeep(objectDN string, maxDepth int) (group 
 			lc.DefaultRootDN,
 			ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 			ldapQuery,
-			[]string{"name", "objectCategory"},
+			[]string{"name", "objectCategory", "objectSid"},
 			nil,
 		)
 
@@ -402,31 +411,31 @@ func (lc *LDAPConn) QueryObjectGroupsDeep(objectDN string, maxDepth int) (group 
 	return allEntries, nil
 }
 
-func (lc *LDAPConn) FindFirstDN(identifier string) (string, error) {
+func (lc *LDAPConn) FindFirst(identifier string) (*ldap.Entry, error) {
 	samOrDn, _ := SamOrDN(identifier)
 
 	entries, err := lc.Query(lc.DefaultRootDN, samOrDn, ldap.ScopeWholeSubtree, false)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(entries) > 0 {
-		return entries[0].DN, nil
+		return entries[0], nil
 	} else {
-		return "", fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("Object not found")
 	}
 }
 
-func (lc *LDAPConn) QueryFirstDN(filter string) (string, error) {
+func (lc *LDAPConn) QueryFirst(filter string) (*ldap.Entry, error) {
 	entries, err := lc.Query(lc.DefaultRootDN, filter, ldap.ScopeWholeSubtree, false)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(entries) > 0 {
-		return entries[0].DN, nil
+		return entries[0], nil
 	} else {
-		return "", fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("Object not found")
 	}
 }
 
@@ -889,7 +898,7 @@ func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, er
 
 func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
 	objectSearch := ldap.NewSearchRequest(
-		lc.RootDN,
+		lc.DefaultRootDN,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		filter,
 		[]string{attr},

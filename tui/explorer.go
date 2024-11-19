@@ -382,10 +382,10 @@ func openAddMemberToGroupForm(targetDN string, isGroup bool) {
 	objectDNFormItem.SetDynamicColors(true)
 
 	objectNameFormItem.SetDoneFunc(func(key tcell.Key) {
-		objectDN, err := lc.FindFirstDN(objectNameFormItem.GetText())
+		object, err := lc.FindFirst(objectNameFormItem.GetText())
 		if err == nil {
 			addMemberToGroupFormValidation = true
-			objectDNFormItem.SetText(objectDN)
+			objectDNFormItem.SetText(object.DN)
 		} else {
 			addMemberToGroupFormValidation = false
 			objectDNFormItem.SetText("[red]Object not found")

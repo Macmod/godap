@@ -155,13 +155,13 @@ func initGroupPage() {
 		samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
 		if isSam {
 			groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
-			resultDN, err := lc.QueryFirstDN(groupDNQuery)
+			result, err := lc.QueryFirst(groupDNQuery)
 			if err != nil {
 				updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
 				return
 			}
 
-			groupDN = resultDN
+			groupDN = result.DN
 		}
 
 		members, err = lc.QueryGroupMembersDeep(groupDN, maxDepth)
@@ -210,12 +210,12 @@ func initGroupPage() {
 		queryObject = objectNameInput.GetText()
 		objectDN = queryObject
 
-		resultDN, err := lc.FindFirstDN(queryObject)
+		result, err := lc.FindFirst(queryObject)
 		if err != nil {
 			updateLog(fmt.Sprintf("Object '%s' not found", queryObject), "red")
 			return
 		} else {
-			objectDN = resultDN
+			objectDN = result.DN
 		}
 
 		groups, err = lc.QueryObjectGroupsDeep(objectDN, maxDepth)
