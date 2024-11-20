@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"strings"
 
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
@@ -26,22 +23,6 @@ func main() {
 				}
 			}
 
-			if tui.LdapPasswordFile != "" {
-				pw, err := os.ReadFile(tui.LdapPasswordFile)
-				if err != nil {
-					log.Fatal(err)
-				}
-				tui.LdapPassword = strings.TrimSpace(string(pw))
-			}
-
-			if tui.NtlmHashFile != "" {
-				hash, err := os.ReadFile(tui.NtlmHashFile)
-				if err != nil {
-					log.Fatal(err)
-				}
-				tui.NtlmHash = strings.TrimSpace(string(hash))
-			}
-
 			tui.SetupApp()
 		},
 	}
@@ -51,7 +32,7 @@ func main() {
 	rootCmd.Flags().StringVarP(&tui.LdapPassword, "password", "p", "", "LDAP password")
 	rootCmd.Flags().StringVarP(&tui.LdapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password")
 	rootCmd.Flags().StringVarP(&tui.DomainName, "domain", "d", "", "Domain for NTLM / Kerberos authentication")
-	rootCmd.Flags().StringVarP(&tui.NtlmHash, "hashes", "H", "", "NTLM hash")
+	rootCmd.Flags().StringVarP(&tui.NtlmHash, "hash", "H", "", "NTLM hash")
 	rootCmd.Flags().BoolVarP(&tui.Kerberos, "kerberos", "k", false, "Use Kerberos ticket for authentication (CCACHE specified via KRB5CCNAME environment variable)")
 	rootCmd.Flags().StringVarP(&tui.TargetSpn, "spn", "t", "", "Target SPN to use for Kerberos bind (usually ldap/dchostname)")
 	rootCmd.Flags().StringVarP(&tui.NtlmHashFile, "hashfile", "", "", "Path to a file containing the NTLM hash")

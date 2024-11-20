@@ -64,9 +64,10 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 	}
 
 	return &LDAPConn{
-		Conn:       conn,
-		PagingSize: pagingSize,
-		RootDN:     rootDN,
+		Conn:          conn,
+		PagingSize:    pagingSize,
+		RootDN:        rootDN,
+		DefaultRootDN: rootDN,
 	}, nil
 }
 

@@ -74,12 +74,12 @@ $ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hos
 
 PEM:
 ```bash
-$ godap <hostname or IP> -d <domain> --crt <cert.pem> --key <cert.key> -I
+$ godap <hostname or IP> --crt <cert.pem> --key <cert.key> -I
 ```
 
 PKCS#12:
 ```bash
-$ godap <hostname or IP> -d <domain> --pfx <cert.pfx> -I
+$ godap <hostname or IP> --pfx <cert.pfx> -I
 ```
 
 Note. This method will either pass the certificate directly when connecting with LDAPS (`-S`), or upgrade the unencrypted LDAP connection implicitly with StartTLS, therefore you must provide `-I` if you want to use it and your server certificate is not trusted by your client.
