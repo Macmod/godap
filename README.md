@@ -130,7 +130,7 @@ You can also change the address of your proxy using the `l` keybinding.
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
 * `-G`,`--paging` - Paging size for regular queries (default: `800`)
 * `-d`,`--domain` - Domain name for NTLM / Kerberos authentication
-* `-H`,`--hashes` - Hashes for NTLM bind
+* `-H`,`--hash` - Hashes for NTLM bind
 * `-k`,`--kerberos` - Use Kerberos ticket for authentication (CCACHE specified via `KRB5CCNAME` environment variable)
 * `-t`,`--spn` - Target SPN to use for Kerberos bind (usually `ldap/dchostname`)
 * `--hashfile` - Path to a file containing the hashes for NTLM bind
@@ -138,6 +138,9 @@ You can also change the address of your proxy using the `l` keybinding.
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
 * `--timefmt` - Time format for LDAP timestamps. Options: eu, us, [iso8601](https://en.wikipedia.org/wiki/ISO_8601), or define your own using [go time format](https://go.dev/src/time/format.go) (default: `eu`)
+* `--crt` - Path to a file containing the certificate to use for the bind
+* `--key` - Path to a file containing the private key to use for the bind
+* `--pfx` - Path to a file containing the PKCS#12 certificate to use for the bind
 
 ## Keybindings
 
