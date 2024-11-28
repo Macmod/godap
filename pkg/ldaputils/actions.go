@@ -186,11 +186,13 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 		return nil, fmt.Errorf("No entries found")
 	}
 
-	if len(searchResult.Entries[0].Attributes) < 1 {
-		return nil, fmt.Errorf("Naming contexts not found")
+	for _, x := range searchResult.Entries[0].Attributes {
+		if strings.ToLower(x.Name) == "namingcontexts" {
+			return x.Values, nil
+		}
 	}
 
-	return searchResult.Entries[0].Attributes[0].Values, nil
+	return []string{}, fmt.Errorf("Naming contexts not found")
 }
 
 func (lc *LDAPConn) FindRootDN() (string, error) {

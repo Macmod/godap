@@ -524,7 +524,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 
 			if Colors {
 				var refValue string
-				if !ExpandAttrs || len(cellValues) == 1 {
+				if !FormatAttrs && (!ExpandAttrs || len(cellValues) == 1) {
 					refValue = attribute.Values[idx]
 				} else {
 					refValue = cellValue
