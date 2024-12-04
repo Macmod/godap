@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -135,7 +136,7 @@ type DNSRecord struct {
 	Data       []byte
 }
 
-func MakeDNSRecord(rec FriendlyRecord, recType uint16, ttl uint32) DNSRecord {
+func MakeDNSRecord(rec RecordData, recType uint16, ttl uint32) DNSRecord {
 	serial := uint32(1)
 	msTime := GetCurrentMSTime()
 	data := rec.Encode()
@@ -400,6 +401,99 @@ func (d *DNSRecord) PrintType() string {
 	return recordType
 }
 
+func (r *DNSRecord) GetRecordData() RecordData {
+	var parsedRecord RecordData
+
+	switch r.Type {
+	case 0x0000:
+		parsedRecord = new(ZERORecord)
+	case 0x0001:
+		parsedRecord = new(ARecord)
+	case 0x0002:
+		parsedRecord = new(NSRecord)
+	case 0x0003:
+		parsedRecord = new(MDRecord)
+	case 0x0004:
+		parsedRecord = new(MFRecord)
+	case 0x0005:
+		parsedRecord = new(CNAMERecord)
+	case 0x0006:
+		parsedRecord = new(SOARecord)
+	case 0x0007:
+		parsedRecord = new(MBRecord)
+	case 0x0008:
+		parsedRecord = new(MGRecord)
+	case 0x0009:
+		parsedRecord = new(MRRecord)
+	case 0x000A:
+		parsedRecord = new(NULLRecord)
+	case 0x000B:
+		parsedRecord = new(WKSRecord)
+	case 0x000C:
+		parsedRecord = new(PTRRecord)
+	case 0x000D:
+		parsedRecord = new(HINFORecord)
+	case 0x000E:
+		parsedRecord = new(MINFORecord)
+	case 0x000F:
+		parsedRecord = new(MXRecord)
+	case 0x0010:
+		parsedRecord = new(TXTRecord)
+	case 0x0011:
+		parsedRecord = new(RPRecord)
+	case 0x0012:
+		parsedRecord = new(AFSDBRecord)
+	case 0x0013:
+		parsedRecord = new(X25Record)
+	case 0x0014:
+		parsedRecord = new(ISDNRecord)
+	case 0x0015:
+		parsedRecord = new(RTRecord)
+	case 0x0018:
+		parsedRecord = new(SIGRecord)
+	case 0x0019:
+		parsedRecord = new(KEYRecord)
+	case 0x001C:
+		parsedRecord = new(AAAARecord)
+	case 0x001D:
+		parsedRecord = new(LOCRecord)
+	case 0x001E:
+		parsedRecord = new(NXTRecord)
+	case 0x0021:
+		parsedRecord = new(SRVRecord)
+	case 0x0022:
+		parsedRecord = new(ATMARecord)
+	case 0x0023:
+		parsedRecord = new(NAPTRRecord)
+	case 0x0027:
+		parsedRecord = new(DNAMERecord)
+	case 0x002B:
+		parsedRecord = new(DSRecord)
+	case 0x002E:
+		parsedRecord = new(RRSIGRecord)
+	case 0x002F:
+		parsedRecord = new(NSECRecord)
+	case 0x0030:
+		parsedRecord = new(DNSKEYRecord)
+	case 0x0031:
+		parsedRecord = new(DHCIDRecord)
+	case 0x0032:
+		parsedRecord = new(NSEC3Record)
+	case 0x0033:
+		parsedRecord = new(NSEC3PARAMRecord)
+	case 0x0034:
+		parsedRecord = new(TLSARecord)
+	case 0xFF01:
+		parsedRecord = new(WINSRecord)
+	case 0xFF02:
+		parsedRecord = new(WINSRRecord)
+	default:
+		parsedRecord = new(ZERORecord)
+	}
+	parsedRecord.Parse(r.Data)
+	return parsedRecord
+}
+
 func (d *DNSRecord) UnixTimestamp() int64 {
 	msTime := uint64(d.Timestamp) * 3600
 	return MSTimeToUnixTimestamp(msTime)
@@ -563,7 +657,7 @@ func (p *DNSProperty) Decode(data []byte) error {
 // IP addresses (v4 or v6) are stored using their string representations
 
 // Interface to hold the parsed record fields
-type FriendlyRecord interface {
+type RecordData interface {
 	// Parses a record from its byte array in the Data field of the
 	// DNSRecord AD attribute
 	Parse([]byte)
@@ -581,7 +675,7 @@ type Field struct {
 	Value any
 }
 
-func DumpRecordFields(fr FriendlyRecord) []Field {
+func DumpRecordFields(fr RecordData) []Field {
 	result := make([]Field, 0)
 
 	v := reflect.ValueOf(fr).Elem()
@@ -1349,4 +1443,102 @@ func (r *WINSRRecord) Encode() []byte {
 	EncodeCountName(buf, r.NameResultDomain)
 
 	return buf.Bytes()
+}
+
+func parseUint(value string) uint64 {
+	parsed, _ := strconv.ParseUint(value, 10, 64)
+	return parsed
+}
+
+func RecordFromInput(recordType string, recordValue any) RecordData {
+	var fRecord RecordData
+
+	switch recordType {
+	case "ZERO":
+		fRecord = new(ZERORecord)
+	case "A":
+		fRecord = new(ARecord)
+		fRecord.(*ARecord).Address = recordValue.(string)
+	case "AAAA":
+		fRecord = new(AAAARecord)
+		fRecord.(*AAAARecord).Address = recordValue.(string)
+	case "CNAME":
+		fRecord = new(CNAMERecord)
+		fRecord.(*CNAMERecord).NameNode = recordValue.(string)
+	case "TXT":
+		fRecord = new(TXTRecord)
+		fRecord.(*TXTRecord).StrData = recordValue.([]string)
+	case "NS":
+		fRecord = new(NSRecord)
+		fRecord.(*NSRecord).NameNode = recordValue.(string)
+	case "PTR":
+		fRecord = new(PTRRecord)
+		fRecord.(*PTRRecord).NameNode = recordValue.(string)
+	case "MD":
+		fRecord = new(MDRecord)
+		fRecord.(*MDRecord).NameNode = recordValue.(string)
+	case "MF":
+		fRecord = new(MFRecord)
+		fRecord.(*MFRecord).NameNode = recordValue.(string)
+	case "MB":
+		fRecord = new(MBRecord)
+		fRecord.(*MBRecord).NameNode = recordValue.(string)
+	case "MG":
+		fRecord = new(MGRecord)
+		fRecord.(*MGRecord).NameNode = recordValue.(string)
+	case "MR":
+		fRecord = new(MRRecord)
+		fRecord.(*MRRecord).NameNode = recordValue.(string)
+	case "DNAME":
+		fRecord = new(DNAMERecord)
+		fRecord.(*DNAMERecord).NameNode = recordValue.(string)
+	case "HINFO":
+		fRecord = new(HINFORecord)
+		fRecord.(*HINFORecord).StrData = recordValue.([]string)
+	case "ISDN":
+		fRecord = new(ISDNRecord)
+		fRecord.(*ISDNRecord).StrData = recordValue.([]string)
+	case "X25":
+		fRecord = new(X25Record)
+		fRecord.(*X25Record).StrData = recordValue.([]string)
+	case "LOC":
+		fRecord = new(LOCRecord)
+		fRecord.(*LOCRecord).StrData = recordValue.([]string)
+	case "MX":
+		valMap := recordValue.(map[string]string)
+		fRecord = new(MXRecord)
+		fRecord.(*MXRecord).Preference = uint16(parseUint(valMap["Preference"]))
+		fRecord.(*MXRecord).Exchange = valMap["Exchange"]
+	case "AFSDB":
+		valMap := recordValue.(map[string]string)
+		fRecord = new(AFSDBRecord)
+		fRecord.(*AFSDBRecord).Preference = uint16(parseUint(valMap["Preference"]))
+		fRecord.(*AFSDBRecord).Exchange = valMap["Exchange"]
+	case "RT":
+		valMap := recordValue.(map[string]string)
+		fRecord = new(RTRecord)
+		fRecord.(*RTRecord).Preference = uint16(parseUint(valMap["Preference"]))
+		fRecord.(*RTRecord).Exchange = valMap["Exchange"]
+	case "SRV":
+		valMap := recordValue.(map[string]string)
+		fRecord = new(SRVRecord)
+		fRecord.(*SRVRecord).Priority = uint16(parseUint(valMap["Priority"]))
+		fRecord.(*SRVRecord).Weight = uint16(parseUint(valMap["Weight"]))
+		fRecord.(*SRVRecord).Port = uint16(parseUint(valMap["Port"]))
+		fRecord.(*SRVRecord).NameTarget = valMap["NameTarget"]
+	case "SOA":
+		valMap := recordValue.(map[string]string)
+		fRecord = new(SOARecord)
+		fRecord.(*SOARecord).Serial = uint32(parseUint(valMap["Serial"]))
+		fRecord.(*SOARecord).Refresh = uint32(parseUint(valMap["Refresh"]))
+		fRecord.(*SOARecord).Retry = uint32(parseUint(valMap["Retry"]))
+		fRecord.(*SOARecord).Expire = uint32(parseUint(valMap["Expire"]))
+		fRecord.(*SOARecord).MinimumTTL = uint32(parseUint(valMap["MinimumTTL"]))
+		fRecord.(*SOARecord).NamePrimaryServer = valMap["NamePrimaryServer"]
+		fRecord.(*SOARecord).ZoneAdminEmail = valMap["ZoneAdminEmail"]
+	default:
+		fRecord = new(ZERORecord)
+	}
+
+	return fRecord
 }

@@ -30,6 +30,7 @@ type GodapTheme struct {
 	DisabledNodeColor tcell.Color
 }
 
+// Theme definitions - controls the colors of all Godap pages
 var baseTheme tview.Theme = tview.Theme{
 	PrimitiveBackgroundColor:    tcell.ColorBlack,
 	ContrastBackgroundColor:     tcell.ColorBlue,
@@ -50,7 +51,7 @@ var DefaultTheme = GodapTheme{
 
 	// Input fields for main pages
 	FieldBackgroundColor: tcell.ColorBlack,
-	PlaceholderStyle:     tcell.Style{}.Foreground(tcell.ColorDefault).Background(tcell.ColorBlack),
+	PlaceholderStyle:     tcell.Style{}.Foreground(tcell.ColorGray).Background(tcell.ColorBlack),
 	PlaceholderTextColor: tcell.ColorGray,
 
 	// Form buttons
@@ -77,6 +78,10 @@ func assignButtonTheme(btn *tview.Button) {
 	btn.SetStyle(DefaultTheme.FormButtonStyle).
 		SetLabelColor(DefaultTheme.FormButtonTextColor).
 		SetActivatedStyle(DefaultTheme.FormButtonActivatedStyle)
+}
+
+func assignDropDownTheme(dropdown *tview.DropDown) {
+	dropdown.SetFieldBackgroundColor(DefaultTheme.FieldBackgroundColor)
 }
 
 func assignFormTheme(form *tview.Form) {
@@ -121,11 +126,40 @@ func (f *XForm) AddInputField(label, value string, fieldWidth int, accept func(t
 	inputField := tview.NewInputField()
 	f.AddFormItem(inputField.
 		SetFieldStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack)).
+		SetPlaceholderStyle(DefaultTheme.PlaceholderStyle).
+		SetPlaceholderTextColor(DefaultTheme.PlaceholderTextColor).
 		SetLabel(label).
 		SetText(value).
 		SetFieldWidth(fieldWidth).
 		SetAcceptanceFunc(accept).
 		SetChangedFunc(changed))
+
+	return f
+}
+
+func (f *XForm) AddTextArea(label string, text string, fieldWidth, fieldHeight int, maxLength int, changed func(text string)) *XForm {
+	if fieldHeight == 0 {
+		fieldHeight = tview.DefaultFormFieldHeight
+	}
+
+	textArea := tview.NewTextArea()
+	textArea.
+		SetLabel(label).
+		SetSize(fieldHeight, fieldWidth).
+		SetMaxLength(maxLength).
+		SetPlaceholderStyle(DefaultTheme.PlaceholderStyle)
+
+	if text != "" {
+		textArea.SetText(text, true)
+	}
+
+	if changed != nil {
+		textArea.SetChangedFunc(func() {
+			changed(textArea.GetText())
+		})
+	}
+
+	f.AddFormItem(textArea)
 
 	return f
 }

@@ -60,6 +60,10 @@ func initHelpPage() {
 		{"Ctrl + s", "GPO page", "Export the current GPOs and their links into a JSON file"},
 		{"Ctrl + s", "DNS zones panel", "Export the selected zones and their child DNS nodes into a JSON file"},
 		{"r", "DNS zones panel", "Reload the nodes of the selected zone / the records of the selected node"},
+		{"Ctrl + n", "DNS zones panel", "Create a new node under the selected zone or a new zone if the root is selected"},
+		{"Ctrl + e", "DNS zones panel", "Edit the records of the currently selected node"},
+		{"Delete", "DNS zones panel", "Delete the selected DNS zone or DNS node"},
+		{"Delete", "Records Preview (in ADIDNS Node Editor)", "Delete the selected record of the ADIDNS node"},
 		{"h", "Global", "Show/hide headers"},
 		{"q", "Global", "Exit the program"},
 	}

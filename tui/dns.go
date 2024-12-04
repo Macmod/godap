@@ -43,10 +43,13 @@ var forestZones []adidns.DNSZone
 var zoneCache = make(map[string]adidns.DNSZone, 0)
 var nodeCache = make(map[string]adidns.DNSNode, 0)
 
-var recordCache = make(map[string][]adidns.FriendlyRecord, 0)
-
 func getParentZone(objectDN string) (adidns.DNSZone, error) {
 	objectDNParts := strings.Split(objectDN, ",")
+
+	zone, zoneOk := zoneCache[objectDN]
+	if zoneOk {
+		return zone, nil
+	}
 
 	if len(objectDNParts) > 1 {
 		parentZoneDN := strings.Join(objectDNParts[1:], ",")
@@ -58,7 +61,7 @@ func getParentZone(objectDN string) (adidns.DNSZone, error) {
 		}
 	}
 
-	return adidns.DNSZone{}, fmt.Errorf("Object DN too small to contain a parent zone")
+	return adidns.DNSZone{}, fmt.Errorf("Malformed object DN")
 }
 
 func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
@@ -89,11 +92,11 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 					"Nodes": nodesMap,
 				}
 			} else if nodeOk {
-				records, _ := recordCache[objectDN]
+				records := node.Records
 
 				recordsObj := make([]any, 0)
-				for idx, rec := range records {
-					recordType := node.Records[idx].PrintType()
+				for _, rec := range records {
+					recordType := rec.PrintType()
 					recordsObj = append(recordsObj, map[string]any{
 						"Type":  recordType,
 						"Value": rec,
@@ -228,11 +231,10 @@ func reloadADIDNSNode(currentNode *tview.TreeNode) {
 		updateLog(fmt.Sprint(err), "red")
 	}
 
-	storeNodeRecords(node)
 	showDetails(node.DN)
 }
 
-func showNodeDetails(node *adidns.DNSNode, records []adidns.FriendlyRecord, targetTree *tview.TreeView) {
+func showDNSNodeDetails(node *adidns.DNSNode, targetTree *tview.TreeView) {
 	rootNode := tview.NewTreeNode(node.Name)
 
 	for idx, record := range node.Records {
@@ -275,7 +277,7 @@ func showNodeDetails(node *adidns.DNSNode, records []adidns.FriendlyRecord, targ
 		recordTreeNode := tview.NewTreeNode(recordName).
 			SetReference(recordRef{node.DN, idx})
 
-		parsedRecord := records[idx]
+		parsedRecord := record.GetRecordData()
 		recordFields := adidns.DumpRecordFields(parsedRecord)
 		for idx, field := range recordFields {
 			fieldName := tview.Escape(fmt.Sprintf("%s=%v", field.Name, field.Value))
@@ -300,7 +302,6 @@ func showDetails(objectDN string) {
 
 	node, ok := nodeCache[objectDN]
 	if ok {
-		parsedRecords, _ := recordCache[objectDN]
 		parentZone, err := getParentZone(objectDN)
 		if err == nil {
 			dnsSidePanel.SetTitle(fmt.Sprintf("Records (%s)", parentZone.Name))
@@ -309,108 +310,8 @@ func showDetails(objectDN string) {
 		}
 		dnsSidePanel.SwitchToPage("node-records")
 
-		showNodeDetails(&node, parsedRecords, dnsNodeRecords)
+		showDNSNodeDetails(&node, dnsNodeRecords)
 	}
-}
-
-func storeNodeRecords(node adidns.DNSNode) {
-	records := make([]adidns.FriendlyRecord, 0)
-	var fRec adidns.FriendlyRecord
-
-	for _, record := range node.Records {
-		switch record.Type {
-		case 0x0000:
-			fRec = new(adidns.ZERORecord)
-		case 0x0001:
-			fRec = new(adidns.ARecord)
-		case 0x0002:
-			fRec = new(adidns.NSRecord)
-		case 0x0003:
-			fRec = new(adidns.MDRecord)
-		case 0x0004:
-			fRec = new(adidns.MFRecord)
-		case 0x0005:
-			fRec = new(adidns.CNAMERecord)
-		case 0x0006:
-			fRec = new(adidns.SOARecord)
-		case 0x0007:
-			fRec = new(adidns.MBRecord)
-		case 0x0008:
-			fRec = new(adidns.MGRecord)
-		case 0x0009:
-			fRec = new(adidns.MRRecord)
-		case 0x000A:
-			fRec = new(adidns.NULLRecord)
-		case 0x000B:
-			fRec = new(adidns.WKSRecord)
-		case 0x000C:
-			fRec = new(adidns.PTRRecord)
-		case 0x000D:
-			fRec = new(adidns.HINFORecord)
-		case 0x000E:
-			fRec = new(adidns.MINFORecord)
-		case 0x000F:
-			fRec = new(adidns.MXRecord)
-		case 0x0010:
-			fRec = new(adidns.TXTRecord)
-		case 0x0011:
-			fRec = new(adidns.RPRecord)
-		case 0x0012:
-			fRec = new(adidns.AFSDBRecord)
-		case 0x0013:
-			fRec = new(adidns.X25Record)
-		case 0x0014:
-			fRec = new(adidns.ISDNRecord)
-		case 0x0015:
-			fRec = new(adidns.RTRecord)
-		case 0x0018:
-			fRec = new(adidns.SIGRecord)
-		case 0x0019:
-			fRec = new(adidns.KEYRecord)
-		case 0x001C:
-			fRec = new(adidns.AAAARecord)
-		case 0x001D:
-			fRec = new(adidns.LOCRecord)
-		case 0x001E:
-			fRec = new(adidns.NXTRecord)
-		case 0x0021:
-			fRec = new(adidns.SRVRecord)
-		case 0x0022:
-			fRec = new(adidns.ATMARecord)
-		case 0x0023:
-			fRec = new(adidns.NAPTRRecord)
-		case 0x0027:
-			fRec = new(adidns.DNAMERecord)
-		case 0x002B:
-			fRec = new(adidns.DSRecord)
-		case 0x002E:
-			fRec = new(adidns.RRSIGRecord)
-		case 0x002F:
-			fRec = new(adidns.NSECRecord)
-		case 0x0030:
-			fRec = new(adidns.DNSKEYRecord)
-		case 0x0031:
-			fRec = new(adidns.DHCIDRecord)
-		case 0x0032:
-			fRec = new(adidns.NSEC3Record)
-		case 0x0033:
-			fRec = new(adidns.NSEC3PARAMRecord)
-		case 0x0034:
-			fRec = new(adidns.TLSARecord)
-		case 0xFF01:
-			fRec = new(adidns.WINSRecord)
-		case 0xFF02:
-			fRec = new(adidns.WINSRRecord)
-		default:
-			continue
-		}
-
-		fRec.Parse(record.Data)
-
-		records = append(records, fRec)
-	}
-
-	recordCache[node.DN] = records
 }
 
 func loadZoneNodes(zoneNode *tview.TreeNode) int {
@@ -430,15 +331,15 @@ func loadZoneNodes(zoneNode *tview.TreeNode) int {
 	zoneNode.ClearChildren()
 
 	nodeFilter := dnsNodeFilter.GetText()
-	nodeRegexp, err := regexp.Compile(nodeFilter)
+	nodeRegexp, _ := regexp.Compile(nodeFilter)
 
 	for _, node := range nodes {
+		nodeCache[node.DN] = node
+
 		nodeMatch := nodeRegexp.FindStringIndex(node.Name)
 		if nodeMatch == nil {
 			continue
 		}
-
-		nodeCache[node.DN] = node
 
 		nodeName := node.Name
 		if Emojis {
@@ -451,7 +352,6 @@ func loadZoneNodes(zoneNode *tview.TreeNode) int {
 			SetExpanded(false)
 
 		zoneNode.AddChild(treeNode)
-		storeNodeRecords(node)
 	}
 
 	return len(nodes)
@@ -560,7 +460,6 @@ func initADIDNSPage() {
 			}
 
 			openDeleteObjectForm(currentNode, func() {
-				level := currentNode.GetLevel()
 				if level == 1 {
 					go queryDnsZones(dnsQueryPanel.GetText())
 				} else if level == 2 {
@@ -578,13 +477,50 @@ func initADIDNSPage() {
 			outputFilename := fmt.Sprintf("%d_dns.json", unixTimestamp)
 			exportADIDNSToFile(currentNode, outputFilename)
 		case tcell.KeyCtrlN:
-			/*
-				TODO: Create zones or nodes
-			*/
+			if currentNode == dnsTreePanel.GetRoot() {
+				openCreateZoneForm()
+			} else {
+				if level == 1 {
+					openCreateNodeForm(currentNode)
+				} else if level == 2 {
+					parentZone := getParentNode(currentNode, dnsTreePanel)
+					openCreateNodeForm(parentZone)
+				}
+			}
 		case tcell.KeyCtrlE:
-			/*
-				TODO: Edit node records or zone properties
-			*/
+			if level == 1 {
+				// TODO: Edit zone properties
+			} else if level == 2 {
+				openUpdateNodeForm(currentNode)
+			}
+		}
+
+		return event
+	})
+
+	dnsNodeRecords.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		currentNode := dnsNodeRecords.GetCurrentNode()
+		if currentNode == nil || currentNode.GetReference() == nil {
+			return event
+		}
+
+		switch event.Key() {
+		case tcell.KeyCtrlE:
+			node := dnsTreePanel.GetCurrentNode()
+			openUpdateNodeForm(node)
+			return nil
+		case tcell.KeyDelete:
+			if currentNode.GetLevel() == 1 {
+				openDeleteRecordForm(currentNode)
+			} else if currentNode.GetLevel() == 2 {
+				pathToCurrent := dnsNodeRecords.GetPath(currentNode)
+				if len(pathToCurrent) > 1 {
+					parentNode := pathToCurrent[len(pathToCurrent)-2]
+					openDeleteRecordForm(parentNode)
+				}
+			}
+
+			return nil
 		}
 
 		return event
@@ -710,7 +646,6 @@ func queryDnsZones(targetZone string) {
 	clear(zoneCache)
 	clear(domainZones)
 	clear(forestZones)
-	clear(recordCache)
 
 	app.QueueUpdateDraw(func() {
 		updateLog("Querying ADIDNS zones...", "yellow")

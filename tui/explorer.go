@@ -133,7 +133,7 @@ func collapseTreeNode(node *tview.TreeNode) {
 }
 
 func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
-	parent := getParentNode(node)
+	parent := getParentNode(node, treePanel)
 
 	if parent != nil {
 		unloadChildren(parent)
@@ -149,28 +149,6 @@ func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
 
 func reloadExplorerAttrsPanel(node *tview.TreeNode, useCache bool) {
 	reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
-}
-
-func getParentNode(node *tview.TreeNode) *tview.TreeNode {
-	pathToCurrent := treePanel.GetPath(node)
-
-	if len(pathToCurrent) > 1 {
-		return pathToCurrent[len(pathToCurrent)-2]
-	}
-
-	return nil
-}
-
-func findEntryInChildren(dn string, parent *tview.TreeNode) int {
-	siblings := parent.GetChildren()
-
-	for idx, loopNode := range siblings {
-		if loopNode.GetReference().(string) == dn {
-			return idx
-		}
-	}
-
-	return -1
 }
 
 func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFilename string) {
@@ -430,7 +408,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	}
 
-	parentNode := getParentNode(currentNode)
+	parentNode := getParentNode(currentNode, treePanel)
 	baseDN := currentNode.GetReference().(string)
 
 	switch event.Rune() {
