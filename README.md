@@ -188,7 +188,7 @@ You can also change the address of your proxy using the `l` keybinding.
 | <kbd>Ctrl</kbd> + <kbd>n</kbd>                      | DNS zones panel                                                   | Create a new node under the selected zone or a new zone if the root is selected |
 | <kbd>Ctrl</kbd> + <kbd>e</kbd>                      | DNS zones panel                                                   | Edit the records of the currently selected node                                 |
 | <kbd>Delete</kbd>                                   | DNS zones panel                                                   | Delete the selected DNS zone or DNS node                                        |
-| <kbd>Delete</kbd>                                   | Records Preview (in `ADIDNS Node Editor`)                         | Delete the selected record of the ADIDNS node                                   |
+| <kbd>Delete</kbd>                                   | Records Preview (in `Update ADIDNS Node`)                         | Delete the selected record of the ADIDNS node                                   |
 | <kbd>h</kbd>                                        | Global                                                            | Show/hide headers                                                               |
 | <kbd>q</kbd>                                        | Global                                                            | Exit the program                                                                |
 
