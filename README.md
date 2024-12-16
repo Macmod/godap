@@ -111,6 +111,8 @@ To connect to LDAP through a SOCKS proxy include the flag `-x schema://ip:port`,
 
 You can also change the address of your proxy using the `l` keybinding.
 
+For more usage information & examples check the [Wiki](https://github.com/Macmod/godap/wiki)
+
 ## Flags
 
 * `-u`,`--username` - Username for bind
