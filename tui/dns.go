@@ -100,6 +100,7 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 					recordsObj = append(recordsObj, map[string]any{
 						"Type":  recordType,
 						"Value": rec,
+						"Data":  rec.GetRecordData(),
 					})
 				}
 
