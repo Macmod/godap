@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Macmod/godap/v2/pkg/adidns"
@@ -551,55 +552,126 @@ func (lc *LDAPConn) DeleteObject(targetDN string) error {
 	return nil
 }
 
-func (lc *LDAPConn) AddGroup(objectName string, parentDN string) error {
-	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
-	addRequest.Attribute("objectClass", []string{"top", "group"})
-	addRequest.Attribute("cn", []string{objectName})
-	addRequest.Attribute("sAMAccountName", []string{objectName})
+// Basic templates for object creation
+type AttrEntries map[string][]string
 
-	return lc.Conn.Add(addRequest)
+func GetGroupTemplate(objectName string) AttrEntries {
+	return AttrEntries{
+		"objectClass":    []string{"top", "group"},
+		"cn":             []string{objectName},
+		"sAMAccountName": []string{objectName},
+	}
 }
 
-func (lc *LDAPConn) AddOrganizationalUnit(objectName string, parentDN string) error {
-	addRequest := ldap.NewAddRequest("OU="+objectName+","+parentDN, nil)
-	addRequest.Attribute("objectClass", []string{"top", "organizationalUnit"})
-	addRequest.Attribute("ou", []string{objectName})
-
-	return lc.Conn.Add(addRequest)
+func GetOUTemplate(objectName string) AttrEntries {
+	return AttrEntries{
+		"objectClass": []string{"top", "organizationalUnit"},
+		"cn":          []string{objectName},
+	}
 }
 
-func (lc *LDAPConn) AddContainer(objectName string, parentDN string) error {
-	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
-	addRequest.Attribute("objectClass", []string{"top", "container"})
-
-	return lc.Conn.Add(addRequest)
+func GetContainerTemplate(objectName string) AttrEntries {
+	return AttrEntries{
+		"objectClass": []string{"top", "container"},
+	}
 }
 
-func (lc *LDAPConn) AddComputer(objectName string, parentDN string) error {
-	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
-	addRequest.Attribute("objectClass", []string{"top", "computer"})
-	addRequest.Attribute("cn", []string{objectName})
-	addRequest.Attribute("sAMAccountName", []string{objectName + "$"})
-	addRequest.Attribute("userAccountControl", []string{"4096"})
-
-	return lc.Conn.Add(addRequest)
+func GetComputerTemplate(objectName string) AttrEntries {
+	return AttrEntries{
+		"objectClass":        []string{"top", "computer"},
+		"cn":                 []string{objectName},
+		"sAMAccountName":     []string{objectName + "$"},
+		"userAccountControl": []string{"4096"},
+	}
 }
 
-func (lc *LDAPConn) AddUser(objectName string, parentDN string) error {
-	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
-	addRequest.Attribute("objectClass", []string{"top", "person", "organizationalPerson", "user"})
-	addRequest.Attribute("cn", []string{objectName})
-	addRequest.Attribute("sAMAccountName", []string{objectName})
-	rootFQDN, err := lc.FindRootFQDN()
+func GetUserTemplate(objectName string, rootFQDN string) AttrEntries {
+	entries := AttrEntries{}
 
-	if err == nil {
+	if rootFQDN != "" {
 		userPrincipalName := fmt.Sprintf("%s@%s", objectName, strings.ToLower(rootFQDN))
-		addRequest.Attribute(
-			"userPrincipalName",
-			[]string{userPrincipalName},
-		)
+		entries["userPrincipalName"] = []string{userPrincipalName}
 	}
 
+	return AttrEntries{
+		"objectClass":    []string{"top", "person", "organizationalPerson", "user"},
+		"cn":             []string{objectName},
+		"sAMAccountName": []string{objectName},
+	}
+}
+
+func AddEntriesToRequest(req *ldap.AddRequest, entries AttrEntries) {
+	for key, value := range entries {
+		req.Attribute(key, value)
+	}
+}
+
+func (lc *LDAPConn) AddGroup(objectName string, parentDN string, dynamicTTL int) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	groupTemplate := GetGroupTemplate(objectName)
+	if dynamicTTL > 0 {
+		groupTemplate["entryTTL"] = []string{strconv.Itoa(dynamicTTL)}
+		groupTemplate["objectClass"] = append(groupTemplate["objectClass"], "dynamicObject")
+	}
+
+	AddEntriesToRequest(addRequest, groupTemplate)
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddOrganizationalUnit(objectName string, parentDN string, dynamicTTL int) error {
+	addRequest := ldap.NewAddRequest("OU="+objectName+","+parentDN, nil)
+	ouTemplate := GetOUTemplate(objectName)
+	if dynamicTTL > 0 {
+		ouTemplate["entryTTL"] = []string{strconv.Itoa(dynamicTTL)}
+		ouTemplate["objectClass"] = append(ouTemplate["objectClass"], "dynamicObject")
+	}
+
+	AddEntriesToRequest(addRequest, ouTemplate)
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddContainer(objectName string, parentDN string, dynamicTTL int) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	containerTemplate := GetContainerTemplate(objectName)
+	if dynamicTTL > 0 {
+		containerTemplate["entryTTL"] = []string{strconv.Itoa(dynamicTTL)}
+		containerTemplate["objectClass"] = append(containerTemplate["objectClass"], "dynamicObject")
+	}
+
+	AddEntriesToRequest(addRequest, containerTemplate)
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddComputer(objectName string, parentDN string, dynamicTTL int) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+	computerTemplate := GetComputerTemplate(objectName)
+	if dynamicTTL > 0 {
+		computerTemplate["entryTTL"] = []string{strconv.Itoa(dynamicTTL)}
+		computerTemplate["objectClass"] = append(computerTemplate["objectClass"], "dynamicObject")
+	}
+
+	AddEntriesToRequest(addRequest, computerTemplate)
+	return lc.Conn.Add(addRequest)
+}
+
+func (lc *LDAPConn) AddUser(objectName string, parentDN string, dynamicTTL int) error {
+	addRequest := ldap.NewAddRequest("CN="+objectName+","+parentDN, nil)
+
+	rootFQDN, err := lc.FindRootFQDN()
+
+	var userTemplate AttrEntries
+	if err == nil {
+		userTemplate = GetUserTemplate(objectName, rootFQDN)
+	} else {
+		userTemplate = GetUserTemplate(objectName, "")
+	}
+
+	if dynamicTTL > 0 {
+		userTemplate["entryTTL"] = []string{strconv.Itoa(dynamicTTL)}
+		userTemplate["objectClass"] = append(userTemplate["objectClass"], "dynamicObject")
+	}
+
+	AddEntriesToRequest(addRequest, userTemplate)
 	return lc.Conn.Add(addRequest)
 }
 

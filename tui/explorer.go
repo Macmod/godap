@@ -278,6 +278,7 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 	createObjectForm := NewXForm().
 		AddDropDown("Object Type", []string{"OrganizationalUnit", "Container", "User", "Group", "Computer"}, 0, nil).
 		AddInputField("Object Name", "", 0, nil, nil).
+		AddInputField("Entry TTL", "-1", 0, nil, nil).
 		AddInputField("Parent DN", baseDN, 0, nil, nil)
 	createObjectForm.
 		SetInputCapture(handleEscape(treePanel))
@@ -304,19 +305,25 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 
 			objectName := createObjectForm.GetFormItemByLabel("Object Name").(*tview.InputField).GetText()
 
-			var err error = nil
+			entryTTL := createObjectForm.GetFormItemByLabel("Entry TTL").(*tview.InputField).GetText()
+			entryTTLInt, err := strconv.Atoi(entryTTL)
+			if err != nil {
+				entryTTLInt = -1
+			}
 
 			switch objectType {
 			case "OrganizationalUnit":
-				err = lc.AddOrganizationalUnit(objectName, baseDN)
+				err = lc.AddOrganizationalUnit(objectName, baseDN, entryTTLInt)
 			case "Container":
-				err = lc.AddContainer(objectName, baseDN)
+				err = lc.AddContainer(objectName, baseDN, entryTTLInt)
 			case "User":
-				err = lc.AddUser(objectName, baseDN)
+				err = lc.AddUser(objectName, baseDN, entryTTLInt)
 			case "Group":
-				err = lc.AddGroup(objectName, baseDN)
+				err = lc.AddGroup(objectName, baseDN, entryTTLInt)
 			case "Computer":
-				err = lc.AddComputer(objectName, baseDN)
+				err = lc.AddComputer(objectName, baseDN, entryTTLInt)
+			default:
+				err = fmt.Errorf("Invalid object type")
 			}
 
 			if err != nil {
