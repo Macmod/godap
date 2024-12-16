@@ -482,7 +482,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			treePanel.SetCurrentNode(currentNode)
 		})
 	case tcell.KeyCtrlS:
-		unixTimestamp := time.Now().Unix()
+		unixTimestamp := time.Now().UnixMilli()
 		outputFilename := fmt.Sprintf("%d_objects.json", unixTimestamp)
 		exportCacheToFile(currentNode, &explorerCache, outputFilename)
 	case tcell.KeyCtrlA:
