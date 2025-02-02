@@ -45,6 +45,17 @@ $ cd godap
 $ go install .
 ```
 
+## Package Repositories
+
+Some members of the commuity have published `godap` in [package repositories](https://repology.org/project/godap/versions). The following packages are known to provide working releases of `godap`:
+
+* *Homebrew*. [godap](https://formulae.brew.sh/formula/godap) by `harpchad`
+* *Alpine Linux (community)*. [godap](https://pkgs.alpinelinux.org/package/edge/community/x86_64/godap) by `omni+alpine@hack.org`
+* *Arch Linux (AUR)*. [godap-bin](https://aur.archlinux.org/packages/godap-bin) by `killab33z`
+
+Remember to check `godap`'s version before using these packages, as some of them might not always be up to date.
+In case you need the latest features, godap also provides [automated releases](https://github.com/Macmod/godap/releases) for several platforms.
+
 # Usage
 
 **Bind with username and password**
