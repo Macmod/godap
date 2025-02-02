@@ -950,16 +950,32 @@ func (c *ControlMicrosoftSDFlags) String() string {
 }
 
 func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, err error) {
-	samOrDn, _ := SamOrDN(object)
-	searchReq := ldap.NewSearchRequest(
-		lc.RootDN,
-		ldap.ScopeWholeSubtree,
-		ldap.NeverDerefAliases, 0, 0, false,
-		samOrDn,
-		[]string{"nTSecurityDescriptor"},
-		// ControlValue=15 in order to get SACLs too
-		[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
-	)
+	var searchReq *ldap.SearchRequest
+
+	samOrDn, isSamAccountName := SamOrDN(object)
+
+	switch {
+	case isSamAccountName:
+		searchReq = ldap.NewSearchRequest(
+			lc.RootDN,
+			ldap.ScopeWholeSubtree,
+			ldap.NeverDerefAliases, 0, 0, false,
+			samOrDn,
+			[]string{"nTSecurityDescriptor"},
+			// ControlValue=15 in order to get SACLs too
+			[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+		)
+	default:
+		searchReq = ldap.NewSearchRequest(
+			object,
+			ldap.ScopeBaseObject,
+			ldap.NeverDerefAliases, 0, 0, false,
+			"(&)",
+			[]string{"nTSecurityDescriptor"},
+			// ControlValue=15 in order to get SACLs too
+			[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+		)
+	}
 
 	result, err := lc.Conn.Search(searchReq)
 	if err != nil {
@@ -1125,7 +1141,6 @@ func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]str
 		ldap.ScopeSingleLevel,
 		false,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1159,7 +1174,6 @@ func (lc *LDAPConn) FindSchemaClassesAndAttributes() (map[string]string, map[str
 		ldap.ScopeSingleLevel,
 		false,
 	)
-
 	if err != nil {
 		return nil, nil, err
 	}
