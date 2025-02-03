@@ -47,7 +47,7 @@ $ go install .
 
 ## Package Repositories
 
-Some members of the commuity have published `godap` in [package repositories](https://repology.org/project/godap/versions). The following packages are known to provide working releases of `godap`:
+Some members of the community have published `godap` in [package repositories](https://repology.org/project/godap/versions). The following packages are known to provide working releases of `godap`:
 
 * *Homebrew*. [godap](https://formulae.brew.sh/formula/godap) by `harpchad`
 * *Alpine Linux (community)*. [godap](https://pkgs.alpinelinux.org/package/edge/community/x86_64/godap) by `omni+alpine@hack.org`
