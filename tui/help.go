@@ -19,6 +19,7 @@ func initHelpPage() {
 		{"c", "Global", "Toggle colors"},
 		{"a", "Global", "Toggle attribute expansion for multi-value attributes"},
 		{"d", "Global", "Toggle \"include deleted objects\" flag"},
+		{"s", "Global", "Toggle attribute sorting mode"},
 		{"l", "Global", "Change current server address & credentials"},
 		{"Ctrl + r", "Global", "Reconnect to the server"},
 		{"Ctrl + u", "Global", "Upgrade connection to use TLS (with StartTLS)"},
