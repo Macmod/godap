@@ -575,7 +575,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 }
 
 func getName(entry *ldap.Entry) string {
-	nameIds := []string{"cn", "ou", "dc", "name"}
+	nameIds := []string{"cn", "ou", "dc", "name", "uid"}
 	objectName := ""
 	for _, nameId := range nameIds {
 		currentId := entry.GetAttributeValue(nameId)
