@@ -10,17 +10,7 @@ var (
 )
 
 func initHelpPage() {
-	helpText := `[blue]
- _______  _______  ______   _______  _______ 
-(  ____ \(  ___  )(  __  \ (  ___  )(  ____ )
-| (    \/| (   ) || (  \  )| (   ) || (    )|
-| |      | |   | || |   ) || (___) || (____)|
-| | ____ | |   | || |   | ||  ___  ||  _____)
-| | \_  )| |   | || |   ) || (   ) || (      
-| (___) || (___) || (__/  )| )   ( || )      
-(_______)(_______)(______/ |/     \||/       
-
-` + GodapVer
+	helpText := `[blue]` + GodapVer
 
 	keybindings := [][]string{
 		{"Ctrl + Enter", "Global", "Next panel"},
@@ -105,6 +95,6 @@ func initHelpPage() {
 
 	helpPage = tview.NewFlex().
 		SetDirection(tview.FlexRow).
-		AddItem(helpTextView, 12, 0, true).
+		AddItem(helpTextView, 2, 0, true).
 		AddItem(frame, 0, 2, false)
 }

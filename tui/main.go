@@ -43,6 +43,7 @@ var (
 	Colors       bool
 	FormatAttrs  bool
 	ExpandAttrs  bool
+	AttrSort     string
 	AttrLimit    int
 	CacheEntries bool
 	Deleted      bool
@@ -65,13 +66,14 @@ var (
 	rootNode    *tview.TreeNode
 	logPanel    *tview.TextView
 
-	statusPanel      *tview.TextView
-	tlsPanel         *tview.TextView
-	formatFlagPanel  *tview.TextView
-	emojiFlagPanel   *tview.TextView
-	colorFlagPanel   *tview.TextView
-	expandFlagPanel  *tview.TextView
-	deletedFlagPanel *tview.TextView
+	statusPanel        *tview.TextView
+	tlsPanel           *tview.TextView
+	formatFlagPanel    *tview.TextView
+	emojiFlagPanel     *tview.TextView
+	colorFlagPanel     *tview.TextView
+	expandFlagPanel    *tview.TextView
+	sortAttrsFlagPanel *tview.TextView
+	deletedFlagPanel   *tview.TextView
 
 	tlsConfig *tls.Config
 	lc        *ldaputils.LDAPConn
@@ -128,23 +130,59 @@ func toggleFlagC() {
 	}
 }
 
-func toggleFlagA() {
-	ExpandAttrs = !ExpandAttrs
-	updateStateBox(expandFlagPanel, ExpandAttrs)
+func reloadAllAttrPanels() {
 	nodeExplorer := treePanel.GetCurrentNode()
 	if nodeExplorer != nil {
 		reloadExplorerAttrsPanel(nodeExplorer, CacheEntries)
 	}
+	selectAnchoredAttribute(explorerAttrsPanel)
 
 	nodeSearch := searchTreePanel.GetCurrentNode()
 	if nodeSearch != nil {
 		reloadSearchAttrsPanel(nodeSearch, CacheEntries)
 	}
+	selectAnchoredAttribute(searchAttrsPanel)
+}
+
+func toggleFlagA() {
+	ExpandAttrs = !ExpandAttrs
+	updateStateBox(expandFlagPanel, ExpandAttrs)
+
+	reloadAllAttrPanels()
 }
 
 func toggleFlagD() {
 	Deleted = !Deleted
 	updateStateBox(deletedFlagPanel, Deleted)
+}
+
+func updateSortStateBox(option string) {
+	go app.QueueUpdateDraw(func() {
+		if option == "none" {
+			sortAttrsFlagPanel.SetText("OFF")
+			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("red"))
+		} else if option == "asc" {
+			sortAttrsFlagPanel.SetText("ASC")
+			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
+		} else {
+			sortAttrsFlagPanel.SetText("DESC")
+			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
+		}
+	})
+}
+
+func toggleFlagS() {
+	if AttrSort == "none" {
+		AttrSort = "asc"
+	} else if AttrSort == "asc" {
+		AttrSort = "desc"
+	} else {
+		AttrSort = "none"
+	}
+
+	updateSortStateBox(AttrSort)
+
+	reloadAllAttrPanels()
 }
 
 func toggleHeader() {
@@ -391,6 +429,8 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		toggleFlagC()
 	case 'a', 'A':
 		toggleFlagA()
+	case 's', 'S':
+		toggleFlagS()
 	case 'h', 'H':
 		toggleHeader()
 	case 'd', 'D':
@@ -642,6 +682,12 @@ func SetupApp() {
 		SetTitle("Deleted (d)").
 		SetBorder(true)
 
+	sortAttrsFlagPanel = tview.NewTextView()
+	sortAttrsFlagPanel.
+		SetTextAlign(tview.AlignCenter).
+		SetTitle("Sort (s)").
+		SetBorder(true)
+
 	// Time format setup
 	TimeFormat = setupTimeFormat(TimeFormat)
 
@@ -718,6 +764,7 @@ func SetupApp() {
 		AddItem(formatFlagPanel, 0, 1, false).
 		AddItem(colorFlagPanel, 0, 1, false).
 		AddItem(expandFlagPanel, 0, 1, false).
+		AddItem(sortAttrsFlagPanel, 0, 1, false).
 		AddItem(emojiFlagPanel, 0, 1, false).
 		AddItem(deletedFlagPanel, 0, 1, false)
 
@@ -737,6 +784,7 @@ func SetupApp() {
 	updateStateBox(emojiFlagPanel, Emojis)
 	updateStateBox(expandFlagPanel, ExpandAttrs)
 	updateStateBox(deletedFlagPanel, Deleted)
+	updateSortStateBox(AttrSort)
 
 	if err := app.SetRoot(appPanel, true).SetFocus(treePanel).Run(); err != nil {
 		log.Fatal(err)

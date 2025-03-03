@@ -15,7 +15,7 @@ import (
 	"github.com/rivo/tview"
 )
 
-var selectedAttrName string = "objectClass"
+var selectedAttrName string
 
 func storeAnchoredAttribute(attrsPanel *tview.Table) func(row, column int) {
 	return func(row, column int) {
@@ -47,7 +47,7 @@ func selectAnchoredAttribute(attrsPanel *tview.Table) {
 
 		if cellAttrName == selectedAttrName {
 			attrsPanel.Select(idx, 0)
-			break
+			return
 		}
 	}
 }
@@ -208,8 +208,6 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 			}
 
 			err := lc.ModifyAttribute(baseDN, attrNameRef, attrVals)
-			// TODO: Don't go back immediately so that the user can
-			// change multiple values at once
 			if err != nil {
 				updateLog(fmt.Sprint(err), "red")
 			} else {
@@ -490,6 +488,10 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		attributes = entry.Attributes
 	}
 
+	if len(attributes) > 0 {
+		attributes = sortAttributes(attributes)
+	}
+
 	row := 0
 	for _, attribute := range attributes {
 		var cellName string = attribute.Name
@@ -572,6 +574,22 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		app.Draw()
 	}()
 	return nil
+}
+func sortAttributes(attrs []*ldap.EntryAttribute) []*ldap.EntryAttribute {
+	sortedAttrs := make([]*ldap.EntryAttribute, len(attrs))
+	copy(sortedAttrs, attrs)
+
+	if AttrSort == "asc" {
+		sort.Slice(sortedAttrs, func(i, j int) bool {
+			return sortedAttrs[i].Name <= sortedAttrs[j].Name
+		})
+	} else if AttrSort == "desc" {
+		sort.Slice(sortedAttrs, func(i, j int) bool {
+			return sortedAttrs[i].Name > sortedAttrs[j].Name
+		})
+	}
+
+	return sortedAttrs
 }
 
 func getName(entry *ldap.Entry) string {
