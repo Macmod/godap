@@ -25,8 +25,35 @@ var (
 	runControl         sync.Mutex
 	running            bool
 
-	searchCache EntryCache
+	searchCache          EntryCache
+	searchHistoryEntries []SearchHistoryEntry
+
+	searchHistoryPanel *tview.Table
 )
+
+type SearchHistoryEntry struct {
+	Timestamp time.Time
+	Query     string
+	Duration  time.Duration
+	Results   int
+}
+
+func addToSearchHistory(query string, duration time.Duration, results int) {
+	// Don't add empty queries to history
+	if query == "" {
+		return
+	}
+
+	entry := SearchHistoryEntry{
+		Timestamp: time.Now(),
+		Query:     query,
+		Duration:  duration,
+		Results:   results,
+	}
+
+	// Add to beginning of slice (most recent first)
+	searchHistoryEntries = append([]SearchHistoryEntry{entry}, searchHistoryEntries...)
+}
 
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
 
@@ -55,6 +82,28 @@ func reloadSearchNode(currentNode *tview.TreeNode) {
 	// Maybe there should be a separate option to also reload the children of the node
 
 	updateLog("Node "+baseDN+" reloaded", "green")
+}
+
+func updateSearchHistoryPanel() {
+	searchHistoryPanel.Clear()
+
+	searchHistoryPanel.SetCell(0, 0, tview.NewTableCell("StartTime").SetSelectable(false))
+	searchHistoryPanel.SetCell(0, 1, tview.NewTableCell("Duration").SetSelectable(false))
+	searchHistoryPanel.SetCell(0, 2, tview.NewTableCell("Results").SetSelectable(false))
+	searchHistoryPanel.SetCell(0, 3, tview.NewTableCell("Query").SetSelectable(false))
+
+	for i, entry := range searchHistoryEntries {
+		row := i + 1
+
+		timestamp := entry.Timestamp.Format(TimeFormat)
+		duration := fmt.Sprintf("%.4fs", entry.Duration.Seconds())
+		results := strconv.Itoa(entry.Results)
+
+		searchHistoryPanel.SetCell(row, 0, tview.NewTableCell(timestamp))
+		searchHistoryPanel.SetCell(row, 1, tview.NewTableCell(duration))
+		searchHistoryPanel.SetCell(row, 2, tview.NewTableCell(results))
+		searchHistoryPanel.SetCell(row, 3, tview.NewTableCell(entry.Query))
+	}
 }
 
 func initSearchPage() {
@@ -106,9 +155,35 @@ func initSearchPage() {
 	searchLibraryRoot := tview.NewTreeNode("Queries").SetSelectable(false)
 	searchLibraryPanel.SetRoot(searchLibraryRoot)
 
+	searchHistoryPanel = tview.NewTable().
+		SetSelectable(true, false).
+		SetBorders(false).
+		SetFixed(1, 0)
+
+	searchHistoryPanel.
+		SetTitle("Search History")
+
+	searchHistoryPanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEnter:
+			row, _ := searchHistoryPanel.GetSelection()
+
+			if row > 0 && row <= len(searchHistoryEntries) {
+				entry := searchHistoryEntries[row-1]
+				searchQueryPanel.SetText(entry.Query)
+				app.SetFocus(searchQueryPanel)
+
+				return nil
+			}
+		}
+
+		return event
+	})
+
 	sidePanel = tview.NewPages().
 		AddPage("page-0", searchLibraryPanel, true, true).
-		AddPage("page-1", searchAttrsPanel, true, false)
+		AddPage("page-1", searchAttrsPanel, true, false).
+		AddPage("page-2", searchHistoryPanel, true, false)
 
 	sidePanel.SetBorder(true)
 
@@ -269,7 +344,7 @@ func initSearchPage() {
 		AddItem(
 			tview.NewFlex().
 				AddItem(searchQueryPanel, 0, 1, false).
-				AddItem(tabs, 20, 0, false),
+				AddItem(tabs, 23, 0, false),
 			3, 0, false,
 		).
 		AddItem(
@@ -311,7 +386,11 @@ func searchQueryDoneHandler(key tcell.Key) {
 			)
 		}
 
+		startTime := time.Now()
+
 		entries, _ := lc.Query(lc.DefaultRootDN, searchQuery, ldap.ScopeWholeSubtree, Deleted)
+
+		duration := time.Since(startTime)
 
 		firstLeaf := true
 
@@ -373,7 +452,13 @@ func searchQueryDoneHandler(key tcell.Key) {
 		}
 
 		app.QueueUpdateDraw(func() {
-			updateLog("Query completed ("+strconv.Itoa(len(entries))+" objects found)", "green")
+			updateLog(
+				fmt.Sprintf("Query completed (%d objects found in %.4fs)", len(entries), duration.Seconds()), "green")
+		})
+
+		addToSearchHistory(searchQuery, duration, len(entries))
+		app.QueueUpdateDraw(func() {
+			updateSearchHistoryPanel()
 		})
 
 		runControl.Lock()
@@ -404,7 +489,7 @@ func searchRotateFocus() {
 		app.SetFocus(searchQueryPanel)
 	case searchQueryPanel:
 		app.SetFocus(sidePanel)
-	case searchLibraryPanel, searchAttrsPanel:
+	case searchLibraryPanel, searchAttrsPanel, searchHistoryPanel:
 		app.SetFocus(searchTreePanel)
 	}
 }

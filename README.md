@@ -152,6 +152,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
 * `--timefmt` - Time format for LDAP timestamps. Options: eu, us, [iso8601](https://en.wikipedia.org/wiki/ISO_8601), or define your own using [go time format](https://go.dev/src/time/format.go) (default: `eu`)
+* `--attrsort` - Sort attributes by name: `none` (default), `asc` (ascending), or `desc` (descending)
 * `--crt` - Path to a file containing the certificate to use for the bind
 * `--key` - Path to a file containing the private key to use for the bind
 * `--pfx` - Path to a file containing the PKCS#12 certificate to use for the bind

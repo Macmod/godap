@@ -1,6 +1,5 @@
 # TODO (priority)
 
-* Feature: Search history for the current session
 * Feature: Pivot to groups search
 * Feature: Options to manipulate (edit/create/delete) gpLinks visually
 * Fix: Warn user of wrong KRB5CCNAME formats
