@@ -328,7 +328,7 @@ func initSearchPage() {
 	})
 
 	fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "0", "Library")
-	fmt.Fprintf(tabs, `["%s"][white]%s[black][""]`, "1", "Attrs")
+	fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "1", "Attrs")
 	fmt.Fprintf(tabs, `["%s"][white]%s[black][""]`, "2", "History")
 
 	tabs.SetHighlightedFunc(func(added, removed, remaining []string) {
