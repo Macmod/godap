@@ -1,13 +1,10 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"slices"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
@@ -151,8 +148,8 @@ func reloadExplorerAttrsPanel(node *tview.TreeNode, useCache bool) {
 	reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
 }
 
-func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFilename string) {
-	exportMap := make(map[string]*ldap.Entry)
+func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, fileSuffix string) {
+	exportMap := make(map[string]any)
 	currentNode.Walk(func(node, parent *tview.TreeNode) bool {
 		if node.GetReference() != nil {
 			nodeDN := node.GetReference().(string)
@@ -161,15 +158,7 @@ func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, outputFil
 		return true
 	})
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, fileSuffix, "tree_objects")
 }
 
 func openDeleteObjectForm(node *tview.TreeNode, done func()) {
@@ -482,9 +471,7 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			treePanel.SetCurrentNode(currentNode)
 		})
 	case tcell.KeyCtrlS:
-		unixTimestamp := time.Now().UnixMilli()
-		outputFilename := fmt.Sprintf("%d_objects.json", unixTimestamp)
-		exportCacheToFile(currentNode, &explorerCache, outputFilename)
+		exportCacheToFile(currentNode, &explorerCache, "objects")
 	case tcell.KeyCtrlA:
 		openUpdateUacForm(currentNode, &explorerCache, func() {
 			if parentNode != nil {

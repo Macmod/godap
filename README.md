@@ -156,6 +156,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `--crt` - Path to a file containing the certificate to use for the bind
 * `--key` - Path to a file containing the private key to use for the bind
 * `--pfx` - Path to a file containing the PKCS#12 certificate to use for the bind
+* `--exportdir` - Custom directory to save godap exports taken with Ctrl+S (defaults to `data`)
 
 ## Keybindings
 

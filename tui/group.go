@@ -1,12 +1,9 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
@@ -263,24 +260,13 @@ func exportCurrentGroups() {
 		return
 	}
 
-	unixTimestamp := time.Now().UnixMilli()
-	outputFilename := fmt.Sprintf("%d_groups.json", unixTimestamp)
-
 	exportMap := make(map[string]any)
 	exportMap["Groups"] = groups
 	exportMap["DN"] = objectDN
 	exportMap["Query"] = queryObject
 	exportMap["MaxDepth"] = maxDepth
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, "groups", "object_groups")
 }
 
 func exportCurrentMembers() {
@@ -289,24 +275,13 @@ func exportCurrentMembers() {
 		return
 	}
 
-	unixTimestamp := time.Now().UnixMilli()
-	outputFilename := fmt.Sprintf("%d_members.json", unixTimestamp)
-
 	exportMap := make(map[string]any)
 	exportMap["Members"] = members
 	exportMap["DN"] = groupDN
 	exportMap["Query"] = queryGroup
 	exportMap["MaxDepth"] = maxDepth
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, "members", "group_members")
 }
 
 func groupsKeyHandler(event *tcell.EventKey) *tcell.EventKey {

@@ -2,13 +2,10 @@ package tui
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"sort"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/Macmod/godap/v2/pkg/sdl"
@@ -565,24 +562,13 @@ func exportCurrentSD() {
 
 	encodedSD := sd.Encode()
 
-	unixTimestamp := time.Now().UnixMilli()
-	outputFilename := fmt.Sprintf("%d_sd.json", unixTimestamp)
-
 	exportMap := make(map[string]any)
 	exportMap["Query"] = object
 	exportMap["HexSD"] = encodedSD
 
 	exportMap["ParsedDACL"] = parsedAces
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, "sd", "security_descriptor")
 }
 
 func daclPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {

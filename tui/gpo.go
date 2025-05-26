@@ -1,14 +1,11 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
@@ -327,24 +324,13 @@ func exportCurrentGpos() {
 		return
 	}
 
-	unixTimestamp := time.Now().UnixMilli()
-	outputFilename := fmt.Sprintf("%d_gpos.json", unixTimestamp)
-
 	exportMap := make(map[string]any)
 
 	exportMap["Links"] = gpLinks
 	exportMap["Gpos"] = gpEntry
 	exportMap["Query"] = gpoTarget
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, "gpos", "gpos")
 }
 
 func gpoPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {

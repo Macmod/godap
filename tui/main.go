@@ -2,10 +2,13 @@ package tui
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +58,7 @@ var (
 	RootDN       string
 	ShowHeader   bool
 	AuthType     int
+	ExportDir    string
 
 	page int
 )
@@ -195,8 +199,33 @@ func toggleHeader() {
 	}
 }
 
+func writeDataExport(data map[string]any, dumpSuffix string, dumpFormat string) {
+	unixTimestamp := time.Now().UnixMilli()
+	outputFilename := fmt.Sprintf("%d_%s.json", unixTimestamp, dumpSuffix)
+
+	objectToExport := map[string]any{
+		"Data":   data,
+		"Format": dumpFormat,
+	}
+
+	jsonExportMap, _ := json.MarshalIndent(objectToExport, "", " ")
+
+	err := os.MkdirAll(ExportDir, 0755)
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	}
+
+	outputFilepath := filepath.Join(ExportDir, outputFilename)
+	err = ioutil.WriteFile(outputFilepath, jsonExportMap, 0644)
+
+	if err != nil {
+		updateLog(fmt.Sprintf("%s", err), "red")
+	} else {
+		updateLog("File '"+outputFilepath+"' saved successfully!", "green")
+	}
+}
+
 func upgradeStartTLS() {
-	// TODO: Check possible race conditions
 	go func() {
 		err = lc.UpgradeToTLS(tlsConfig)
 		if err != nil {

@@ -7,9 +7,7 @@ package tui
 */
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"regexp"
 	"strings"
 	"sync"
@@ -64,7 +62,7 @@ func getParentZone(objectDN string) (adidns.DNSZone, error) {
 	return adidns.DNSZone{}, fmt.Errorf("Malformed object DN")
 }
 
-func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
+func exportADIDNSToFile(currentNode *tview.TreeNode) {
 	exportMap := make(map[string]any)
 
 	currentNode.Walk(func(node, parent *tview.TreeNode) bool {
@@ -143,15 +141,7 @@ func exportADIDNSToFile(currentNode *tview.TreeNode, outputFilename string) {
 		return true
 	})
 
-	jsonExportMap, _ := json.MarshalIndent(exportMap, "", " ")
-
-	err := ioutil.WriteFile(outputFilename, jsonExportMap, 0644)
-
-	if err != nil {
-		updateLog(fmt.Sprintf("%s", err), "red")
-	} else {
-		updateLog("File '"+outputFilename+"' saved successfully!", "green")
-	}
+	writeDataExport(exportMap, "dns", "adidns")
 }
 
 func showZoneDetails(zone *adidns.DNSZone) {
@@ -474,9 +464,7 @@ func initADIDNSPage() {
 
 			return nil
 		case tcell.KeyCtrlS:
-			unixTimestamp := time.Now().UnixMilli()
-			outputFilename := fmt.Sprintf("%d_dns.json", unixTimestamp)
-			exportADIDNSToFile(currentNode, outputFilename)
+			exportADIDNSToFile(currentNode)
 		case tcell.KeyCtrlN:
 			if currentNode == dnsTreePanel.GetRoot() {
 				openCreateZoneForm()
