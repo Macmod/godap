@@ -132,6 +132,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `-P`,`--port` - Custom port for the connection (default: `389` or `636` when `-S` is provided)
 * `-r`,`--rootDN <distinguishedName>` - Initial root DN (default: automatic)
 * `-f`,`--filter <search filter>` - Initial LDAP search filter (default: `(objectClass=*)`)
+* `-b`,`--backend` - Flavor of the LDAP server (`msad`, `basic` or `auto`)
 * `-E`,`--emojis` - Prefix objects with emojis (default: `true`, to change use `-emojis=false`)
 * `-C`,`--colors` - Colorize objects (default: `true`, to change use `-colors=false`)
 * `-A`,`--expand` - Expand multi-value attributes (default: `true`, to change use `-expand=false`)
@@ -239,7 +240,8 @@ Contributions are also welcome by [opening an issue](https://github.com/Macmod/g
 
 # Disclaimers
 
-* Although some features might work with OpenLDAP (mainly in the explorer/search pages), the main focus of this tool is Active Directory.
+* The main focus of this tool is Active Directory. If your target is not an Active Directory LDAP server, it's advised to set the `--backend` flag (available in versions above v2.10.4) to specify the "flavor" of your server, hiding features that aren't useful to you, and adapting others to work with your backend.
+
 * All features were tested and seem to be working properly on a Windows Server 2019, but this tool is highly experimental and I cannot test it extensively - I don't take responsibility for modifications that you execute and end up impacting your environment. If you observe any unexpected behaviors please [let me know](https://github.com/Macmod/godap/issues/new) so I can try to fix it.
 
 # License

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,12 +21,46 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+// LDAP Flavors
+type LDAPFlavor int
+
+const (
+	MicrosoftADFlavor LDAPFlavor = iota
+	BasicLDAPFlavor
+)
+
 // Basic LDAP connection type
 type LDAPConn struct {
 	Conn          *ldap.Conn
 	PagingSize    uint32
 	RootDN        string
 	DefaultRootDN string
+	Flavor        LDAPFlavor
+}
+
+func (lc *LDAPConn) GuessFlavor() {
+	rootDSESearch := ldap.NewSearchRequest(
+		"",
+		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
+		"(objectClass=*)",
+		[]string{"*"},
+		nil,
+	)
+
+	searchResult, err := lc.Conn.Search(rootDSESearch)
+	if err != nil {
+		return
+	}
+
+	if len(searchResult.Entries) != 1 {
+		return
+	}
+
+	rootDSE := searchResult.Entries[0]
+	objectClass := rootDSE.GetAttributeValues("objectClass")
+	if slices.Contains(objectClass, "OpenLDAProotDSE") {
+		lc.Flavor = BasicLDAPFlavor
+	}
 }
 
 func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
@@ -248,6 +283,60 @@ func (lc *LDAPConn) FindRootFQDN() (string, error) {
 	dnsRoot := ldapSNTokens[1]
 
 	return dnsRoot, nil
+}
+
+func (lc *LDAPConn) QueryGroupMembersBasic(groupDN string) ([]string, error) {
+	// Queries the immediate members of a group (basic flavor)
+	ldapQuery := "(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=posixGroup))"
+
+	search := ldap.NewSearchRequest(
+		groupDN,
+		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
+		ldapQuery,
+		[]string{"member", "memberUid", "uniqueMember"},
+		nil,
+	)
+
+	result, err := lc.Conn.SearchWithPaging(search, lc.PagingSize)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := result.Entries
+	if len(entries) != 1 {
+		return nil, fmt.Errorf("Group '%s' has no members", groupDN)
+	}
+
+	var members []string
+	for _, attr := range entries[0].Attributes {
+		if slices.Contains([]string{"member", "uniquemember", "memberuid"}, strings.ToLower(attr.Name)) {
+			members = append(members, attr.Values...)
+		}
+	}
+	return members, nil
+}
+
+func (lc *LDAPConn) QueryObjectGroupsBasic(memberDN string) ([]*ldap.Entry, error) {
+	// Queries the immediate groups that contain the member (basic flavor)
+	memberQuery := fmt.Sprintf(
+		"(|(member=%s)(uniqueMember=%s)(memberUid=%s))",
+		memberDN, memberDN, memberDN,
+	)
+
+	search := ldap.NewSearchRequest(
+		lc.DefaultRootDN,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		memberQuery,
+		[]string{"cn", "objectClass"},
+		nil,
+	)
+
+	result, err := lc.Conn.Search(search)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Entries, nil
 }
 
 func (lc *LDAPConn) QueryGroupMembers(groupDN string) (group []*ldap.Entry, err error) {
@@ -1018,6 +1107,26 @@ func SamOrDN(object string) (string, bool) {
 	}
 
 	return fmt.Sprintf("(sAMAccountName=%s)", ldap.EscapeFilter(object)), true
+}
+
+func CnUidOrDN(object string) (string, bool) {
+	escapedObject := ldap.EscapeFilter(object)
+	if strings.Contains(object, "=") {
+		return fmt.Sprintf("(entryDN=%s)", escapedObject), false
+	}
+
+	return fmt.Sprintf("(|(cn=%s)(uid=%s))", escapedObject, escapedObject), true
+}
+
+func GuessQueryFilter(identifier string, flavor LDAPFlavor) string {
+	var queryFilter string
+	if flavor == MicrosoftADFlavor {
+		queryFilter, _ = SamOrDN(identifier)
+	} else {
+		queryFilter, _ = CnUidOrDN(identifier)
+	}
+
+	return queryFilter
 }
 
 func (lc *LDAPConn) ModifyDACL(objectName string, newSD string) error {

@@ -19,9 +19,10 @@ var (
 	groupsPanel     *tview.Table
 	depthInput      *tview.InputField
 
-	groups   []*ldap.Entry
-	members  []*ldap.Entry
-	maxDepth int
+	groups        []*ldap.Entry
+	members       []*ldap.Entry
+	membersSimple []string
+	maxDepth      int
 
 	queryGroup  string
 	queryObject string
@@ -68,6 +69,119 @@ func updateMaxDepth() {
 			return
 		}
 	}
+}
+
+func searchGroupMembersAD(groupDN string) {
+	updateMaxDepth()
+	membersPanel.Clear()
+
+	members, err = lc.QueryGroupMembersDeep(groupDN, maxDepth)
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+		return
+	}
+
+	updateLog("Found "+strconv.Itoa(len(members))+" members of '"+groupDN+"'", "green")
+
+	for idx, entry := range members {
+		sAMAccountName := entry.GetAttributeValue("sAMAccountName")
+		categoryDN := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
+		var category string
+		if len(categoryDN) > 0 {
+			category = categoryDN[0]
+			if Emojis {
+				switch category {
+				case "CN=Person":
+					category = ldaputils.EmojiMap["person"]
+				case "CN=Group":
+					category = ldaputils.EmojiMap["group"]
+				case "CN=Computer":
+					category = ldaputils.EmojiMap["computer"]
+				}
+			}
+		} else {
+			category = "Unknown"
+		}
+
+		membersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName).SetReference(entry.DN))
+		membersPanel.SetCell(idx, 1, tview.NewTableCell(category).SetReference(entry.DN))
+		membersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
+	}
+
+	membersPanel.Select(0, 0)
+	membersPanel.ScrollToBeginning()
+
+	app.SetFocus(membersPanel)
+}
+
+func searchGroupMembersBasic(groupDN string) {
+	membersPanel.Clear()
+
+	membersSimple, err = lc.QueryGroupMembersBasic(groupDN)
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+		return
+	}
+
+	updateLog("Found "+strconv.Itoa(len(membersSimple))+" members of '"+groupDN+"'", "green")
+
+	for idx, entry := range membersSimple {
+		membersPanel.SetCell(idx, 0, tview.NewTableCell(entry).SetReference(entry))
+	}
+
+	membersPanel.Select(0, 0)
+	membersPanel.ScrollToBeginning()
+
+	app.SetFocus(membersPanel)
+}
+
+func searchObjectGroupsAD(objectDN string) {
+	updateMaxDepth()
+	groupsPanel.Clear()
+
+	groups, err = lc.QueryObjectGroupsDeep(objectDN, maxDepth)
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+		return
+	}
+
+	updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
+
+	for idx, group := range groups {
+		groupName := group.GetAttributeValue("name")
+		groupDN := group.DN
+		groupsPanel.SetCell(idx, 0, tview.NewTableCell(groupName).SetReference(group.DN))
+		groupsPanel.SetCell(idx, 1, tview.NewTableCell("👥").SetReference(group.DN))
+		groupsPanel.SetCell(idx, 2, tview.NewTableCell(groupDN).SetReference(group.DN))
+	}
+
+	groupsPanel.Select(0, 0)
+	groupsPanel.ScrollToBeginning()
+	app.SetFocus(groupsPanel)
+}
+
+func searchObjectGroupsBasic(objectDN string) {
+	groupsPanel.Clear()
+
+	groups, err = lc.QueryObjectGroupsBasic(objectDN)
+	if err != nil {
+		updateLog(fmt.Sprint(err), "red")
+		return
+	}
+
+	updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
+
+	for idx, group := range groups {
+		groupName := group.GetAttributeValue("cn")
+		groupDN := group.DN
+		groupsPanel.SetCell(idx, 0, tview.NewTableCell(groupName).SetReference(group.DN))
+		groupsPanel.SetCell(idx, 1, tview.NewTableCell("👥").SetReference(group.DN))
+		groupsPanel.SetCell(idx, 2, tview.NewTableCell(groupDN).SetReference(group.DN))
+	}
+
+	groupsPanel.Select(0, 0)
+	groupsPanel.ScrollToBeginning()
+	app.SetFocus(groupsPanel)
 }
 
 func initGroupPage() {
@@ -122,15 +236,18 @@ func initGroupPage() {
 			app.SetFocus(groupNameInput)
 		}
 	})
+	groupPage = tview.NewFlex().SetDirection(tview.FlexRow)
 
-	groupPage = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(depthInput, 3, 0, false).
-		AddItem(
-			tview.NewFlex().
-				AddItem(groupNameInput, 0, 1, false).
-				AddItem(objectNameInput, 0, 1, false),
-			3, 0, false,
-		).
+	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+		groupPage.AddItem(depthInput, 3, 0, false)
+	}
+
+	groupPage.AddItem(
+		tview.NewFlex().
+			AddItem(groupNameInput, 0, 1, false).
+			AddItem(objectNameInput, 0, 1, false),
+		3, 0, false,
+	).
 		AddItem(
 			tview.NewFlex().
 				AddItem(membersPanel, 0, 1, false).
@@ -143,71 +260,51 @@ func initGroupPage() {
 	groupsPanel.SetInputCapture(groupsKeyHandler)
 
 	groupNameInput.SetDoneFunc(func(key tcell.Key) {
-		updateMaxDepth()
-		membersPanel.Clear()
-
 		queryGroup = groupNameInput.GetText()
 
 		groupDN = queryGroup
-		samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
-		if isSam {
-			groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
-			result, err := lc.QueryFirst(groupDNQuery)
-			if err != nil {
-				updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
-				return
-			}
 
-			groupDN = result.DN
-		}
-
-		members, err = lc.QueryGroupMembersDeep(groupDN, maxDepth)
-		if err != nil {
-			updateLog(fmt.Sprint(err), "red")
-			return
-		}
-
-		updateLog("Found "+strconv.Itoa(len(members))+" members of '"+groupDN+"'", "green")
-
-		for idx, entry := range members {
-			sAMAccountName := entry.GetAttributeValue("sAMAccountName")
-			categoryDN := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
-			var category string
-			if len(categoryDN) > 0 {
-				category = categoryDN[0]
-				if Emojis {
-					switch category {
-					case "CN=Person":
-						category = ldaputils.EmojiMap["person"]
-					case "CN=Group":
-						category = ldaputils.EmojiMap["group"]
-					case "CN=Computer":
-						category = ldaputils.EmojiMap["computer"]
-					}
+		if lc.Flavor == ldaputils.MicrosoftADFlavor {
+			samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
+			if isSam {
+				groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
+				result, err := lc.QueryFirst(groupDNQuery)
+				if err != nil {
+					updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
+					return
 				}
-			} else {
-				category = "Unknown"
+
+				groupDN = result.DN
 			}
 
-			membersPanel.SetCell(idx, 0, tview.NewTableCell(sAMAccountName).SetReference(entry.DN))
-			membersPanel.SetCell(idx, 1, tview.NewTableCell(category).SetReference(entry.DN))
-			membersPanel.SetCell(idx, 2, tview.NewTableCell(entry.DN).SetReference(entry.DN))
+			searchGroupMembersAD(groupDN)
+		} else if lc.Flavor == ldaputils.BasicLDAPFlavor {
+			cnUidOrDN, isCnOrUid := ldaputils.CnUidOrDN(queryGroup)
+			if isCnOrUid {
+				groupDNQuery := fmt.Sprintf(
+					"(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=posixGroup))%s)",
+					cnUidOrDN,
+				)
+
+				result, err := lc.QueryFirst(groupDNQuery)
+				if err != nil {
+					updateLog(fmt.Sprintf("Group '%s' not found", queryGroup), "red")
+					return
+				}
+
+				groupDN = result.DN
+			}
+
+			searchGroupMembersBasic(groupDN)
 		}
-
-		membersPanel.Select(0, 0)
-		membersPanel.ScrollToBeginning()
-
-		app.SetFocus(membersPanel)
 	})
 
 	objectNameInput.SetDoneFunc(func(key tcell.Key) {
-		updateMaxDepth()
-		groupsPanel.Clear()
-
 		queryObject = objectNameInput.GetText()
 		objectDN = queryObject
 
-		result, err := lc.FindFirst(queryObject)
+		queryFilter := ldaputils.GuessQueryFilter(queryObject, lc.Flavor)
+		result, err := lc.QueryFirst(queryFilter)
 		if err != nil {
 			updateLog(fmt.Sprintf("Object '%s' not found", queryObject), "red")
 			return
@@ -215,25 +312,11 @@ func initGroupPage() {
 			objectDN = result.DN
 		}
 
-		groups, err = lc.QueryObjectGroupsDeep(objectDN, maxDepth)
-		if err != nil {
-			updateLog(fmt.Sprint(err), "red")
-			return
+		if lc.Flavor == ldaputils.MicrosoftADFlavor {
+			searchObjectGroupsAD(objectDN)
+		} else {
+			searchObjectGroupsBasic(objectDN)
 		}
-
-		updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
-
-		for idx, group := range groups {
-			groupName := group.GetAttributeValue("name")
-			groupDN := group.DN
-			groupsPanel.SetCell(idx, 0, tview.NewTableCell(groupName).SetReference(group.DN))
-			groupsPanel.SetCell(idx, 1, tview.NewTableCell("👥").SetReference(group.DN))
-			groupsPanel.SetCell(idx, 2, tview.NewTableCell(groupDN).SetReference(group.DN))
-		}
-
-		groupsPanel.Select(0, 0)
-		groupsPanel.ScrollToBeginning()
-		app.SetFocus(groupsPanel)
 	})
 }
 
@@ -244,8 +327,6 @@ func groupRotateFocus() {
 	case membersPanel:
 		app.SetFocus(groupNameInput)
 	case groupNameInput:
-		app.SetFocus(depthInput)
-	case depthInput:
 		app.SetFocus(objectNameInput)
 	case objectNameInput:
 		app.SetFocus(groupsPanel)

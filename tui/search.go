@@ -187,10 +187,20 @@ func initSearchPage() {
 
 	sidePanel.SetBorder(true)
 
-	predefinedLdapQueriesKeys := []string{"Security", "Users", "Computers", "Enum"}
+	var predefinedLdapQueriesKeys []string
+
+	var chosenLibrary map[string][]ldaputils.LibQuery
+
+	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+		predefinedLdapQueriesKeys = []string{"Security", "Users", "Computers", "Enum"}
+		chosenLibrary = ldaputils.PredefinedLdapQueriesAD
+	} else {
+		predefinedLdapQueriesKeys = []string{"Users", "Groups", "Enum"}
+		chosenLibrary = ldaputils.PredefinedLdapQueriesBasic
+	}
 
 	for _, key := range predefinedLdapQueriesKeys {
-		children := ldaputils.PredefinedLdapQueries[key]
+		children := chosenLibrary[key]
 
 		childNode := tview.NewTreeNode(key).
 			SetSelectable(false).

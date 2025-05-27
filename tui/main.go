@@ -39,6 +39,7 @@ var (
 	KeyFile          string
 	PfxFile          string
 	CCachePath       string
+	BackendFlavor    string
 
 	Kerberos     bool
 	Emojis       bool
@@ -84,6 +85,7 @@ var (
 )
 
 type GodapPage struct {
+	idx   int
 	prim  tview.Primitive
 	title string
 }
@@ -462,7 +464,9 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	case 'h', 'H':
 		toggleHeader()
 	case 'd', 'D':
-		toggleFlagD()
+		if lc.Flavor == ldaputils.MicrosoftADFlavor {
+			toggleFlagD()
+		}
 	case 'l', 'L':
 		openConfigForm()
 	}
@@ -571,6 +575,15 @@ func setupLDAPConn() error {
 		proxyConn,
 	)
 
+	switch strings.ToLower(BackendFlavor) {
+	case "msad":
+		lc.Flavor = ldaputils.MicrosoftADFlavor
+	case "basic":
+		lc.Flavor = ldaputils.BasicLDAPFlavor
+	default:
+		lc.GuessFlavor()
+	}
+
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 	} else {
@@ -617,7 +630,7 @@ func setupLDAPConn() error {
 			bindType = "NTLM"
 		} else {
 			currentLdapUsername = LdapUsername
-			if !strings.Contains(currentLdapUsername, "@") && DomainName != "" {
+			if !strings.Contains(LdapUsername, "@") && !strings.Contains(LdapUsername, ",") && LdapUsername != "" && DomainName != "" {
 				currentLdapUsername += "@" + DomainName
 			}
 
@@ -749,18 +762,28 @@ func SetupApp() {
 	initADIDNSPage()
 	initHelpPage()
 
-	pageVars := []GodapPage{
-		{explorerPage, "Explorer"},
-		{searchPage, "Search"},
-		{groupPage, "Groups"},
-		{daclPage, "DACLs"},
-		{gpoPage, "GPOs"},
-		{dnsPage, "ADIDNS"},
-		{helpPage, "Help"},
+	var pageVars []GodapPage
+	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+		pageVars = []GodapPage{
+			{0, explorerPage, "Explorer"},
+			{1, searchPage, "Search"},
+			{2, groupPage, "Groups"},
+			{3, daclPage, "DACLs"},
+			{4, gpoPage, "GPOs"},
+			{5, dnsPage, "ADIDNS"},
+			{6, helpPage, "Help"},
+		}
+	} else if lc.Flavor == ldaputils.BasicLDAPFlavor {
+		pageVars = []GodapPage{
+			{0, explorerPage, "Explorer"},
+			{1, searchPage, "Search"},
+			{2, groupPage, "Groups"},
+			{3, helpPage, "Help"},
+		}
 	}
 
-	for idx, page := range pageVars {
-		pages.AddPage("page-"+strconv.Itoa(idx), page.prim, true, false)
+	for _, page := range pageVars {
+		pages.AddPage("page-"+strconv.Itoa(page.idx), page.prim, true, false)
 	}
 
 	pages.ShowPage("page-0")
@@ -793,8 +816,11 @@ func SetupApp() {
 		AddItem(colorFlagPanel, 0, 1, false).
 		AddItem(expandFlagPanel, 0, 1, false).
 		AddItem(sortAttrsFlagPanel, 0, 1, false).
-		AddItem(emojiFlagPanel, 0, 1, false).
-		AddItem(deletedFlagPanel, 0, 1, false)
+		AddItem(emojiFlagPanel, 0, 1, false)
+
+	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+		headerPanel.AddItem(deletedFlagPanel, 0, 1, false)
+	}
 
 	appPanel = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(info, 1, 1, false).

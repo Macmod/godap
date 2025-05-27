@@ -165,7 +165,7 @@ type LibQuery struct {
 	Filter string
 }
 
-var PredefinedLdapQueries = map[string][]LibQuery{
+var PredefinedLdapQueriesAD = map[string][]LibQuery{
 	"Enum": {
 		{"All Organizational Units", "(objectCategory=organizationalUnit)"},
 		{"All Containers", "(objectCategory=container)"},
@@ -209,6 +209,33 @@ var PredefinedLdapQueries = map[string][]LibQuery{
 		{"Never Expire Password Users", "(&(objectCategory=user)(userAccountControl:1.2.840.113556.1.4.803:=65536))"},
 		{"Empty Password Users", "(&(objectCategory=user)(userAccountControl:1.2.840.113556.1.4.803:=32))"},
 		{"LockedOut Users", "(&(objectCategory=user)(lockoutTime>=1))"},
+	},
+}
+
+var PredefinedLdapQueriesBasic = map[string][]LibQuery{
+	"Enum": {
+		{"All Organizations", "(objectClass=organization)"},
+		{"All Users", "(|(objectClass=inetOrgPerson)(objectClass=posixAccount)(objectClass=person))"},
+		{"All Groups", "(|(objectClass=posixGroup)(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))"},
+		{"All Computers", "(|(objectClass=ipHost)(objectClass=device))"},
+		{"All Organizational Units", "(objectClass=organizationalUnit)"},
+		{"All Organizational Roles", "(objectClass=organizationalRole)"},
+		{"All Sudo Roles", "(objectClass=sudoRole)"},
+		{"All Netgroups", "(objectClass=nisNetgroup)"},
+		{"All Objects", "(objectClass=*)"},
+	},
+	"Users": {
+		{"Users With Email", "(&(mail=*)(|(objectClass=inetOrgPerson)(objectClass=posixAccount)(objectClass=person)))"},
+		{"Users With Phone Number", "(&(telephoneNumber=*)(|(objectClass=inetOrgPerson)(objectClass=posixAccount)(objectClass=person)))"},
+		{"Users With Home Directory", "(&(homeDirectory=*)(|(objectClass=inetOrgPerson)(objectClass=posixAccount)(objectClass=person)))"},
+		{"Users With UID", "(&(uid=*)(|(objectClass=inetOrgPerson)(objectClass=posixAccount)(objectClass=person)))"},
+		{"Users With Password", "(userPassword=*)"},
+		{"Users With SSH Keys", "(sshPublicKey=*)"},
+	},
+	"Groups": {
+		{"Groups With Members (groupOfNames)", "(&(objectClass=groupOfNames)(member=*))"},
+		{"Groups With Members (posixGroup)", "(&(objectClass=posixGroup)(memberUid=*))"},
+		{"Groups With Members (groupOfUniqueNames)", "(&(objectClass=groupOfUniqueNames)(uniqueMember=*))"},
 	},
 }
 

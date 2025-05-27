@@ -493,9 +493,11 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 		isGroup := slices.Contains(objClasses, "group")
 		openAddMemberToGroupForm(baseDN, isGroup)
 	case tcell.KeyCtrlD:
-		info.Highlight("3")
-		objectNameInputDacl.SetText(baseDN)
-		queryDacl(baseDN)
+		if lc.Flavor == ldaputils.MicrosoftADFlavor {
+			info.Highlight("3")
+			objectNameInputDacl.SetText(baseDN)
+			queryDacl(baseDN)
+		}
 	}
 
 	return event
