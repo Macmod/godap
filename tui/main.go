@@ -575,20 +575,20 @@ func setupLDAPConn() error {
 		proxyConn,
 	)
 
-	switch strings.ToLower(BackendFlavor) {
-	case "msad":
-		lc.Flavor = ldaputils.MicrosoftADFlavor
-	case "basic":
-		lc.Flavor = ldaputils.BasicLDAPFlavor
-	default:
-		lc.GuessFlavor()
-	}
-
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
 	} else {
 		updateLog("Connection success", "green")
 		isSecure := Ldaps
+
+		switch strings.ToLower(BackendFlavor) {
+		case "msad":
+			lc.Flavor = ldaputils.MicrosoftADFlavor
+		case "basic":
+			lc.Flavor = ldaputils.BasicLDAPFlavor
+		default:
+			lc.GuessFlavor()
+		}
 
 		var bindType string
 		if AuthType == 5 || AuthType == 6 {
