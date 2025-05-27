@@ -209,6 +209,7 @@ var PredefinedLdapQueriesAD = map[string][]LibQuery{
 		{"Never Expire Password Users", "(&(objectCategory=user)(userAccountControl:1.2.840.113556.1.4.803:=65536))"},
 		{"Empty Password Users", "(&(objectCategory=user)(userAccountControl:1.2.840.113556.1.4.803:=32))"},
 		{"LockedOut Users", "(&(objectCategory=user)(lockoutTime>=1))"},
+		{"Trusted Domains", "(objectClass=trustedDomain)"},
 	},
 }
 
