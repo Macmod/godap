@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
@@ -499,9 +501,16 @@ func setupLDAPConn() error {
 		currentNtlmHash     string
 	)
 
-	// Auth stuffs
+	// Read password or NTLM hash from file
+	var pw []byte
 	if AuthType == 1 {
-		pw, err := os.ReadFile(LdapPasswordFile)
+		if LdapPasswordFile == "-" {
+			fmt.Print("Password: ")
+			pw, err = term.ReadPassword(int(syscall.Stdin))
+		} else {
+			pw, err = os.ReadFile(LdapPasswordFile)
+		}
+
 		if err != nil {
 			app.Stop()
 			log.Fatal(err)
@@ -511,8 +520,15 @@ func setupLDAPConn() error {
 		currentLdapPassword = LdapPassword
 	}
 
+	var hash []byte
 	if AuthType == 3 {
-		hash, err := os.ReadFile(NtlmHashFile)
+		if NtlmHashFile == "-" {
+			fmt.Print("NTLM hash: ")
+			hash, err = term.ReadPassword(int(syscall.Stdin))
+		} else {
+			hash, err = os.ReadFile(NtlmHashFile)
+		}
+
 		if err != nil {
 			app.Stop()
 			log.Fatal(err)
