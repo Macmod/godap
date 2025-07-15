@@ -1379,17 +1379,17 @@ type WINSRecord struct {
 	LookupTimeout uint32
 	CacheTimeout  uint32
 	WinsSrvCount  uint32
-	WinsServers   []uint32
+	WinsServers   []string
 }
 
 func (r *WINSRecord) Parse(data []byte) {
-	r.MappingFlag = binary.BigEndian.Uint32(data[:4])
-	r.LookupTimeout = binary.BigEndian.Uint32(data[4:8])
-	r.CacheTimeout = binary.BigEndian.Uint32(data[8:12])
-	r.WinsSrvCount = binary.BigEndian.Uint32(data[12:16])
+	r.MappingFlag = binary.LittleEndian.Uint32(data[:4])
+	r.LookupTimeout = binary.LittleEndian.Uint32(data[4:8])
+	r.CacheTimeout = binary.LittleEndian.Uint32(data[8:12])
+	r.WinsSrvCount = binary.LittleEndian.Uint32(data[12:16])
 
 	for i := uint32(0); i < r.WinsSrvCount; i++ {
-		addr := binary.BigEndian.Uint32(data[16+i*4 : 20+i*4])
+		addr := ParseIP(data[16+i*4 : 20+i*4])
 		r.WinsServers = append(r.WinsServers, addr)
 	}
 }
@@ -1421,9 +1421,9 @@ type WINSRRecord struct {
 }
 
 func (r *WINSRRecord) Parse(data []byte) {
-	r.MappingFlag = binary.BigEndian.Uint32(data[:4])
-	r.LookupTimeout = binary.BigEndian.Uint32(data[4:8])
-	r.CacheTimeout = binary.BigEndian.Uint32(data[8:12])
+	r.MappingFlag = binary.LittleEndian.Uint32(data[:4])
+	r.LookupTimeout = binary.LittleEndian.Uint32(data[4:8])
+	r.CacheTimeout = binary.LittleEndian.Uint32(data[8:12])
 
 	parsedName, err := ParseCountNameSingle(data[12:])
 	if err == nil {
