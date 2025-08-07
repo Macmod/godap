@@ -2,10 +2,75 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
+
+var acceptableAuthFlagSets = []map[string]bool{
+	{"username": true, "password": true},
+	{"username": true, "passfile": true},
+	{"username": true, "hash": true},
+	{"username": true, "hashfile": true},
+	{"kerberos": true},
+	{"crt": true, "key": true},
+	{"pfx": true},
+}
+
+func validateFlagSet(cmd *cobra.Command) error {
+	used := make(map[string]bool)
+	cmd.Flags().Visit(func(f *pflag.Flag) {
+		used[f.Name] = true
+	})
+
+	matches := 0
+	partials := 0
+
+	for _, candidateSet := range acceptableAuthFlagSets {
+		if containsAll(used, candidateSet) {
+			if matches > 0 {
+				return fmt.Errorf("Invalid authentication flags: mixed flags from multiple acceptable sets\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
+			}
+			matches++
+		} else if intersects(used, candidateSet) {
+			partials++
+		}
+	}
+
+	if matches == 0 && partials > 0 {
+		return fmt.Errorf("Invalid authentication flags: missing required flags\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
+	}
+
+	return nil
+}
+
+func keys(m map[string]bool) []string {
+	var out []string
+	for k := range m {
+		out = append(out, "--"+k)
+	}
+	return out
+}
+
+func containsAll(provided, required map[string]bool) bool {
+	for k := range required {
+		if !provided[k] {
+			return false
+		}
+	}
+	return true
+}
+
+func intersects(setA, setB map[string]bool) bool {
+	for k := range setA {
+		if setB[k] {
+			return true
+		}
+	}
+	return false
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -13,6 +78,12 @@ func main() {
 		Short: "A complete TUI for LDAP.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			err := validateFlagSet(cmd)
+
+			if err != nil {
+				log.Fatalf(fmt.Sprint(err))
+			}
+
 			tui.LdapServer = args[0]
 
 			if tui.LdapPort == 0 {

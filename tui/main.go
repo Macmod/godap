@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bufio"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -11,20 +12,19 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/term"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 	"h12.io/socks"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-var GodapVer = "Godap v2.10.5"
+var GodapVer = "Godap v2.10.6"
 var (
 	LdapServer       string
 	LdapPort         int
@@ -102,6 +102,27 @@ var info = tview.NewTextView()
 var insecureTlsConfig = &tls.Config{InsecureSkipVerify: true}
 
 var secureTlsConfig = &tls.Config{InsecureSkipVerify: false}
+
+func readPass(msgIfTerm string) string {
+	fd := int(os.Stdin.Fd())
+
+	var password string
+
+	if terminal.IsTerminal(fd) {
+		// Stdin is a terminal
+		fmt.Print(msgIfTerm)
+		passwordBytes, _ := term.ReadPassword(fd)
+		password = string(passwordBytes)
+		fmt.Println()
+	} else {
+		// Stdin is a pipe or file
+		reader := bufio.NewReader(os.Stdin)
+		password, _ = reader.ReadString('\n')
+		password = strings.TrimSuffix(password, "\n")
+	}
+
+	return password
+}
 
 func toggleFlagF() {
 	FormatAttrs = !FormatAttrs
@@ -484,6 +505,15 @@ func appPanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
+func readFileOrStdin(filename string, promptIfTerm string) (string, error) {
+	if filename == "-" {
+		return readPass(promptIfTerm), nil
+	}
+
+	content, err := os.ReadFile(filename)
+	return string(content), err
+}
+
 func setupLDAPConn() error {
 	updateLog("Connecting to LDAP server...", "yellow")
 
@@ -503,40 +533,29 @@ func setupLDAPConn() error {
 	)
 
 	// Read password or NTLM hash from file
-	var pw []byte
-	if AuthType == 1 {
-		if LdapPasswordFile == "-" {
-			fmt.Print("Password: ")
-			pw, err = term.ReadPassword(int(syscall.Stdin))
-		} else {
-			pw, err = os.ReadFile(LdapPasswordFile)
-		}
+	var pw string
+	var hash string
+
+	if AuthType == 0 {
+		currentLdapPassword = strings.TrimSpace(LdapPassword)
+	} else if AuthType == 1 {
+		pw, err = readFileOrStdin(LdapPasswordFile, "Password: ")
 
 		if err != nil {
 			app.Stop()
 			log.Fatal(err)
 		}
 		currentLdapPassword = strings.TrimSpace(string(pw))
-	} else {
-		currentLdapPassword = LdapPassword
-	}
-
-	var hash []byte
-	if AuthType == 3 {
-		if NtlmHashFile == "-" {
-			fmt.Print("NTLM hash: ")
-			hash, err = term.ReadPassword(int(syscall.Stdin))
-		} else {
-			hash, err = os.ReadFile(NtlmHashFile)
-		}
+	} else if AuthType == 2 {
+		currentNtlmHash = strings.TrimSpace(NtlmHash)
+	} else if AuthType == 3 {
+		hash, err = readFileOrStdin(NtlmHashFile, "NTLM hash: ")
 
 		if err != nil {
 			app.Stop()
 			log.Fatal(err)
 		}
 		currentNtlmHash = strings.TrimSpace(string(hash))
-	} else {
-		currentNtlmHash = NtlmHash
 	}
 
 	// If a certificate and key pair is provided, store it
