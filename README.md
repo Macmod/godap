@@ -128,7 +128,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 
 * `-u`,`--username` - Username for bind
 * `-p`,`--password` - Password for bind
-* `--passfile` - Path to a file containing the password for bind
+* `--passfile` - Path to a file containing the password for bind (or `-` for stdin)
 * `-P`,`--port` - Custom port for the connection (default: `389` or `636` when `-S` is provided)
 * `-r`,`--rootDN <distinguishedName>` - Initial root DN (default: automatic)
 * `-f`,`--filter <search filter>` - Initial LDAP search filter (default: `(objectClass=*)`)
@@ -148,7 +148,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `-H`,`--hash` - Hashes for NTLM bind
 * `-k`,`--kerberos` - Use Kerberos ticket for authentication (CCACHE specified via `KRB5CCNAME` environment variable)
 * `-t`,`--spn` - Target SPN to use for Kerberos bind (usually `ldap/dchostname`)
-* `--hashfile` - Path to a file containing the hashes for NTLM bind
+* `--hashfile` - Path to a file containing the hashes for NTLM bind (or `-` for stdin)
 * `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
