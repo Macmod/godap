@@ -26,11 +26,11 @@ func (acl *ACL) Parse(aclStr string) {
 	}
 
 	var resolvedACEType string
-	for ace, _ := range rawACESList {
+	for ace := range rawACESList {
 		aceHeader := newACEHeader(rawACESList[ace])
 		aceType, _ := strconv.Atoi(aceHeader.ACEType)
 
-		for entry, _ := range AceTypeMap {
+		for entry := range AceTypeMap {
 			if entry == aceType {
 				resolvedACEType = AceTypeMap[entry]
 			}
@@ -183,8 +183,7 @@ func (sd *SecurityDescriptor) SetDaclACES(aces []ACEInt) {
 }
 
 func (sd *SecurityDescriptor) Encode() string {
-	var sdStr string
-	sdStr = sd.Header.Encode() + sd.SACL.Encode() + sd.DACL.Encode() + sd.Owner + sd.Group
+	sdStr := sd.Header.Encode() + sd.SACL.Encode() + sd.DACL.Encode() + sd.Owner + sd.Group
 	return sdStr
 }
 

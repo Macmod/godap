@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"reflect"
 	"strconv"
@@ -559,7 +558,10 @@ func ParseCountName(buf *bytes.Reader) (string, error) {
 	}
 
 	// Consume the NULL terminator
-	buf.ReadByte()
+	_, err = buf.ReadByte()
+	if err != nil {
+		return "", err
+	}
 
 	return strings.Join(labels, "."), nil
 }
@@ -701,7 +703,7 @@ func (rnn *RecordNodeName) Parse(data []byte) {
 func (rnn *RecordNodeName) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	EncodeCountName(buf, rnn.NameNode)
+	_ = EncodeCountName(buf, rnn.NameNode)
 
 	return buf.Bytes()
 }
@@ -759,9 +761,9 @@ func (rs *RecordMailError) Parse(data []byte) {
 func (rs *RecordMailError) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	EncodeCountName(buf, rs.MailBX)
+	_ = EncodeCountName(buf, rs.MailBX)
 
-	EncodeCountName(buf, rs.ErrorMailBX)
+	_ = EncodeCountName(buf, rs.ErrorMailBX)
 
 	return buf.Bytes()
 }
@@ -783,9 +785,9 @@ func (rnp *RecordNamePreference) Parse(data []byte) {
 func (rnp *RecordNamePreference) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, rnp.Preference)
+	_ = binary.Write(buf, binary.BigEndian, rnp.Preference)
 
-	EncodeCountName(buf, rnp.Exchange)
+	_ = EncodeCountName(buf, rnp.Exchange)
 
 	return buf.Bytes()
 }
@@ -884,12 +886,12 @@ func (r *SOARecord) Encode() []byte {
 
 	fields := []uint32{r.Serial, r.Refresh, r.Retry, r.Expire, r.MinimumTTL}
 	for _, field := range fields {
-		binary.Write(buf, binary.BigEndian, field)
+		_ = binary.Write(buf, binary.BigEndian, field)
 	}
 
 	names := []string{r.NamePrimaryServer, r.ZoneAdminEmail}
 	for _, name := range names {
-		EncodeCountName(buf, name)
+		_ = EncodeCountName(buf, name)
 	}
 
 	return buf.Bytes()
@@ -959,24 +961,24 @@ func (r *SIGRecord) Parse(data []byte) {
 		r.NameSigner = parsedName
 	}
 
-	sigInfo, _ := ioutil.ReadAll(buf)
+	sigInfo, _ := io.ReadAll(buf)
 	r.SignatureInfo = sigInfo
 }
 
 func (r *SIGRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.TypeCovered)
+	_ = binary.Write(buf, binary.BigEndian, r.TypeCovered)
 
 	buf.WriteByte(r.Algorithm)
 	buf.WriteByte(r.Labels)
 
-	binary.Write(buf, binary.BigEndian, r.OriginalTTL)
-	binary.Write(buf, binary.BigEndian, r.SigExpiration)
-	binary.Write(buf, binary.BigEndian, r.SigInception)
-	binary.Write(buf, binary.BigEndian, r.KeyTag)
+	_ = binary.Write(buf, binary.BigEndian, r.OriginalTTL)
+	_ = binary.Write(buf, binary.BigEndian, r.SigExpiration)
+	_ = binary.Write(buf, binary.BigEndian, r.SigInception)
+	_ = binary.Write(buf, binary.BigEndian, r.KeyTag)
 
-	EncodeCountName(buf, r.NameSigner)
+	_ = EncodeCountName(buf, r.NameSigner)
 
 	buf.Write(r.SignatureInfo)
 
@@ -1076,13 +1078,13 @@ func (r *SRVRecord) Parse(data []byte) {
 func (r *SRVRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.Priority)
+	_ = binary.Write(buf, binary.BigEndian, r.Priority)
 
-	binary.Write(buf, binary.BigEndian, r.Weight)
+	_ = binary.Write(buf, binary.BigEndian, r.Weight)
 
-	binary.Write(buf, binary.BigEndian, r.Port)
+	_ = binary.Write(buf, binary.BigEndian, r.Port)
 
-	EncodeCountName(buf, r.NameTarget)
+	_ = EncodeCountName(buf, r.NameTarget)
 
 	return buf.Bytes()
 }
@@ -1151,9 +1153,9 @@ func (r *NAPTRRecord) Parse(data []byte) {
 func (r *NAPTRRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.Order)
+	_ = binary.Write(buf, binary.BigEndian, r.Order)
 
-	binary.Write(buf, binary.BigEndian, r.Preference)
+	_ = binary.Write(buf, binary.BigEndian, r.Preference)
 
 	EncodeRpcName(buf, r.Flags)
 
@@ -1161,7 +1163,7 @@ func (r *NAPTRRecord) Encode() []byte {
 
 	EncodeRpcName(buf, r.Substitution)
 
-	EncodeCountName(buf, r.Replacement)
+	_ = EncodeCountName(buf, r.Replacement)
 
 	return buf.Bytes()
 }
@@ -1184,7 +1186,7 @@ func (r *DSRecord) Parse(data []byte) {
 func (r *DSRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.KeyTag)
+	_ = binary.Write(buf, binary.BigEndian, r.KeyTag)
 
 	buf.WriteByte(r.Algorithm)
 
@@ -1211,15 +1213,15 @@ func (r *NSECRecord) Parse(data []byte) {
 		r.NameSigner = parsedName
 	}
 
-	r.NSECBitmap, _ = ioutil.ReadAll(buf)
+	r.NSECBitmap, _ = io.ReadAll(buf)
 }
 
 func (r *NSECRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	EncodeCountName(buf, r.NameSigner)
+	_ = EncodeCountName(buf, r.NameSigner)
 
-	binary.Write(buf, binary.LittleEndian, r.NSECBitmap)
+	_ = binary.Write(buf, binary.LittleEndian, r.NSECBitmap)
 
 	return buf.Bytes()
 }
@@ -1242,7 +1244,7 @@ func (r *DNSKEYRecord) Parse(data []byte) {
 func (r *DNSKEYRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.Flags)
+	_ = binary.Write(buf, binary.BigEndian, r.Flags)
 
 	buf.WriteByte(r.Protocol)
 
@@ -1296,7 +1298,7 @@ func (r *NSEC3Record) Encode() []byte {
 
 	buf.WriteByte(r.Flags)
 
-	binary.Write(buf, binary.BigEndian, r.Iterations)
+	_ = binary.Write(buf, binary.BigEndian, r.Iterations)
 
 	buf.WriteByte(r.SaltLength)
 
@@ -1335,7 +1337,7 @@ func (r *NSEC3PARAMRecord) Encode() []byte {
 
 	buf.WriteByte(r.Flags)
 
-	binary.Write(buf, binary.BigEndian, r.Iterations)
+	_ = binary.Write(buf, binary.BigEndian, r.Iterations)
 
 	buf.WriteByte(r.SaltLength)
 
@@ -1397,16 +1399,17 @@ func (r *WINSRecord) Parse(data []byte) {
 func (r *WINSRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.MappingFlag)
+	_ = binary.Write(buf, binary.BigEndian, r.MappingFlag)
 
-	binary.Write(buf, binary.BigEndian, r.LookupTimeout)
+	_ = binary.Write(buf, binary.BigEndian, r.LookupTimeout)
 
-	binary.Write(buf, binary.BigEndian, r.CacheTimeout)
+	_ = binary.Write(buf, binary.BigEndian, r.CacheTimeout)
 
-	binary.Write(buf, binary.BigEndian, r.WinsSrvCount)
+	_ = binary.Write(buf, binary.BigEndian, r.WinsSrvCount)
 
 	for i := uint32(0); i < r.WinsSrvCount; i++ {
-		binary.Write(buf, binary.BigEndian, r.WinsServers[i])
+		ip := net.ParseIP(r.WinsServers[i])
+		_ = binary.Write(buf, binary.BigEndian, ip.To4())
 	}
 
 	return buf.Bytes()
@@ -1434,13 +1437,13 @@ func (r *WINSRRecord) Parse(data []byte) {
 func (r *WINSRRecord) Encode() []byte {
 	buf := new(bytes.Buffer)
 
-	binary.Write(buf, binary.BigEndian, r.MappingFlag)
+	_ = binary.Write(buf, binary.BigEndian, r.MappingFlag)
 
-	binary.Write(buf, binary.BigEndian, r.LookupTimeout)
+	_ = binary.Write(buf, binary.BigEndian, r.LookupTimeout)
 
-	binary.Write(buf, binary.BigEndian, r.CacheTimeout)
+	_ = binary.Write(buf, binary.BigEndian, r.CacheTimeout)
 
-	EncodeCountName(buf, r.NameResultDomain)
+	_ = EncodeCountName(buf, r.NameResultDomain)
 
 	return buf.Bytes()
 }

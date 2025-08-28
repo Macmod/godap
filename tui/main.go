@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -18,7 +17,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
 	"h12.io/socks"
 	"software.sslmate.com/src/go-pkcs12"
@@ -108,7 +106,7 @@ func readPass(msgIfTerm string) string {
 
 	var password string
 
-	if terminal.IsTerminal(fd) {
+	if term.IsTerminal(fd) {
 		// Stdin is a terminal
 		fmt.Print(msgIfTerm)
 		passwordBytes, _ := term.ReadPassword(fd)
@@ -242,7 +240,7 @@ func writeDataExport(data map[string]any, dumpSuffix string, dumpFormat string) 
 	}
 
 	outputFilepath := filepath.Join(ExportDir, outputFilename)
-	err = ioutil.WriteFile(outputFilepath, jsonExportMap, 0644)
+	err = os.WriteFile(outputFilepath, jsonExportMap, 0644)
 
 	if err != nil {
 		updateLog(fmt.Sprintf("%s", err), "red")
@@ -267,7 +265,10 @@ func upgradeStartTLS() {
 
 func reconnectLdap() {
 	go app.QueueUpdateDraw(func() {
-		setupLDAPConn()
+		err := setupLDAPConn()
+		if err != nil {
+			updateLog(fmt.Sprintf("Error reconnecting to LDAP: %v", err), "red")
+		}
 	})
 }
 
@@ -592,7 +593,7 @@ func setupLDAPConn() error {
 	}
 
 	var proxyConn net.Conn = nil
-	var err error = nil
+	var err error
 
 	if SocksServer != "" {
 		proxyDial := socks.Dial(SocksServer)

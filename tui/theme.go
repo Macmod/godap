@@ -84,13 +84,6 @@ func assignDropDownTheme(dropdown *tview.DropDown) {
 	dropdown.SetFieldBackgroundColor(DefaultTheme.FieldBackgroundColor)
 }
 
-func assignFormTheme(form *tview.Form) {
-	form.
-		SetButtonBackgroundColor(DefaultTheme.FormButtonBackgroundColor).
-		SetButtonTextColor(DefaultTheme.FormButtonTextColor).
-		SetButtonActivatedStyle(DefaultTheme.FormButtonActivatedStyle)
-}
-
 // Form customizations
 type XForm struct {
 	*tview.Form

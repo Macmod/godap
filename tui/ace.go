@@ -204,7 +204,11 @@ func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask
 	newACE.SetMask(newMask)
 
 	// Set ACE Trustee
-	newACE.SetSID(newPrincipalSID)
+	err := newACE.SetSID(newPrincipalSID)
+	if err != nil {
+		updateLog(fmt.Sprintf("Invalid SID: %s", err), "red")
+		return
+	}
 
 	// Set placeholder ACE size
 	newACEHeader.AceSizeBytes = "0000"
@@ -495,9 +499,9 @@ func loadAceEditorForm(aceIdx int) {
 		valMask = aceEntry.Raw.GetMask()
 		newMask = valMask
 
-		switch aceRaw.(type) {
+		switch ace := aceRaw.(type) {
 		case *sdl.OBJECT_ACE:
-			valObjectGuid, valInheritedGuid = aceRaw.(*sdl.OBJECT_ACE).GetObjectAndInheritedType()
+			valObjectGuid, valInheritedGuid = ace.GetObjectAndInheritedType()
 
 			if valObjectGuid != "" {
 				if valMask&0b110000 != 0 { // Property right
@@ -508,8 +512,6 @@ func loadAceEditorForm(aceIdx int) {
 					valKind = 1
 				} else if valMask&0b1000 != 0 {
 					valKind = 4
-				} else {
-					// Should never happen (???)
 				}
 			}
 		}

@@ -46,14 +46,6 @@ func validateFlagSet(cmd *cobra.Command) error {
 	return nil
 }
 
-func keys(m map[string]bool) []string {
-	var out []string
-	for k := range m {
-		out = append(out, "--"+k)
-	}
-	return out
-}
-
 func containsAll(provided, required map[string]bool) bool {
 	for k := range required {
 		if !provided[k] {
@@ -81,7 +73,7 @@ func main() {
 			err := validateFlagSet(cmd)
 
 			if err != nil {
-				log.Fatalf(fmt.Sprint(err))
+				log.Fatal(err)
 			}
 
 			tui.LdapServer = args[0]
