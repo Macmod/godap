@@ -55,12 +55,12 @@ func addZoneHandler(zoneForm *XForm, currentFocus tview.Primitive) func() {
 		// the DNS will synchronize the zone from
 		// Active Directory
 		recSOA := adidns.MakeDNSRecord(
-			&adidns.SOARecord{1, 900, 600, 86400, 3600, zoneNS, zoneEmail},
+			&adidns.SOARecord{Serial: 1, Refresh: 900, Retry: 600, Expire: 86400, MinimumTTL: 3600, NamePrimaryServer: zoneNS, ZoneAdminEmail: zoneEmail},
 			0x06,
 			3600,
 		)
 
-		recNS := adidns.MakeDNSRecord(&adidns.NSRecord{zoneNS}, 0x02, 3600)
+		recNS := adidns.MakeDNSRecord(&adidns.NSRecord{NameNode: zoneNS}, 0x02, 3600)
 
 		defaultRecords := []adidns.DNSRecord{
 			recSOA,
@@ -394,10 +394,10 @@ func openActionNodeForm(target *tview.TreeNode, update bool) {
 			if !ok {
 				return
 			}
-			newNode = adidns.DNSNode{targetDN, node.Name, stagedRecords}
+			newNode = adidns.DNSNode{DN: targetDN, Name: node.Name, Records: stagedRecords}
 		} else {
 			nodeName := nodeNameInput.GetText()
-			newNode = adidns.DNSNode{"<NodeDN>", nodeName, stagedRecords}
+			newNode = adidns.DNSNode{DN: "<NodeDN>", Name: nodeName, Records: stagedRecords}
 		}
 
 		// Show preview

@@ -3,7 +3,6 @@ package adidns
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 	"net"
 	"time"
 )
@@ -68,7 +67,7 @@ func ParseIP4Array(data []byte) []string {
 func FormatHours(val uint64) string {
 	days := 0
 	if val > 24 {
-		days = int(math.Floor(float64(val / 24)))
+		days = int(val / 24)
 	}
 
 	text := ""

@@ -58,7 +58,10 @@ func addToSearchHistory(query string, duration time.Duration, results int) {
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
 
 func reloadSearchAttrsPanel(node *tview.TreeNode, useCache bool) {
-	reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
+	err := reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
+	if err != nil {
+		updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+	}
 }
 
 func reloadSearchNode(currentNode *tview.TreeNode) {

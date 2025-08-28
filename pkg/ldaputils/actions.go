@@ -12,8 +12,8 @@ import (
 	"github.com/Macmod/godap/v2/pkg/adidns"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
-	"github.com/go-ldap/ldap/gssapi"
 	"github.com/go-ldap/ldap/v3"
+	"github.com/go-ldap/ldap/v3/gssapi"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
@@ -78,13 +78,13 @@ func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 
 func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32, rootDN string, proxyConn net.Conn) (*LDAPConn, error) {
 	var conn *ldap.Conn
-	var err error = nil
+	var err error
 
 	if proxyConn == nil {
 		if ldaps {
-			conn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort), tlsConfig)
+			conn, err = ldap.DialURL(fmt.Sprintf("ldaps://%s:%d", ldapServer, ldapPort), ldap.DialWithTLSConfig(tlsConfig))
 		} else {
-			conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort))
+			conn, err = ldap.DialURL(fmt.Sprintf("ldap://%s:%d", ldapServer, ldapPort))
 		}
 	} else {
 		if ldaps {
@@ -816,12 +816,12 @@ func (lc *LDAPConn) GetADIDNSZones(name string, isForest bool) ([]adidns.DNSZone
 		props := make([]adidns.DNSProperty, 0)
 		for _, propStr := range dnsPropsStrs {
 			dnsProp := new(adidns.DNSProperty)
-			dnsProp.Decode([]byte(propStr))
-
-			props = append(props, *dnsProp)
+			if err := dnsProp.Decode([]byte(propStr)); err == nil {
+				props = append(props, *dnsProp)
+			}
 		}
 
-		zones = append(zones, adidns.DNSZone{zoneDN, zoneName, props})
+		zones = append(zones, adidns.DNSZone{DN: zoneDN, Name: zoneName, Props: props})
 	}
 
 	return zones, nil
@@ -846,9 +846,9 @@ func (lc *LDAPConn) GetADIDNSNode(nodeDN string) (adidns.DNSNode, error) {
 
 		for _, recordStr := range dnsRecsStrs {
 			dnsRec := new(adidns.DNSRecord)
-			dnsRec.Decode([]byte(recordStr))
-
-			records = append(records, *dnsRec)
+			if err := dnsRec.Decode([]byte(recordStr)); err == nil {
+				records = append(records, *dnsRec)
+			}
 		}
 
 		node.Records = records
@@ -875,9 +875,9 @@ func (lc *LDAPConn) GetADIDNSNodes(zoneDN string) ([]adidns.DNSNode, error) {
 
 		for _, recordStr := range dnsRecsStrs {
 			dnsRec := new(adidns.DNSRecord)
-			dnsRec.Decode([]byte(recordStr))
-
-			records = append(records, *dnsRec)
+			if err := dnsRec.Decode([]byte(recordStr)); err == nil {
+				records = append(records, *dnsRec)
+			}
 		}
 
 		nodes = append(nodes, adidns.DNSNode{DN: nodeDN, Name: nodeName, Records: records})

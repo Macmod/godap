@@ -145,7 +145,10 @@ func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
 }
 
 func reloadExplorerAttrsPanel(node *tview.TreeNode, useCache bool) {
-	reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
+	err := reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
+	if err != nil {
+		updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+	}
 }
 
 func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, fileSuffix string) {
@@ -413,7 +416,10 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			updateLog("Reloading node "+baseDN, "yellow")
 
 			explorerCache.Delete(baseDN)
-			reloadAttributesPanel(currentNode, explorerAttrsPanel, false, &explorerCache)
+			err := reloadAttributesPanel(currentNode, explorerAttrsPanel, false, &explorerCache)
+			if err != nil {
+				updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+			}
 
 			unloadChildren(currentNode)
 			loadChildren(currentNode)

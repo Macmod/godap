@@ -214,7 +214,9 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 				updateLog("Attribute updated: '"+attrNameRef+"' from '"+baseDN+"'", "green")
 			}
 
-			reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+			if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+				updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+			}
 
 			/*
 				if parentNode != nil {
@@ -260,7 +262,9 @@ func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, 
 						updateLog(fmt.Sprint(err), "red")
 					} else {
 						cache.Delete(baseDN)
-						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+						if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+							updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+						}
 
 						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
 					}
@@ -280,7 +284,9 @@ func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, 
 						updateLog(fmt.Sprint(err), "red")
 					} else {
 						cache.Delete(baseDN)
-						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+						if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+							updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+						}
 						updateLog("Value deleted: "+attrValue+" from attribute "+attrNameRef, "green")
 					}
 				}
@@ -315,7 +321,9 @@ func handleAttrsKeyCtrlN(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 				updateLog(fmt.Sprint(err), "red")
 			} else {
 				cache.Delete(baseDN)
-				reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+				if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+					updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+				}
 
 				updateLog("Attribute added: "+attrName+" to "+baseDN, "green")
 			}
@@ -422,7 +430,9 @@ func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, ca
 		updateLog("Reloading node "+baseDN, "yellow")
 
 		cache.Delete(baseDN)
-		reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+		if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+			updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+		}
 
 		updateLog("Node "+baseDN+" reloaded", "green")
 
