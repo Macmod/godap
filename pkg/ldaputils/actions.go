@@ -12,7 +12,7 @@ import (
 	"github.com/Macmod/godap/v2/pkg/adidns"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
-	"github.com/go-ldap/ldap/gssapi"
+	"github.com/go-ldap/ldap/v3/gssapi"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
