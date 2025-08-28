@@ -821,7 +821,7 @@ func (lc *LDAPConn) GetADIDNSZones(name string, isForest bool) ([]adidns.DNSZone
 			props = append(props, *dnsProp)
 		}
 
-		zones = append(zones, adidns.DNSZone{zoneDN, zoneName, props})
+		zones = append(zones, adidns.DNSZone{DN: zoneDN, Name: zoneName, Props: props})
 	}
 
 	return zones, nil
