@@ -19,6 +19,7 @@ import (
 )
 
 var (
+	rootDNSNode   *tview.TreeNode
 	dnsTreePanel  *tview.TreeView
 	dnsQueryPanel *tview.InputField
 
@@ -226,7 +227,7 @@ func reloadADIDNSNode(currentNode *tview.TreeNode) {
 }
 
 func showDNSNodeDetails(node *adidns.DNSNode, targetTree *tview.TreeView) {
-	rootNode := tview.NewTreeNode(node.Name)
+	baseNode := tview.NewTreeNode(node.Name)
 
 	for idx, record := range node.Records {
 		unixTimestamp := record.UnixTimestamp()
@@ -276,10 +277,10 @@ func showDNSNodeDetails(node *adidns.DNSNode, targetTree *tview.TreeView) {
 			recordTreeNode.AddChild(fieldTreeNode)
 		}
 
-		rootNode.AddChild(recordTreeNode)
+		baseNode.AddChild(recordTreeNode)
 	}
 
-	targetTree.SetRoot(rootNode)
+	targetTree.SetRoot(baseNode)
 	go func() {
 		app.Draw()
 	}()
@@ -548,20 +549,27 @@ func dnsPageKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
-func rebuildDnsTree(rootNode *tview.TreeNode) int {
-	if rootNode == nil {
+func clearDnsTree() {
+	root := dnsTreePanel.GetRoot()
+	if root != nil {
+		root.ClearChildren()
+	}
+}
+
+func rebuildDnsTree(baseNode *tview.TreeNode) int {
+	if baseNode == nil {
 		return 0
 	}
 
 	expandedZones := make(map[string]bool)
-	childrenZones := rootNode.GetChildren()
+	childrenZones := baseNode.GetChildren()
 	for _, child := range childrenZones {
 		ref, ok := child.GetReference().(string)
 		if ok && child.IsExpanded() {
 			expandedZones[ref] = true
 		}
 	}
-	rootNode.ClearChildren()
+	clearDnsTree()
 
 	zoneFilter := dnsZoneFilter.GetText()
 	zoneRegexp, err := regexp.Compile(zoneFilter)
@@ -590,7 +598,7 @@ func rebuildDnsTree(rootNode *tview.TreeNode) int {
 			SetSelectable(true)
 
 		totalNodes += loadZoneNodes(childNode)
-		rootNode.AddChild(childNode)
+		baseNode.AddChild(childNode)
 	}
 
 	for _, zone := range forestZones {
@@ -612,7 +620,7 @@ func rebuildDnsTree(rootNode *tview.TreeNode) int {
 			SetSelectable(true)
 
 		totalNodes += loadZoneNodes(childNode)
-		rootNode.AddChild(childNode)
+		baseNode.AddChild(childNode)
 	}
 
 	go func() {
@@ -645,7 +653,7 @@ func queryDnsZones(targetZone string) {
 		totalZones := len(domainZones) + len(forestZones)
 		if totalZones == 0 {
 			updateLog("No ADIDNS zones found", "red")
-			rootNode.ClearChildren()
+			clearDnsTree()
 
 			dnsRunControl.Lock()
 			dnsRunning = false
@@ -654,14 +662,14 @@ func queryDnsZones(targetZone string) {
 		}
 
 		// Setting up root node
-		rootNode := tview.NewTreeNode(lc.RootDN).
+		rootDNSNode := tview.NewTreeNode(lc.RootDN).
 			SetReference(lc.RootDN).
 			SetSelectable(true)
 		dnsTreePanel.
-			SetRoot(rootNode).
-			SetCurrentNode(rootNode)
+			SetRoot(rootDNSNode).
+			SetCurrentNode(rootDNSNode)
 
-		totalNodes := rebuildDnsTree(rootNode)
+		totalNodes := rebuildDnsTree(rootDNSNode)
 
 		updateLog(fmt.Sprintf("Found %d ADIDNS zones and %d nodes", totalZones, totalNodes), "green")
 		app.SetFocus(dnsTreePanel)
