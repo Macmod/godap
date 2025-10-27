@@ -192,9 +192,13 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 			}
 
 			unixTime := (intValue - 116444736000000000) / 10000000
-			t := time.Unix(unixTime, 0).UTC()
 
-			distString := formats.GetTimeDistString(time.Since(t))
+			nsec := (intValue % 10000000) * 100
+
+			t := time.Unix(unixTime, nsec).UTC()
+
+			diff := time.Now().UTC().Sub(t)
+			distString := formats.GetTimeDistString(diff)
 
 			formattedEntries = []string{fmt.Sprintf("%s %s", t.Format(timeFormat), distString)}
 		case "userAccountControl":
@@ -249,6 +253,12 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 
 			if ok {
 				formattedEntries = []string{instanceType}
+			}
+		case "logonHours":
+			if len(attr.ByteValues[idx]) != 21 {
+				formattedEntries = []string{"(Invalid logonHours length)"}
+			} else {
+				formattedEntries = []string{"HEX{" + hex.EncodeToString(attr.ByteValues[idx]) + "}"}
 			}
 		default:
 			formattedEntries = attr.Values
