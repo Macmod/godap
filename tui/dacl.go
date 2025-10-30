@@ -23,7 +23,7 @@ var (
 
 func parseAces(dst *[]ParsedACE, srcSD *sdl.SecurityDescriptor) {
 	var samAccountName string
-	var sidMap map[string]string = make(map[string]string)
+	var sidMap = make(map[string]string)
 	var ok bool
 
 	for idx, ace := range srcSD.DACL.Aces {
@@ -314,11 +314,12 @@ func updateDaclEntries() {
 				readableMask = "Special"
 			}
 
-			if entry.Severity == 1 {
+			switch entry.Severity {
+			case 1:
 				readableMask = "[purple]" + readableMask
-			} else if entry.Severity == 2 {
+			case 2:
 				readableMask = "[blue]" + readableMask
-			} else if entry.Severity == 3 {
+			case 3:
 				readableMask = "[red]" + readableMask
 			}
 
