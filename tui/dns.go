@@ -19,11 +19,10 @@ import (
 )
 
 var (
-	rootDNSNode   *tview.TreeNode
-	dnsTreePanel  *tview.TreeView
+	dnsTreePanel *tview.TreeView
 	dnsQueryPanel *tview.InputField
 
-	dnsSidePanel   *tview.Pages
+	dnsSidePanel *tview.Pages
 	dnsZoneProps   *tview.Table
 	dnsNodeRecords *tview.TreeView
 
@@ -56,11 +55,11 @@ func getParentZone(objectDN string) (adidns.DNSZone, error) {
 		if zoneOk {
 			return parentZone, nil
 		} else {
-			return adidns.DNSZone{}, fmt.Errorf("Parent zone not found in the cache")
+			return adidns.DNSZone{}, fmt.Errorf("parent zone not found in the cache")
 		}
 	}
 
-	return adidns.DNSZone{}, fmt.Errorf("Malformed object DN")
+	return adidns.DNSZone{}, fmt.Errorf("malformed object DN")
 }
 
 func exportADIDNSToFile(currentNode *tview.TreeNode) {
@@ -415,11 +414,12 @@ func initADIDNSPage() {
 		switch event.Rune() {
 		case 'r', 'R':
 			go app.QueueUpdateDraw(func() {
-				if level == 0 {
+				switch level {
+				case 0:
 					go queryDnsZones(dnsQueryPanel.GetText())
-				} else if level == 1 {
+				case 1:
 					reloadADIDNSZone(currentNode)
-				} else if level == 2 {
+				case 2:
 					reloadADIDNSNode(currentNode)
 				}
 			})
@@ -452,9 +452,10 @@ func initADIDNSPage() {
 			}
 
 			openDeleteObjectForm(currentNode, func() {
-				if level == 1 {
+				switch level {
+				case 1:
 					go queryDnsZones(dnsQueryPanel.GetText())
-				} else if level == 2 {
+				case 2:
 					pathToCurrent := dnsTreePanel.GetPath(currentNode)
 					if len(pathToCurrent) > 1 {
 						parentNode := pathToCurrent[len(pathToCurrent)-2]
@@ -470,17 +471,19 @@ func initADIDNSPage() {
 			if currentNode == dnsTreePanel.GetRoot() {
 				openCreateZoneForm()
 			} else {
-				if level == 1 {
+				switch level {
+				case 1:
 					openCreateNodeForm(currentNode)
-				} else if level == 2 {
+				case 2:
 					parentZone := getParentNode(currentNode, dnsTreePanel)
 					openCreateNodeForm(parentZone)
 				}
 			}
 		case tcell.KeyCtrlE:
-			if level == 1 {
+			switch level {
+			case 1:
 				// TODO: Edit zone properties
-			} else if level == 2 {
+			case 2:
 				openUpdateNodeForm(currentNode)
 			}
 		}

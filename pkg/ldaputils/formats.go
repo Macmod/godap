@@ -80,19 +80,19 @@ func ConvertSID(hexSID string) (SID string) {
 // TODO: Review correctness of this function
 func EncodeSID(sid string) (string, error) {
 	if len(sid) < 2 {
-		return "", fmt.Errorf("Invalid SID format")
+		return "", fmt.Errorf("invalid SID format")
 	}
 
 	parts := strings.Split(sid[2:], "-")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("Invalid SID format")
+		return "", fmt.Errorf("invalid SID format")
 	}
 
 	hexSID := ""
 
 	revision, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return "", fmt.Errorf("Error parsing revision: %v", err)
+		return "", fmt.Errorf("error parsing revision: %v", err)
 	}
 
 	hexSID += fmt.Sprintf("%02X", revision)
@@ -108,7 +108,7 @@ func EncodeSID(sid string) (string, error) {
 	for _, subAuthority := range parts[2:] {
 		subAuthorityValue, err := strconv.Atoi(subAuthority)
 		if err != nil {
-			return "", fmt.Errorf("Error parsing subauthority: %v", err)
+			return "", fmt.Errorf("error parsing subauthority: %v", err)
 		}
 
 		subAuthorityArr := make([]byte, 4)
@@ -136,7 +136,7 @@ func ConvertGUID(portion string) string {
 func EncodeGUID(guid string) (string, error) {
 	tokens := strings.Split(guid, "-")
 	if len(tokens) != 5 {
-		return "", fmt.Errorf("Wrong GUID format")
+		return "", fmt.Errorf("wrong GUID format")
 	}
 
 	result := ""

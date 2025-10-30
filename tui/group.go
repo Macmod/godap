@@ -238,7 +238,8 @@ func initGroupPage() {
 	})
 	groupPage = tview.NewFlex().SetDirection(tview.FlexRow)
 
-	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+	switch lc.Flavor {
+	case ldaputils.MicrosoftADFlavor:
 		groupPage.AddItem(depthInput, 3, 0, false)
 	}
 
@@ -264,7 +265,8 @@ func initGroupPage() {
 
 		groupDN = queryGroup
 
-		if lc.Flavor == ldaputils.MicrosoftADFlavor {
+		switch lc.Flavor {
+		case ldaputils.MicrosoftADFlavor:
 			samOrDn, isSam := ldaputils.SamOrDN(queryGroup)
 			if isSam {
 				groupDNQuery := fmt.Sprintf("(&(objectCategory=group)%s)", samOrDn)
@@ -278,7 +280,7 @@ func initGroupPage() {
 			}
 
 			searchGroupMembersAD(groupDN)
-		} else if lc.Flavor == ldaputils.BasicLDAPFlavor {
+		case ldaputils.BasicLDAPFlavor:
 			cnUidOrDN, isCnOrUid := ldaputils.CnUidOrDN(queryGroup)
 			if isCnOrUid {
 				groupDNQuery := fmt.Sprintf(

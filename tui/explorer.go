@@ -199,7 +199,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 	updateUacForm.SetInputCapture(handleEscape(treePanel))
 	updateUacForm.SetItemPadding(0)
 
-	var checkboxState int = 0
+	var checkboxState = 0
 	obj, _ := cache.Get(baseDN)
 	if obj != nil {
 		uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))
@@ -315,7 +315,7 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 			case "Computer":
 				err = lc.AddComputer(objectName, baseDN, entryTTLInt)
 			default:
-				err = fmt.Errorf("Invalid object type")
+				err = fmt.Errorf("invalid object type")
 			}
 
 			if err != nil {

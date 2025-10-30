@@ -65,7 +65,7 @@ func (lc *LDAPConn) GuessFlavor() {
 
 func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	if lc.Conn == nil {
-		return fmt.Errorf("Current connection is invalid")
+		return fmt.Errorf("current connection is invalid")
 	}
 
 	err := lc.Conn.StartTLS(tlsConfig)
@@ -110,7 +110,7 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 func (lc *LDAPConn) ExternalBind() error {
 	err := lc.Conn.ExternalBind()
 	if err != nil {
-		return fmt.Errorf("External bind failed: %v", err)
+		return fmt.Errorf("external bind failed: %v", err)
 	}
 
 	return nil
@@ -219,7 +219,7 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 	}
 
 	if len(searchResult.Entries) < 1 {
-		return nil, fmt.Errorf("No entries found")
+		return nil, fmt.Errorf("no entries found")
 	}
 
 	for _, x := range searchResult.Entries[0].Attributes {
@@ -228,7 +228,7 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 		}
 	}
 
-	return []string{}, fmt.Errorf("Naming contexts not found")
+	return []string{}, fmt.Errorf("naming contexts not found")
 }
 
 func (lc *LDAPConn) FindRootDN() (string, error) {
@@ -304,7 +304,7 @@ func (lc *LDAPConn) QueryGroupMembersBasic(groupDN string) ([]string, error) {
 
 	entries := result.Entries
 	if len(entries) != 1 {
-		return nil, fmt.Errorf("Group '%s' has no members", groupDN)
+		return nil, fmt.Errorf("group '%s' has no members", groupDN)
 	}
 
 	var members []string
@@ -519,7 +519,7 @@ func (lc *LDAPConn) FindFirst(identifier string) (*ldap.Entry, error) {
 	if len(entries) > 0 {
 		return entries[0], nil
 	} else {
-		return nil, fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("object not found")
 	}
 }
 
@@ -532,7 +532,7 @@ func (lc *LDAPConn) QueryFirst(filter string) (*ldap.Entry, error) {
 	if len(entries) > 0 {
 		return entries[0], nil
 	} else {
-		return nil, fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("object not found")
 	}
 }
 
@@ -853,7 +853,7 @@ func (lc *LDAPConn) GetADIDNSNode(nodeDN string) (adidns.DNSNode, error) {
 
 		node.Records = records
 	} else {
-		return node, fmt.Errorf("Node not found")
+		return node, fmt.Errorf("node not found")
 	}
 
 	return node, nil
@@ -1077,7 +1077,7 @@ func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, er
 		return hexSD, nil
 	}
 
-	return "", fmt.Errorf("Object '%s' not found", object)
+	return "", fmt.Errorf("object '%s' not found", object)
 }
 
 func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
@@ -1095,7 +1095,7 @@ func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
 	}
 
 	if len(result.Entries) == 0 {
-		return "", fmt.Errorf("Search for '%s' returned 0 results", filter)
+		return "", fmt.Errorf("search for '%s' returned 0 results", filter)
 	}
 
 	return result.Entries[0].GetAttributeValue(attr), nil
@@ -1201,7 +1201,7 @@ func (lc *LDAPConn) FindSamForSID(SID string) (resolvedSID string, err error) {
 		return resolvedSID, nil
 	}
 
-	return "", fmt.Errorf("No entries found")
+	return "", fmt.Errorf("no entries found")
 }
 
 func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err error) {
@@ -1231,7 +1231,7 @@ func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err err
 		}
 	}
 
-	return "", fmt.Errorf("No entries found")
+	return "", fmt.Errorf("no entries found")
 }
 
 func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]string, error) {
