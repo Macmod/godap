@@ -195,7 +195,7 @@ func initSearchPage() {
 	var chosenLibrary map[string][]ldaputils.LibQuery
 
 	if lc.Flavor == ldaputils.MicrosoftADFlavor {
-		predefinedLdapQueriesKeys = []string{"Security", "Users", "Computers", "Enum"}
+		predefinedLdapQueriesKeys = []string{"Security", "Group Members", "Users", "Computers", "Enum"}
 		chosenLibrary = ldaputils.PredefinedLdapQueriesAD
 	} else {
 		predefinedLdapQueriesKeys = []string{"Users", "Groups", "Enum"}

@@ -148,19 +148,37 @@ func EncodeGUID(guid string) (string, error) {
 	return result, nil
 }
 
-func FormatLDAPTime(val, format string) string {
+func FormatLDAPTime(val, format string, offset int) string {
 	layout := "20060102150405.0Z"
 	t, err := time.Parse(layout, val)
 	if err != nil {
 		return "Invalid date format"
 	}
 
-	distString := formats.GetTimeDistString(time.Since(t))
+	distString := formats.GetTimeDistString(time.Since(t.Add(time.Hour * time.Duration(offset))))
 
 	return fmt.Sprintf("%s %s", t.Format(format), distString)
 }
 
-func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string {
+func FormatLDAPTime2(val, format string, offset int) string {
+	intValue, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return "(Invalid)"
+	}
+
+	unixTime := (intValue - 116444736000000000) / 10000000
+
+	nsec := (intValue % 10000000) * 100
+
+	t := time.Unix(unixTime, nsec).UTC().Add(time.Hour * time.Duration(offset))
+
+	diff := time.Now().UTC().Sub(t)
+	distString := formats.GetTimeDistString(diff)
+
+	return fmt.Sprintf("%s %s", t.Format(format), distString)
+}
+
+func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string, timeOffset int) []string {
 	var formattedEntries = attr.Values
 
 	if len(attr.Values) == 0 {
@@ -175,7 +193,7 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 			formattedEntries = []string{"GUID{" + ConvertGUID(hex.EncodeToString(attr.ByteValues[idx])) + "}"}
 		case "whenCreated", "whenChanged":
 			formattedEntries = []string{
-				FormatLDAPTime(val, timeFormat),
+				FormatLDAPTime(val, timeFormat, timeOffset),
 			}
 		case "lastLogonTimestamp", "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon", "pwdLastSet", "creationTime", "lockoutTime":
 			if val == "0" {
@@ -186,17 +204,9 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 				return []string{"(Never Expire)"}
 			}
 
-			intValue, err := strconv.ParseInt(val, 10, 64)
-			if err != nil {
-				return []string{"(Invalid)"}
+			formattedEntries = []string{
+				FormatLDAPTime2(val, timeFormat, timeOffset),
 			}
-
-			unixTime := (intValue - 116444736000000000) / 10000000
-			t := time.Unix(unixTime, 0).UTC()
-
-			distString := formats.GetTimeDistString(time.Since(t))
-
-			formattedEntries = []string{fmt.Sprintf("%s %s", t.Format(timeFormat), distString)}
 		case "userAccountControl":
 			uacInt, _ := strconv.Atoi(val)
 
@@ -249,6 +259,12 @@ func FormatLDAPAttribute(attr *ldap.EntryAttribute, timeFormat string) []string 
 
 			if ok {
 				formattedEntries = []string{instanceType}
+			}
+		case "logonHours":
+			if len(attr.ByteValues[idx]) != 21 {
+				formattedEntries = []string{"(Invalid logonHours length)"}
+			} else {
+				formattedEntries = []string{"HEX{" + hex.EncodeToString(attr.ByteValues[idx]) + "}"}
 			}
 		default:
 			formattedEntries = attr.Values
