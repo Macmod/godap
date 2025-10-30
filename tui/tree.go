@@ -504,7 +504,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 
 	row := 0
 	for _, attribute := range attributes {
-		var cellName string = attribute.Name
+		var cellName = attribute.Name
 
 		var cellValues []string
 
@@ -589,11 +589,12 @@ func sortAttributes(attrs []*ldap.EntryAttribute) []*ldap.EntryAttribute {
 	sortedAttrs := make([]*ldap.EntryAttribute, len(attrs))
 	copy(sortedAttrs, attrs)
 
-	if AttrSort == "asc" {
+	switch AttrSort {
+	case "asc":
 		sort.Slice(sortedAttrs, func(i, j int) bool {
 			return sortedAttrs[i].Name <= sortedAttrs[j].Name
 		})
-	} else if AttrSort == "desc" {
+	case "desc":
 		sort.Slice(sortedAttrs, func(i, j int) bool {
 			return sortedAttrs[i].Name > sortedAttrs[j].Name
 		})

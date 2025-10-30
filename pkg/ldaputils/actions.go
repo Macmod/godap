@@ -65,7 +65,7 @@ func (lc *LDAPConn) GuessFlavor() {
 
 func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	if lc.Conn == nil {
-		return fmt.Errorf("Current connection is invalid")
+		return fmt.Errorf("current connection is invalid")
 	}
 
 	err := lc.Conn.StartTLS(tlsConfig)
@@ -110,7 +110,7 @@ func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Con
 func (lc *LDAPConn) ExternalBind() error {
 	err := lc.Conn.ExternalBind()
 	if err != nil {
-		return fmt.Errorf("External bind failed: %v", err)
+		return fmt.Errorf("external bind failed: %v", err)
 	}
 
 	return nil
@@ -219,7 +219,7 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 	}
 
 	if len(searchResult.Entries) < 1 {
-		return nil, fmt.Errorf("No entries found")
+		return nil, fmt.Errorf("no entries found")
 	}
 
 	for _, x := range searchResult.Entries[0].Attributes {
@@ -228,7 +228,7 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 		}
 	}
 
-	return []string{}, fmt.Errorf("Naming contexts not found")
+	return []string{}, fmt.Errorf("naming contexts not found")
 }
 
 func (lc *LDAPConn) FindRootDN() (string, error) {
@@ -304,7 +304,7 @@ func (lc *LDAPConn) QueryGroupMembersBasic(groupDN string) ([]string, error) {
 
 	entries := result.Entries
 	if len(entries) != 1 {
-		return nil, fmt.Errorf("Group '%s' has no members", groupDN)
+		return nil, fmt.Errorf("group '%s' has no members", groupDN)
 	}
 
 	var members []string
@@ -519,7 +519,7 @@ func (lc *LDAPConn) FindFirst(identifier string) (*ldap.Entry, error) {
 	if len(entries) > 0 {
 		return entries[0], nil
 	} else {
-		return nil, fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("object not found")
 	}
 }
 

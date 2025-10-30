@@ -238,7 +238,8 @@ func initGroupPage() {
 	})
 	groupPage = tview.NewFlex().SetDirection(tview.FlexRow)
 
-	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+	switch lc.Flavor {
+	case ldaputils.MicrosoftADFlavor:
 		groupPage.AddItem(depthInput, 3, 0, false)
 	}
 
