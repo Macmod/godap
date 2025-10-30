@@ -191,9 +191,10 @@ func openActionNodeForm(target *tview.TreeNode, update bool) {
 
 			var nodeToDelete *tview.TreeNode
 
-			if level == 1 {
+			switch level {
+			case 1:
 				nodeToDelete = currentNode
-			} else if level == 2 {
+			case 2:
 				pathToCurrent := recordsPreview.GetPath(currentNode)
 				if len(pathToCurrent) > 1 {
 					nodeToDelete = pathToCurrent[len(pathToCurrent)-2]

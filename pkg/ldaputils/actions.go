@@ -228,7 +228,7 @@ func (lc *LDAPConn) FindNamingContexts() ([]string, error) {
 		}
 	}
 
-	return []string{}, fmt.Errorf("Naming contexts not found")
+	return []string{}, fmt.Errorf("naming contexts not found")
 }
 
 func (lc *LDAPConn) FindRootDN() (string, error) {
@@ -304,7 +304,7 @@ func (lc *LDAPConn) QueryGroupMembersBasic(groupDN string) ([]string, error) {
 
 	entries := result.Entries
 	if len(entries) != 1 {
-		return nil, fmt.Errorf("Group '%s' has no members", groupDN)
+		return nil, fmt.Errorf("group '%s' has no members", groupDN)
 	}
 
 	var members []string
@@ -519,7 +519,7 @@ func (lc *LDAPConn) FindFirst(identifier string) (*ldap.Entry, error) {
 	if len(entries) > 0 {
 		return entries[0], nil
 	} else {
-		return nil, fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("object not found")
 	}
 }
 
