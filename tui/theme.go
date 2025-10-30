@@ -224,7 +224,7 @@ func GetEntryColor(entry *ldap.Entry) (tcell.Color, bool) {
 }
 
 func GetAttrCellColor(cellName string, cellValue string) (string, bool) {
-	var color string = ""
+	var color = ""
 
 	switch cellName {
 	case "lastLogonTimestamp", "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon", "pwdLastSet", "creationTime", "lockoutTime":
