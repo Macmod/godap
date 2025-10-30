@@ -551,9 +551,9 @@ func setupLDAPConn() error {
 			log.Fatal(err)
 		}
 		currentLdapPassword = strings.TrimSpace(string(pw))
-	} else if AuthType == 2 {
+	case 2:
 		currentNtlmHash = strings.TrimSpace(NtlmHash)
-	} else if AuthType == 3 {
+	case 3:
 		hash, err = readFileOrStdin(NtlmHashFile, "NTLM hash: ")
 
 		if err != nil {
@@ -653,7 +653,7 @@ func setupLDAPConn() error {
 
 			isSecure = true
 			bindType = "LDAP+ClientCertificate"
-		} else if AuthType == 4 {
+		case 4:
 			if _, err := os.Stat(CCachePath); err != nil {
 				app.Stop()
 				log.Fatal(err)
@@ -668,10 +668,10 @@ func setupLDAPConn() error {
 
 			err = lc.KerbBindWithCCache(CCachePath, KdcAddr, DomainName, TargetSpn, "aes")
 			bindType = "Kerberos"
-		} else if AuthType == 2 || AuthType == 3 {
+		case 2, 3:
 			err = lc.NTLMBindWithHash(DomainName, LdapUsername, currentNtlmHash)
 			bindType = "NTLM"
-		} else {
+		default:
 			currentLdapUsername = LdapUsername
 			if !strings.Contains(LdapUsername, "@") && !strings.Contains(LdapUsername, ",") && LdapUsername != "" && DomainName != "" {
 				currentLdapUsername += "@" + DomainName
@@ -817,7 +817,7 @@ func SetupApp() {
 			{5, dnsPage, "ADIDNS"},
 			{6, helpPage, "Help"},
 		}
-	} else if lc.Flavor == ldaputils.BasicLDAPFlavor {
+	case ldaputils.BasicLDAPFlavor:
 		pageVars = []GodapPage{
 			{0, explorerPage, "Explorer"},
 			{1, searchPage, "Search"},
