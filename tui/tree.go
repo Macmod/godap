@@ -465,7 +465,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, ca
 func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCache bool, cache *EntryCache) error {
 	ref := node.GetReference()
 	if ref == nil {
-		return fmt.Errorf("Couldn't reload attributes: no node selected")
+		return fmt.Errorf("couldn't reload attributes: no node selected")
 	}
 
 	var attributes []*ldap.EntryAttribute
@@ -479,7 +479,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		if ok {
 			attributes = entry.Attributes
 		} else {
-			return fmt.Errorf("Couldn't reload attributes: node not cached")
+			return fmt.Errorf("couldn't reload attributes: node not cached")
 		}
 	} else {
 		entries, err := lc.Query(baseDN, SearchFilter, ldap.ScopeBaseObject, Deleted)
@@ -489,7 +489,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		}
 
 		if len(entries) != 1 {
-			return fmt.Errorf("Entry not found")
+			return fmt.Errorf("entry not found")
 		}
 
 		entry := entries[0]

@@ -55,11 +55,11 @@ func getParentZone(objectDN string) (adidns.DNSZone, error) {
 		if zoneOk {
 			return parentZone, nil
 		} else {
-			return adidns.DNSZone{}, fmt.Errorf("Parent zone not found in the cache")
+			return adidns.DNSZone{}, fmt.Errorf("parent zone not found in the cache")
 		}
 	}
 
-	return adidns.DNSZone{}, fmt.Errorf("Malformed object DN")
+	return adidns.DNSZone{}, fmt.Errorf("malformed object DN")
 }
 
 func exportADIDNSToFile(currentNode *tview.TreeNode) {

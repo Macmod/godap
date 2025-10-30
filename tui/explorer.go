@@ -315,7 +315,7 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 			case "Computer":
 				err = lc.AddComputer(objectName, baseDN, entryTTLInt)
 			default:
-				err = fmt.Errorf("Invalid object type")
+				err = fmt.Errorf("invalid object type")
 			}
 
 			if err != nil {

@@ -1095,7 +1095,7 @@ func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
 	}
 
 	if len(result.Entries) == 0 {
-		return "", fmt.Errorf("Search for '%s' returned 0 results", filter)
+		return "", fmt.Errorf("search for '%s' returned 0 results", filter)
 	}
 
 	return result.Entries[0].GetAttributeValue(attr), nil
@@ -1201,7 +1201,7 @@ func (lc *LDAPConn) FindSamForSID(SID string) (resolvedSID string, err error) {
 		return resolvedSID, nil
 	}
 
-	return "", fmt.Errorf("No entries found")
+	return "", fmt.Errorf("no entries found")
 }
 
 func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err error) {
@@ -1231,7 +1231,7 @@ func (lc *LDAPConn) FindPrimaryGroupForSID(SID string) (groupSID string, err err
 		}
 	}
 
-	return "", fmt.Errorf("No entries found")
+	return "", fmt.Errorf("no entries found")
 }
 
 func (lc *LDAPConn) FindSchemaControlAccessRights(filter string) (map[string]string, error) {
