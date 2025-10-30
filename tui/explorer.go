@@ -199,7 +199,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 	updateUacForm.SetInputCapture(handleEscape(treePanel))
 	updateUacForm.SetItemPadding(0)
 
-	var checkboxState int = 0
+	var checkboxState = 0
 	obj, _ := cache.Get(baseDN)
 	if obj != nil {
 		uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))

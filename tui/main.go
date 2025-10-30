@@ -186,13 +186,14 @@ func toggleFlagD() {
 
 func updateSortStateBox(option string) {
 	go app.QueueUpdateDraw(func() {
-		if option == "none" {
+		switch option {
+		case "none":
 			sortAttrsFlagPanel.SetText("OFF")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("red"))
-		} else if option == "asc" {
+		case "asc":
 			sortAttrsFlagPanel.SetText("ASC")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
-		} else {
+		default:
 			sortAttrsFlagPanel.SetText("DESC")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
 		}
@@ -200,11 +201,12 @@ func updateSortStateBox(option string) {
 }
 
 func toggleFlagS() {
-	if AttrSort == "none" {
+	switch AttrSort {
+	case "none":
 		AttrSort = "asc"
-	} else if AttrSort == "asc" {
+	case "asc":
 		AttrSort = "desc"
-	} else {
+	default:
 		AttrSort = "none"
 	}
 
@@ -538,9 +540,10 @@ func setupLDAPConn() error {
 	var pw string
 	var hash string
 
-	if AuthType == 0 {
+	switch AuthType {
+	case 0:
 		currentLdapPassword = strings.TrimSpace(LdapPassword)
-	} else if AuthType == 1 {
+	case 1:
 		pw, err = readFileOrStdin(LdapPasswordFile, "Password: ")
 
 		if err != nil {
@@ -548,9 +551,9 @@ func setupLDAPConn() error {
 			log.Fatal(err)
 		}
 		currentLdapPassword = strings.TrimSpace(string(pw))
-	} else if AuthType == 2 {
+	case 2:
 		currentNtlmHash = strings.TrimSpace(NtlmHash)
-	} else if AuthType == 3 {
+	case 3:
 		hash, err = readFileOrStdin(NtlmHashFile, "NTLM hash: ")
 
 		if err != nil {
@@ -562,7 +565,8 @@ func setupLDAPConn() error {
 
 	// If a certificate and key pair is provided, store it
 	// in the TLS config to be used for the connection
-	if AuthType == 6 {
+	switch AuthType {
+	case 6:
 		pfxData, err := os.ReadFile(PfxFile)
 		if err != nil {
 			app.Stop()
@@ -583,7 +587,7 @@ func setupLDAPConn() error {
 		}
 
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	} else if AuthType == 5 {
+	case 5:
 		cert, err := tls.LoadX509KeyPair(CertFile, KeyFile)
 		if err != nil {
 			app.Stop()
@@ -629,7 +633,8 @@ func setupLDAPConn() error {
 		}
 
 		var bindType string
-		if AuthType == 5 || AuthType == 6 {
+		switch AuthType {
+		case 5, 6:
 			if !Ldaps {
 				// If the connection was not using LDAPS, upgrade it with StartTLS
 				// and then perform an ExternalBind
@@ -648,7 +653,7 @@ func setupLDAPConn() error {
 
 			isSecure = true
 			bindType = "LDAP+ClientCertificate"
-		} else if AuthType == 4 {
+		case 4:
 			if _, err := os.Stat(CCachePath); err != nil {
 				app.Stop()
 				log.Fatal(err)
@@ -663,10 +668,10 @@ func setupLDAPConn() error {
 
 			err = lc.KerbBindWithCCache(CCachePath, KdcAddr, DomainName, TargetSpn, "aes")
 			bindType = "Kerberos"
-		} else if AuthType == 2 || AuthType == 3 {
+		case 2, 3:
 			err = lc.NTLMBindWithHash(DomainName, LdapUsername, currentNtlmHash)
 			bindType = "NTLM"
-		} else {
+		default:
 			currentLdapUsername = LdapUsername
 			if !strings.Contains(LdapUsername, "@") && !strings.Contains(LdapUsername, ",") && LdapUsername != "" && DomainName != "" {
 				currentLdapUsername += "@" + DomainName
@@ -801,7 +806,8 @@ func SetupApp() {
 	initHelpPage()
 
 	var pageVars []GodapPage
-	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+	switch lc.Flavor {
+	case ldaputils.MicrosoftADFlavor:
 		pageVars = []GodapPage{
 			{0, explorerPage, "Explorer"},
 			{1, searchPage, "Search"},
@@ -811,7 +817,7 @@ func SetupApp() {
 			{5, dnsPage, "ADIDNS"},
 			{6, helpPage, "Help"},
 		}
-	} else if lc.Flavor == ldaputils.BasicLDAPFlavor {
+	case ldaputils.BasicLDAPFlavor:
 		pageVars = []GodapPage{
 			{0, explorerPage, "Explorer"},
 			{1, searchPage, "Search"},
