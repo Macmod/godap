@@ -19,10 +19,10 @@ import (
 )
 
 var (
-	dnsTreePanel *tview.TreeView
+	dnsTreePanel  *tview.TreeView
 	dnsQueryPanel *tview.InputField
 
-	dnsSidePanel *tview.Pages
+	dnsSidePanel   *tview.Pages
 	dnsZoneProps   *tview.Table
 	dnsNodeRecords *tview.TreeView
 
