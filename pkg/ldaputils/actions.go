@@ -532,7 +532,7 @@ func (lc *LDAPConn) QueryFirst(filter string) (*ldap.Entry, error) {
 	if len(entries) > 0 {
 		return entries[0], nil
 	} else {
-		return nil, fmt.Errorf("Object not found")
+		return nil, fmt.Errorf("object not found")
 	}
 }
 
@@ -853,7 +853,7 @@ func (lc *LDAPConn) GetADIDNSNode(nodeDN string) (adidns.DNSNode, error) {
 
 		node.Records = records
 	} else {
-		return node, fmt.Errorf("Node not found")
+		return node, fmt.Errorf("node not found")
 	}
 
 	return node, nil
@@ -1077,7 +1077,7 @@ func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, er
 		return hexSD, nil
 	}
 
-	return "", fmt.Errorf("Object '%s' not found", object)
+	return "", fmt.Errorf("object '%s' not found", object)
 }
 
 func (lc *LDAPConn) FindFirstAttr(filter string, attr string) (string, error) {
