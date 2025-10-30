@@ -58,7 +58,10 @@ func addToSearchHistory(query string, duration time.Duration, results int) {
 var searchLoadedDNs map[string]*tview.TreeNode = make(map[string]*tview.TreeNode)
 
 func reloadSearchAttrsPanel(node *tview.TreeNode, useCache bool) {
-	reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
+	err := reloadAttributesPanel(node, searchAttrsPanel, useCache, &searchCache)
+	if err != nil {
+		updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+	}
 }
 
 func reloadSearchNode(currentNode *tview.TreeNode) {
@@ -244,10 +247,10 @@ func initSearchPage() {
 			lastDayTimestampStr := strconv.FormatInt(nowTimestamp-86400, 10)
 			lastMonthTimestampStr := strconv.FormatInt(nowTimestamp-2592000, 10)
 
-			editedQuery := strings.Replace(ref.(string), "DC=domain,DC=com", lc.DefaultRootDN, -1)
-			editedQuery = strings.Replace(editedQuery, "<timestamp>", nowTimestampStr, -1)
-			editedQuery = strings.Replace(editedQuery, "<timestamp1d>", lastDayTimestampStr, -1)
-			editedQuery = strings.Replace(editedQuery, "<timestamp30d>", lastMonthTimestampStr, -1)
+			editedQuery := strings.ReplaceAll(ref.(string), "DC=domain,DC=com", lc.DefaultRootDN)
+			editedQuery = strings.ReplaceAll(editedQuery, "<timestamp>", nowTimestampStr)
+			editedQuery = strings.ReplaceAll(editedQuery, "<timestamp1d>", lastDayTimestampStr)
+			editedQuery = strings.ReplaceAll(editedQuery, "<timestamp30d>", lastMonthTimestampStr)
 
 			searchQueryPanel.SetText(editedQuery)
 		},
@@ -335,9 +338,9 @@ func initSearchPage() {
 		return event
 	})
 
-	fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "0", "Library")
-	fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "1", "Attrs")
-	fmt.Fprintf(tabs, `["%s"][white]%s[black][""]`, "2", "History")
+	_, _ = fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "0", "Library")
+	_, _ = fmt.Fprintf(tabs, `["%s"][white]%s[black][""] `, "1", "Attrs")
+	_, _ = fmt.Fprintf(tabs, `["%s"][white]%s[black][""]`, "2", "History")
 
 	tabs.SetHighlightedFunc(func(added, removed, remaining []string) {
 		if len(added) > 0 {

@@ -31,7 +31,7 @@ func validateFlagSet(cmd *cobra.Command) error {
 	for _, candidateSet := range acceptableAuthFlagSets {
 		if containsAll(used, candidateSet) {
 			if matches > 0 {
-				return fmt.Errorf("Invalid authentication flags: mixed flags from multiple acceptable sets\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
+				return fmt.Errorf("invalid authentication flags: mixed flags from multiple acceptable sets\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds")
 			}
 			matches++
 		} else if intersects(used, candidateSet) {
@@ -40,18 +40,10 @@ func validateFlagSet(cmd *cobra.Command) error {
 	}
 
 	if matches == 0 && partials > 0 {
-		return fmt.Errorf("Invalid authentication flags: missing required flags\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
+		return fmt.Errorf("invalid authentication flags: missing required flags\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,-hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds")
 	}
 
 	return nil
-}
-
-func keys(m map[string]bool) []string {
-	var out []string
-	for k := range m {
-		out = append(out, "--"+k)
-	}
-	return out
 }
 
 func containsAll(provided, required map[string]bool) bool {
@@ -81,7 +73,7 @@ func main() {
 			err := validateFlagSet(cmd)
 
 			if err != nil {
-				log.Fatalf(fmt.Sprint(err))
+				log.Fatal(err)
 			}
 
 			tui.LdapServer = args[0]

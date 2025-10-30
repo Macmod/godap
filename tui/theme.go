@@ -84,13 +84,6 @@ func assignDropDownTheme(dropdown *tview.DropDown) {
 	dropdown.SetFieldBackgroundColor(DefaultTheme.FieldBackgroundColor)
 }
 
-func assignFormTheme(form *tview.Form) {
-	form.
-		SetButtonBackgroundColor(DefaultTheme.FormButtonBackgroundColor).
-		SetButtonTextColor(DefaultTheme.FormButtonTextColor).
-		SetButtonActivatedStyle(DefaultTheme.FormButtonActivatedStyle)
-}
-
 // Form customizations
 type XForm struct {
 	*tview.Form
@@ -231,7 +224,7 @@ func GetEntryColor(entry *ldap.Entry) (tcell.Color, bool) {
 }
 
 func GetAttrCellColor(cellName string, cellValue string) (string, bool) {
-	var color string = ""
+	var color = ""
 
 	switch cellName {
 	case "lastLogonTimestamp", "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon", "pwdLastSet", "creationTime", "lockoutTime":

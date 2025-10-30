@@ -214,7 +214,9 @@ func handleAttrsKeyCtrlE(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 				updateLog("Attribute updated: '"+attrNameRef+"' from '"+baseDN+"'", "green")
 			}
 
-			reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+			if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+				updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+			}
 
 			/*
 				if parentNode != nil {
@@ -260,7 +262,9 @@ func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, 
 						updateLog(fmt.Sprint(err), "red")
 					} else {
 						cache.Delete(baseDN)
-						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+						if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+							updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+						}
 
 						updateLog("Attribute deleted: "+attrName+" from "+baseDN, "green")
 					}
@@ -280,7 +284,9 @@ func handleAttrsKeyDelete(currentNode *tview.TreeNode, attrsPanel *tview.Table, 
 						updateLog(fmt.Sprint(err), "red")
 					} else {
 						cache.Delete(baseDN)
-						reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+						if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+							updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+						}
 						updateLog("Value deleted: "+attrValue+" from attribute "+attrNameRef, "green")
 					}
 				}
@@ -315,7 +321,9 @@ func handleAttrsKeyCtrlN(currentNode *tview.TreeNode, attrsPanel *tview.Table, c
 				updateLog(fmt.Sprint(err), "red")
 			} else {
 				cache.Delete(baseDN)
-				reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+				if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+					updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+				}
 
 				updateLog("Attribute added: "+attrName+" to "+baseDN, "green")
 			}
@@ -422,7 +430,9 @@ func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, ca
 		updateLog("Reloading node "+baseDN, "yellow")
 
 		cache.Delete(baseDN)
-		reloadAttributesPanel(currentNode, attrsPanel, false, cache)
+		if err := reloadAttributesPanel(currentNode, attrsPanel, false, cache); err != nil {
+			updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+		}
 
 		updateLog("Node "+baseDN+" reloaded", "green")
 
@@ -455,7 +465,7 @@ func attrsPanelKeyHandler(event *tcell.EventKey, currentNode *tview.TreeNode, ca
 func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCache bool, cache *EntryCache) error {
 	ref := node.GetReference()
 	if ref == nil {
-		return fmt.Errorf("Couldn't reload attributes: no node selected")
+		return fmt.Errorf("couldn't reload attributes: no node selected")
 	}
 
 	var attributes []*ldap.EntryAttribute
@@ -469,7 +479,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		if ok {
 			attributes = entry.Attributes
 		} else {
-			return fmt.Errorf("Couldn't reload attributes: node not cached")
+			return fmt.Errorf("couldn't reload attributes: node not cached")
 		}
 	} else {
 		entries, err := lc.Query(baseDN, SearchFilter, ldap.ScopeBaseObject, Deleted)
@@ -479,7 +489,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 		}
 
 		if len(entries) != 1 {
-			return fmt.Errorf("Entry not found")
+			return fmt.Errorf("entry not found")
 		}
 
 		entry := entries[0]
@@ -494,7 +504,7 @@ func reloadAttributesPanel(node *tview.TreeNode, attrsTable *tview.Table, useCac
 
 	row := 0
 	for _, attribute := range attributes {
-		var cellName string = attribute.Name
+		var cellName = attribute.Name
 
 		var cellValues []string
 
@@ -579,11 +589,12 @@ func sortAttributes(attrs []*ldap.EntryAttribute) []*ldap.EntryAttribute {
 	sortedAttrs := make([]*ldap.EntryAttribute, len(attrs))
 	copy(sortedAttrs, attrs)
 
-	if AttrSort == "asc" {
+	switch AttrSort {
+	case "asc":
 		sort.Slice(sortedAttrs, func(i, j int) bool {
 			return sortedAttrs[i].Name <= sortedAttrs[j].Name
 		})
-	} else if AttrSort == "desc" {
+	case "desc":
 		sort.Slice(sortedAttrs, func(i, j int) bool {
 			return sortedAttrs[i].Name > sortedAttrs[j].Name
 		})

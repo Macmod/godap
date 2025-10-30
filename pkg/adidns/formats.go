@@ -3,7 +3,6 @@ package adidns
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 	"net"
 	"time"
 )
@@ -30,13 +29,14 @@ func ParseAddrArray(data []byte) []string {
 		family := binary.LittleEndian.Uint16(addrArr[:4])
 
 		var ip net.IP
-		if family == 0x0002 {
+		switch family {
+		case 0x0002:
 			// IPv4
 			ip = net.IP(addrArr[x*32+4 : x*32+8])
-		} else if family == 0x0017 {
+		case 0x0017:
 			// IPv6
 			ip = net.IP(addrArr[x*32+8 : x*32+24])
-		} else {
+		default:
 			continue
 		}
 
@@ -68,7 +68,7 @@ func ParseIP4Array(data []byte) []string {
 func FormatHours(val uint64) string {
 	days := 0
 	if val > 24 {
-		days = int(math.Floor(float64(val / 24)))
+		days = int(val / 24)
 	}
 
 	text := ""

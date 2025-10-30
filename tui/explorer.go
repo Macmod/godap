@@ -145,7 +145,10 @@ func reloadParentNode(node *tview.TreeNode) *tview.TreeNode {
 }
 
 func reloadExplorerAttrsPanel(node *tview.TreeNode, useCache bool) {
-	reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
+	err := reloadAttributesPanel(node, explorerAttrsPanel, useCache, &explorerCache)
+	if err != nil {
+		updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+	}
 }
 
 func exportCacheToFile(currentNode *tview.TreeNode, cache *EntryCache, fileSuffix string) {
@@ -196,7 +199,7 @@ func openUpdateUacForm(node *tview.TreeNode, cache *EntryCache, done func()) {
 	updateUacForm.SetInputCapture(handleEscape(treePanel))
 	updateUacForm.SetItemPadding(0)
 
-	var checkboxState int = 0
+	var checkboxState = 0
 	obj, _ := cache.Get(baseDN)
 	if obj != nil {
 		uacValue, err := strconv.Atoi(obj.GetAttributeValue("userAccountControl"))
@@ -312,7 +315,7 @@ func openCreateObjectForm(node *tview.TreeNode, done func()) {
 			case "Computer":
 				err = lc.AddComputer(objectName, baseDN, entryTTLInt)
 			default:
-				err = fmt.Errorf("Invalid object type")
+				err = fmt.Errorf("invalid object type")
 			}
 
 			if err != nil {
@@ -413,7 +416,10 @@ func treePanelKeyHandler(event *tcell.EventKey) *tcell.EventKey {
 			updateLog("Reloading node "+baseDN, "yellow")
 
 			explorerCache.Delete(baseDN)
-			reloadAttributesPanel(currentNode, explorerAttrsPanel, false, &explorerCache)
+			err := reloadAttributesPanel(currentNode, explorerAttrsPanel, false, &explorerCache)
+			if err != nil {
+				updateLog(fmt.Sprintf("Error reloading attributes panel: %v", err), "red")
+			}
 
 			unloadChildren(currentNode)
 			loadChildren(currentNode)
