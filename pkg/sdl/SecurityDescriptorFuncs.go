@@ -106,7 +106,7 @@ func AceMaskToText(mask int, guid string) ([]string, int) {
 		return []string{"Full control"}, 3
 	}
 
-	var rightsSeverity int = 0
+	var rightsSeverity = 0
 	var readableRights []string
 
 	specificChildPermission := combinePerms(

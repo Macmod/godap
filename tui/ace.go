@@ -172,7 +172,7 @@ func getFlags(objectGuid string, inheritedGuid string) int {
 }
 
 func createOrUpdateAce(aceIdx int, newAllowOrDeny bool, newACEFlags int, newMask int, newObjectGuid string, newInheritedGuid string, newPrincipalSID string) {
-	var newACEHeader *sdl.ACEHEADER = new(sdl.ACEHEADER)
+	var newACEHeader = new(sdl.ACEHEADER)
 	var newACE sdl.ACEInt
 
 	newACEHeader.ACEType = fmt.Sprintf("%02x", getType(newObjectGuid, newAllowOrDeny))

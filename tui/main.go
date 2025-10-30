@@ -186,13 +186,14 @@ func toggleFlagD() {
 
 func updateSortStateBox(option string) {
 	go app.QueueUpdateDraw(func() {
-		if option == "none" {
+		switch option {
+		case "none":
 			sortAttrsFlagPanel.SetText("OFF")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("red"))
-		} else if option == "asc" {
+		case "asc":
 			sortAttrsFlagPanel.SetText("ASC")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
-		} else {
+		default:
 			sortAttrsFlagPanel.SetText("DESC")
 			sortAttrsFlagPanel.SetTextColor(tcell.GetColor("green"))
 		}
@@ -200,11 +201,12 @@ func updateSortStateBox(option string) {
 }
 
 func toggleFlagS() {
-	if AttrSort == "none" {
+	switch AttrSort {
+	case "none":
 		AttrSort = "asc"
-	} else if AttrSort == "asc" {
+	case "asc":
 		AttrSort = "desc"
-	} else {
+	default:
 		AttrSort = "none"
 	}
 
@@ -520,7 +522,7 @@ func setupLDAPConn() error {
 	updateLog("Connecting to LDAP server...", "yellow")
 
 	if lc != nil && lc.Conn != nil {
-		lc.Conn.Close()
+		_ = lc.Conn.Close()
 	}
 
 	tlsConfig = secureTlsConfig
@@ -538,9 +540,10 @@ func setupLDAPConn() error {
 	var pw string
 	var hash string
 
-	if AuthType == 0 {
+	switch AuthType {
+	case 0:
 		currentLdapPassword = strings.TrimSpace(LdapPassword)
-	} else if AuthType == 1 {
+	case 1:
 		pw, err = readFileOrStdin(LdapPasswordFile, "Password: ")
 
 		if err != nil {
@@ -562,7 +565,8 @@ func setupLDAPConn() error {
 
 	// If a certificate and key pair is provided, store it
 	// in the TLS config to be used for the connection
-	if AuthType == 6 {
+	switch AuthType {
+	case 6:
 		pfxData, err := os.ReadFile(PfxFile)
 		if err != nil {
 			app.Stop()
@@ -583,7 +587,7 @@ func setupLDAPConn() error {
 		}
 
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	} else if AuthType == 5 {
+	case 5:
 		cert, err := tls.LoadX509KeyPair(CertFile, KeyFile)
 		if err != nil {
 			app.Stop()
@@ -629,7 +633,8 @@ func setupLDAPConn() error {
 		}
 
 		var bindType string
-		if AuthType == 5 || AuthType == 6 {
+		switch AuthType {
+		case 5, 6:
 			if !Ldaps {
 				// If the connection was not using LDAPS, upgrade it with StartTLS
 				// and then perform an ExternalBind
@@ -801,7 +806,8 @@ func SetupApp() {
 	initHelpPage()
 
 	var pageVars []GodapPage
-	if lc.Flavor == ldaputils.MicrosoftADFlavor {
+	switch lc.Flavor {
+	case ldaputils.MicrosoftADFlavor:
 		pageVars = []GodapPage{
 			{0, explorerPage, "Explorer"},
 			{1, searchPage, "Search"},
@@ -842,7 +848,7 @@ func SetupApp() {
 		})
 
 	for idx, page := range pageVars {
-		fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, idx+1, strconv.Itoa(idx), page.title)
+		_, _ = fmt.Fprintf(info, `%d ["%s"][darkcyan]%s[white][""]  `, idx+1, strconv.Itoa(idx), page.title)
 	}
 
 	info.Highlight("0")
