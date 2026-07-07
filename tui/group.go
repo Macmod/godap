@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -83,6 +84,17 @@ func searchGroupMembersAD(groupDN string) {
 
 	updateLog("Found "+strconv.Itoa(len(members))+" members of '"+groupDN+"'", "green")
 
+	switch AttrSort {
+	case "asc":
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].GetAttributeValue("sAMAccountName") < members[j].GetAttributeValue("sAMAccountName")
+		})
+	case "desc":
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].GetAttributeValue("sAMAccountName") > members[j].GetAttributeValue("sAMAccountName")
+		})
+	}
+
 	for idx, entry := range members {
 		sAMAccountName := entry.GetAttributeValue("sAMAccountName")
 		categoryDN := strings.Split(entry.GetAttributeValue("objectCategory"), ",")
@@ -125,6 +137,15 @@ func searchGroupMembersBasic(groupDN string) {
 
 	updateLog("Found "+strconv.Itoa(len(membersSimple))+" members of '"+groupDN+"'", "green")
 
+	switch AttrSort {
+	case "asc":
+		sort.Strings(membersSimple)
+	case "desc":
+		sort.Slice(membersSimple, func(i, j int) bool {
+			return membersSimple[i] > membersSimple[j]
+		})
+	}
+
 	for idx, entry := range membersSimple {
 		membersPanel.SetCell(idx, 0, tview.NewTableCell(entry).SetReference(entry))
 	}
@@ -146,6 +167,17 @@ func searchObjectGroupsAD(objectDN string) {
 	}
 
 	updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
+
+	switch AttrSort {
+	case "asc":
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].GetAttributeValue("name") < groups[j].GetAttributeValue("name")
+		})
+	case "desc":
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].GetAttributeValue("name") > groups[j].GetAttributeValue("name")
+		})
+	}
 
 	for idx, group := range groups {
 		groupName := group.GetAttributeValue("name")
@@ -170,6 +202,17 @@ func searchObjectGroupsBasic(objectDN string) {
 	}
 
 	updateLog("Found "+strconv.Itoa(len(groups))+" groups containing '"+objectDN+"'", "green")
+
+	switch AttrSort {
+	case "asc":
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].GetAttributeValue("cn") < groups[j].GetAttributeValue("cn")
+		})
+	case "desc":
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].GetAttributeValue("cn") > groups[j].GetAttributeValue("cn")
+		})
+	}
 
 	for idx, group := range groups {
 		groupName := group.GetAttributeValue("cn")

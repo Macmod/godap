@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -296,6 +297,17 @@ func updateGPOEntries() {
 			updateLog("GPOs query completed ("+strconv.Itoa(len(entries))+" GPOs found)", "green")
 		} else {
 			updateLog("No applicable GPOs found", "red")
+		}
+
+		switch AttrSort {
+		case "asc":
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].GetAttributeValue("displayName") < entries[j].GetAttributeValue("displayName")
+			})
+		case "desc":
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].GetAttributeValue("displayName") > entries[j].GetAttributeValue("displayName")
+			})
 		}
 
 		for idx, entry := range entries {
