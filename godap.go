@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
+	"github.com/Macmod/godap/v2/pkg/debug"
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -94,6 +96,20 @@ func main() {
 				}
 			}
 
+			// A non-empty --ssh-host implicitly enables the tunnel.
+			if tui.SSHTunnelHost != "" {
+				tui.SSHTunnelEnabled = true
+			}
+
+			// Initialize debug log if requested.
+			if tui.DebugLogPath != "" {
+				if err := debug.Init(tui.DebugLogPath); err != nil {
+					log.Printf("Warning: could not open debug log %q: %v", tui.DebugLogPath, err)
+				} else {
+					defer debug.Close()
+				}
+			}
+
 			tui.SetupApp()
 		},
 	}
@@ -131,6 +147,17 @@ func main() {
 	rootCmd.Flags().IntVarP(&tui.TimeOffset, "offset", "", 0, "Offset in hours to apply to formatted timestamps")
 	rootCmd.Flags().StringVarP(&tui.ExportDir, "exportdir", "", "data", "Custom directory to save godap exports taken with Ctrl+S")
 	rootCmd.Flags().StringVarP(&tui.BackendFlavor, "backend", "b", "msad", "LDAP backend flavor (msad, basic or auto)")
+
+	// SSH tunnel flags
+	rootCmd.Flags().StringVar(&tui.SSHTunnelHost, "ssh-host", "", "SSH tunnel host (also enables the tunnel when non-empty)")
+	rootCmd.Flags().IntVar(&tui.SSHTunnelPort, "ssh-port", 22, "SSH tunnel port")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelUser, "ssh-user", os.Getenv("USER"), "SSH tunnel username")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelAuthMethod, "ssh-auth", "password", "SSH auth method: password, key, or agent")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelPassword, "ssh-password", "", "SSH tunnel password")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelKeyFile, "ssh-key", "", "Path to SSH private key file")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelKeyPassphrase, "ssh-key-passphrase", "", "Passphrase for SSH private key")
+	rootCmd.Flags().BoolVar(&tui.SSHTunnelInsecure, "ssh-ignore-host-key", false, "Skip SSH host key verification (insecure)")
+	rootCmd.Flags().StringVar(&tui.DebugLogPath, "debug-log", "", "Path to debug log file")
 
 	versionCmd := &cobra.Command{
 		Use:                   "version",

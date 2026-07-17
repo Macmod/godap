@@ -4,6 +4,47 @@ import (
 	"testing"
 )
 
+func TestValidateSSHPort(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{"", 0, false},
+		{"22", 22, false},
+		{"65535", 65535, false},
+		{"1", 1, false},
+		{"0", 0, true},
+		{"-1", 0, true},
+		{"65536", 0, true},
+		{"abc", 0, true},
+		{"22.5", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := validateSSHPort(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateSSHPort(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("validateSSHPort(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsSSHTunnelFieldVisible(t *testing.T) {
+	SSHTunnelEnabled = false
+	if isSSHTunnelFieldVisible() {
+		t.Error("expected false when SSHTunnelEnabled=false")
+	}
+	SSHTunnelEnabled = true
+	if !isSSHTunnelFieldVisible() {
+		t.Error("expected true when SSHTunnelEnabled=true")
+	}
+	SSHTunnelEnabled = false // restore
+}
+
 func TestSetupTimeFormat(t *testing.T) {
 	tests := []struct {
 		name     string

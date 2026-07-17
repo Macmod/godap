@@ -10,8 +10,12 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/rivo/tview v0.0.0-20240413115534-b0d41c484b95
 	github.com/spf13/cobra v1.8.0
+	github.com/spf13/pflag v1.0.5
+	golang.org/x/crypto v0.21.0
+	golang.org/x/term v0.18.0
 	golang.org/x/text v0.14.0
 	h12.io/socks v1.0.3
+	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
 require (
@@ -29,12 +33,8 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	software.sslmate.com/src/go-pkcs12 v0.5.0 // indirect
 )
 
 replace github.com/jcmturner/gokrb5/v8 => github.com/Macmod/gokrb5/v8 v8.4.5-0.20240428143821-ea9a660f0f44
