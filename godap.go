@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/Macmod/godap/v2/pkg/debug"
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 )
 
 var acceptableAuthFlagSets = []map[string]bool{
+	{"username": true},
 	{"username": true, "password": true},
 	{"username": true, "passfile": true},
 	{"username": true, "hash": true},
@@ -80,10 +83,69 @@ func main() {
 		Short: "A complete TUI for LDAP.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := validateFlagSet(cmd)
+			// Apply GODAP_PASSWD env var when no explicit password flag was provided.
+			if !cmd.Flags().Changed("password") && !cmd.Flags().Changed("passfile") {
+				if envPw := os.Getenv("GODAP_PASSWD"); envPw != "" {
+					tui.LdapPassword = envPw
+				}
+			}
 
+			// Apply GODAP_SSH_PASSWORD env var when no explicit SSH password flag was provided.
+			if !cmd.Flags().Changed("ssh-password") && !cmd.Flags().Changed("ssh-passfile") {
+				if envPw := os.Getenv("GODAP_SSH_PASSWORD"); envPw != "" {
+					tui.SSHTunnelPassword = envPw
+				}
+			}
+
+			// --ssh-passfile: read password from file or prompt on "-".
+			if cmd.Flags().Changed("ssh-passfile") {
+				pw, err := tui.ReadFileOrStdin(tui.SSHTunnelPasswordFile, "SSH Password: ")
+				if err != nil {
+					log.Fatalf("Failed to read SSH password file: %v", err)
+				}
+				tui.SSHTunnelPassword = strings.TrimSpace(pw)
+			}
+
+			// Infer SSH auth method from flags; explicit --ssh-auth is honoured only as a fallback.
+			sshAgentSet := tui.SSHTunnelAgentAuth
+			sshKeySet := cmd.Flags().Changed("ssh-key")
+			sshPassSet := tui.SSHTunnelPassword != ""
+			switch {
+			case sshAgentSet && sshKeySet:
+				log.Fatal("Conflicting SSH auth flags: --ssh-agent and --ssh-key cannot both be set")
+			case sshAgentSet && sshPassSet:
+				log.Fatal("Conflicting SSH auth flags: --ssh-agent and --ssh-password/--ssh-passfile cannot both be set")
+			case sshKeySet && sshPassSet:
+				log.Fatal("Conflicting SSH auth flags: --ssh-key and --ssh-password/--ssh-passfile cannot both be set")
+			case sshAgentSet:
+				tui.SSHTunnelAuthMethod = "agent"
+			case sshKeySet:
+				tui.SSHTunnelAuthMethod = "key"
+			case sshPassSet:
+				tui.SSHTunnelAuthMethod = "password"
+			}
+
+			err := validateFlagSet(cmd)
 			if err != nil {
 				log.Fatalf(fmt.Sprint(err))
+			}
+
+			// Prompt for LDAP password when username is set but no password method was provided.
+			if tui.LdapUsername != "" &&
+				tui.LdapPassword == "" &&
+				tui.LdapPasswordFile == "" &&
+				tui.NtlmHash == "" &&
+				tui.NtlmHashFile == "" &&
+				!tui.Kerberos &&
+				tui.CertFile == "" &&
+				tui.PfxFile == "" {
+				fmt.Print("LDAP Password: ")
+				passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+				fmt.Println()
+				if err != nil {
+					log.Fatalf("Failed to read password: %v", err)
+				}
+				tui.LdapPassword = string(passwordBytes)
 			}
 
 			tui.LdapServer = args[0]
@@ -152,8 +214,10 @@ func main() {
 	rootCmd.Flags().StringVar(&tui.SSHTunnelHost, "ssh-host", "", "SSH tunnel host (also enables the tunnel when non-empty)")
 	rootCmd.Flags().IntVar(&tui.SSHTunnelPort, "ssh-port", 22, "SSH tunnel port")
 	rootCmd.Flags().StringVar(&tui.SSHTunnelUser, "ssh-user", os.Getenv("USER"), "SSH tunnel username")
-	rootCmd.Flags().StringVar(&tui.SSHTunnelAuthMethod, "ssh-auth", "password", "SSH auth method: password, key, or agent")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelAuthMethod, "ssh-auth", "password", "SSH auth method: password, key, or agent (deprecated: inferred automatically from other flags)")
 	rootCmd.Flags().StringVar(&tui.SSHTunnelPassword, "ssh-password", "", "SSH tunnel password")
+	rootCmd.Flags().StringVar(&tui.SSHTunnelPasswordFile, "ssh-passfile", "", "Path to a file containing the SSH tunnel password (or - for stdin)")
+	rootCmd.Flags().BoolVar(&tui.SSHTunnelAgentAuth, "ssh-agent", false, "Use SSH agent for tunnel authentication")
 	rootCmd.Flags().StringVar(&tui.SSHTunnelKeyFile, "ssh-key", "", "Path to SSH private key file")
 	rootCmd.Flags().StringVar(&tui.SSHTunnelKeyPassphrase, "ssh-key-passphrase", "", "Passphrase for SSH private key")
 	rootCmd.Flags().BoolVar(&tui.SSHTunnelInsecure, "ssh-ignore-host-key", false, "Skip SSH host key verification (insecure)")

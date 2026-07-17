@@ -75,6 +75,8 @@ var (
 	SSHTunnelUser          string
 	SSHTunnelAuthMethod    string
 	SSHTunnelPassword      string
+	SSHTunnelPasswordFile  string
+	SSHTunnelAgentAuth     bool
 	SSHTunnelKeyFile       string
 	SSHTunnelKeyPassphrase string
 	SSHTunnelInsecure      bool
@@ -427,17 +429,20 @@ func openConfigForm() {
 	}
 	sshAuthIdx := 0
 	switch SSHTunnelAuthMethod {
-	case "key":
+	case "passfile":
 		sshAuthIdx = 1
-	case "agent":
+	case "key":
 		sshAuthIdx = 2
+	case "agent":
+		sshAuthIdx = 3
 	}
 	sshForm.
 		AddInputField("SSH Host", SSHTunnelHost, 20, nil, nil).
 		AddInputField("SSH Port", sshPortStr, 8, nil, nil).
 		AddInputField("SSH User", SSHTunnelUser, 20, nil, nil).
-		AddDropDown("SSH Auth", []string{"password", "key", "agent"}, sshAuthIdx, nil).
+		AddDropDown("SSH Auth", []string{"password", "passfile", "key", "agent"}, sshAuthIdx, nil).
 		AddPasswordField("SSH Password", SSHTunnelPassword, 20, '*', nil).
+		AddInputField("SSH Password File", SSHTunnelPasswordFile, 30, nil, nil).
 		AddInputField("SSH Key File", SSHTunnelKeyFile, 30, nil, nil).
 		AddPasswordField("SSH Key Passphrase", SSHTunnelKeyPassphrase, 20, '*', nil).
 		AddCheckbox("Ignore Host Key", SSHTunnelInsecure, nil)
@@ -504,8 +509,19 @@ func openConfigForm() {
 			SSHTunnelPort = sshPort
 			SSHTunnelUser = sshForm.GetFormItemByLabel("SSH User").(*tview.InputField).GetText()
 			_, sshAuthMethod := sshForm.GetFormItemByLabel("SSH Auth").(*tview.DropDown).GetCurrentOption()
-			SSHTunnelAuthMethod = sshAuthMethod
-			SSHTunnelPassword = sshForm.GetFormItemByLabel("SSH Password").(*tview.InputField).GetText()
+			SSHTunnelPasswordFile = sshForm.GetFormItemByLabel("SSH Password File").(*tview.InputField).GetText()
+			if sshAuthMethod == "passfile" {
+				pw, err := ReadFileOrStdin(SSHTunnelPasswordFile, "SSH Password: ")
+				if err != nil {
+					updateLog(fmt.Sprintf("Failed to read SSH password file: %v", err), "red")
+					return
+				}
+				SSHTunnelPassword = strings.TrimSpace(pw)
+				SSHTunnelAuthMethod = "password"
+			} else {
+				SSHTunnelAuthMethod = sshAuthMethod
+				SSHTunnelPassword = sshForm.GetFormItemByLabel("SSH Password").(*tview.InputField).GetText()
+			}
 			SSHTunnelKeyFile = sshForm.GetFormItemByLabel("SSH Key File").(*tview.InputField).GetText()
 			SSHTunnelKeyPassphrase = sshForm.GetFormItemByLabel("SSH Key Passphrase").(*tview.InputField).GetText()
 			SSHTunnelInsecure = sshForm.GetFormItemByLabel("Ignore Host Key").(*tview.Checkbox).IsChecked()
@@ -635,7 +651,7 @@ func showHostKeyModal(host string) {
 	app.SetRoot(modal, true).SetFocus(modal)
 }
 
-func readFileOrStdin(filename string, promptIfTerm string) (string, error) {
+func ReadFileOrStdin(filename string, promptIfTerm string) (string, error) {
 	if filename == "-" {
 		return readPass(promptIfTerm), nil
 	}
@@ -669,7 +685,7 @@ func setupLDAPConn() error {
 	if AuthType == 0 {
 		currentLdapPassword = strings.TrimSpace(LdapPassword)
 	} else if AuthType == 1 {
-		pw, err = readFileOrStdin(LdapPasswordFile, "Password: ")
+		pw, err = ReadFileOrStdin(LdapPasswordFile, "Password: ")
 
 		if err != nil {
 			app.Stop()
@@ -679,7 +695,7 @@ func setupLDAPConn() error {
 	} else if AuthType == 2 {
 		currentNtlmHash = strings.TrimSpace(NtlmHash)
 	} else if AuthType == 3 {
-		hash, err = readFileOrStdin(NtlmHashFile, "NTLM hash: ")
+		hash, err = ReadFileOrStdin(NtlmHashFile, "NTLM hash: ")
 
 		if err != nil {
 			app.Stop()
