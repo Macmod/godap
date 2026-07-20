@@ -670,8 +670,13 @@ func SetupApp() {
 	// Time format setup
 	TimeFormat = setupTimeFormat(TimeFormat)
 
-	// CCache path setup
-	CCachePath = os.Getenv("KRB5CCNAME")
+	// CCache path setup - strip an MIT Kerberos-style "FILE:" prefix if
+	// present, and fall back to the conventional /tmp/krb5cc_<uid> location
+	// (Linux/macOS only) when KRB5CCNAME isn't set.
+	CCachePath = strings.TrimPrefix(os.Getenv("KRB5CCNAME"), "FILE:")
+	if CCachePath == "" {
+		CCachePath = defaultCCachePath()
+	}
 
 	AuthMechanism = resolveMechanismID()
 
