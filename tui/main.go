@@ -429,7 +429,7 @@ func readFileOrStdin(filename string, promptIfTerm string) (string, error) {
 // (godap's manual h12.io/socks dial previously only covered the initial LDAP
 // TCP connection, leaving Kerberos KDC traffic unproxied).
 func buildDialer(socksServer string) adauth.Dialer {
-	return adauth.DialerWithSOCKS5ProxyIfSet(socksServer, &net.Dialer{Timeout: 10 * time.Second})
+	return adauth.DialerWithSOCKS5ProxyIfSet(socksServer, &net.Dialer{Timeout: time.Duration(Timeout) * time.Second})
 }
 
 // buildResolver constructs the custom DNS resolver for --dns/--dns-tcp, if
@@ -495,7 +495,18 @@ func connectionParams() ldaputils.ConnectParams {
 func ldapIdentity() string {
 	identity := LdapUsername
 	if identity != "" && DomainName != "" && !strings.Contains(identity, "@") && !strings.Contains(identity, ",") {
-		identity += "@" + DomainName
+		if strings.Contains(DomainName, ".") {
+			// DomainName looks like a DNS domain (e.g. from -d or a UPN
+			// suffix) - reconstruct as a UPN.
+			identity += "@" + DomainName
+		} else {
+			// DomainName looks like a short NetBIOS name (e.g. split out of
+			// a DOMAIN\user identity) - reconstruct the down-level logon
+			// name AD's simple bind natively accepts, rather than
+			// fabricating a "user@NETBIOS" UPN that isn't guaranteed to
+			// resolve to anything.
+			identity = DomainName + `\` + identity
+		}
 	}
 	return identity
 }
@@ -516,15 +527,18 @@ func setupLDAPConn() error {
 
 	ctx := context.Background()
 
-	// A domain embedded in -u/--username (user@domain or DOMAIN\user) counts
-	// as -d/--domain when the latter wasn't given explicitly - both for DC
-	// discovery below and so NTLM/Kerberos binds get a bare Username with
-	// Domain set separately, as adauth's Credential expects, instead of a
-	// domain-qualified Username with an empty Domain.
-	if DomainName == "" {
-		if domain, user := splitDomainAndUsername(LdapUsername); domain != "" {
+	// A domain embedded in -u/--username (user@domain or DOMAIN\user) is
+	// always stripped into a bare username - so NTLM/Kerberos binds get a
+	// bare Username with Domain set separately, as adauth's Credential
+	// expects, instead of a domain-qualified Username with a duplicate or
+	// empty Domain - even when -d was also given explicitly (in which case
+	// -d wins as the authoritative domain, but the username is still
+	// normalized). It only fills DomainName itself (for DC discovery below)
+	// when -d wasn't given.
+	if domain, user := splitDomainAndUsername(LdapUsername); domain != "" {
+		LdapUsername = user
+		if DomainName == "" {
 			DomainName = domain
-			LdapUsername = user
 		}
 	}
 

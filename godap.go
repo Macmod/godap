@@ -43,6 +43,10 @@ func validateFlagSet(cmd *cobra.Command) error {
 		}
 	}
 
+	if changed("aes-key") && !changed("kerberos") {
+		return fmt.Errorf("invalid authentication flags: --aes-key only makes sense with -k/--kerberos")
+	}
+
 	credentialFlagsGiven := 0
 	for _, name := range []string{"password", "passfile", "hash", "hashfile", "aes-key"} {
 		if changed(name) {
@@ -54,6 +58,10 @@ func validateFlagSet(cmd *cobra.Command) error {
 			"warning: multiple credential flags given with --kerberos; using precedence "+
 				"aes-key > hash/hashfile > password/passfile > ccache (see resolveAuthMode)\n")
 	}
+	if !changed("kerberos") && (changed("password") || changed("passfile")) && (changed("hash") || changed("hashfile")) {
+		fmt.Fprintf(log.Writer(),
+			"warning: both a password and a hash given; using precedence hash/hashfile > password/passfile (NTLM)\n")
+	}
 
 	if (changed("password") || changed("passfile")) && !changed("username") {
 		return fmt.Errorf("invalid authentication flags: -p/--password or --passfile requires -u/--username")
@@ -63,6 +71,13 @@ func validateFlagSet(cmd *cobra.Command) error {
 	}
 	if changed("aes-key") && !changed("username") {
 		return fmt.Errorf("invalid authentication flags: --aes-key requires -u/--username")
+	}
+
+	credentialSourceGiven := credentialFlagsGiven > 0 || changed("kerberos") || hasCert
+	if changed("username") && !credentialSourceGiven {
+		return fmt.Errorf("invalid authentication flags: -u/--username requires a credential " +
+			"(-p/--password, --passfile, -H/--hash, --hashfile, --aes-key, -k/--kerberos, or a client " +
+			"certificate); omit -u for an anonymous bind")
 	}
 
 	return nil
