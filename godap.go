@@ -44,7 +44,7 @@ func validateFlagSet(cmd *cobra.Command) error {
 	}
 
 	if changed("aes-key") && !changed("kerberos") {
-		return fmt.Errorf("invalid authentication flags: --aes-key only makes sense with -k/--kerberos")
+		return fmt.Errorf("invalid authentication flags: --aes-key requires -k/--kerberos")
 	}
 
 	credentialFlagsGiven := 0
@@ -71,13 +71,6 @@ func validateFlagSet(cmd *cobra.Command) error {
 	}
 	if changed("aes-key") && !changed("username") {
 		return fmt.Errorf("invalid authentication flags: --aes-key requires -u/--username")
-	}
-
-	credentialSourceGiven := credentialFlagsGiven > 0 || changed("kerberos") || hasCert
-	if changed("username") && !credentialSourceGiven {
-		return fmt.Errorf("invalid authentication flags: -u/--username requires a credential " +
-			"(-p/--password, --passfile, -H/--hash, --hashfile, --aes-key, -k/--kerberos, or a client " +
-			"certificate); omit -u for an anonymous bind")
 	}
 
 	return nil
@@ -120,7 +113,7 @@ func main() {
 	rootCmd.Flags().StringVarP(&tui.LdapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password (or - for stdin)")
 	rootCmd.Flags().StringVarP(&tui.DomainName, "domain", "d", "", "Domain for NTLM / Kerberos authentication, or for DC discovery when the target is omitted")
 	rootCmd.Flags().StringVarP(&tui.NtlmHash, "hash", "H", "", "NTLM hash")
-	rootCmd.Flags().StringVarP(&tui.AESKey, "aes-key", "", "", "Kerberos AES128/AES256 key (hex-encoded); use with --kerberos")
+	rootCmd.Flags().StringVarP(&tui.AESKey, "aes-key", "", "", "Kerberos AES128/AES256 key (hex-encoded); requires --kerberos")
 	rootCmd.Flags().BoolVarP(&tui.SimpleBind, "simple", "", false, "Force a simple LDAP bind for -u/-p instead of the default NTLM")
 	rootCmd.Flags().BoolVarP(&tui.Kerberos, "kerberos", "k", false, "Use Kerberos authentication - combine with -p/-H/--aes-key for AS-REQ, --crt/--key/--pfx for PKINIT, or alone for CCACHE (via KRB5CCNAME)")
 	rootCmd.Flags().StringVarP(&tui.NtlmHashFile, "hashfile", "", "", "Path to a file containing the NTLM hash (or - for stdin)")

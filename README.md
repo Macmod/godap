@@ -179,7 +179,7 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `-H`,`--hash` - NTLM hash for pass-the-hash
 * `--hashfile` - Path to a file containing the NTLM hash (or `-` for stdin)
 * `-k`,`--kerberos` - Use Kerberos authentication - combine with `-p`/`-H`/`--aes-key` for an AS-REQ, `--crt`/`--key`/`--pfx` for PKINIT, or alone for an existing CCACHE (via the `KRB5CCNAME` environment variable)
-* `--aes-key` - Kerberos AES128/AES256 key (hex-encoded); use with `-k`/`--kerberos`
+* `--aes-key` - Kerberos AES128/AES256 key (hex-encoded); requires `-k`/`--kerberos`
 * `-x`,`--socks` - URI of SOCKS proxy to use for the LDAP connection and all Kerberos KDC traffic (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
