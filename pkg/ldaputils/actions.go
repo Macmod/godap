@@ -1,22 +1,23 @@
 package ldaputils
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
-	"net"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Macmod/godap/v2/pkg/adidns"
 
+	"github.com/RedTeamPentesting/adauth"
+	"github.com/RedTeamPentesting/adauth/ldapauth"
 	ber "github.com/go-asn1-ber/asn1-ber"
-	"github.com/go-ldap/ldap/gssapi"
 	"github.com/go-ldap/ldap/v3"
-	"github.com/jcmturner/gokrb5/v8/client"
-	"github.com/jcmturner/gokrb5/v8/config"
-	"github.com/jcmturner/gokrb5/v8/credentials"
 
 	"golang.org/x/text/encoding/unicode"
 )
@@ -62,6 +63,9 @@ func (lc *LDAPConn) GuessFlavor() {
 	}
 }
 
+// UpgradeToTLS upgrades an already-established connection with StartTLS
+// (bound to Ctrl+U in the TUI, independent of how the connection was
+// authenticated - not part of the bind functions below).
 func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	if lc.Conn == nil {
 		return fmt.Errorf("Current connection is invalid")
@@ -75,107 +79,274 @@ func (lc *LDAPConn) UpgradeToTLS(tlsConfig *tls.Config) error {
 	return nil
 }
 
-func NewLDAPConn(ldapServer string, ldapPort int, ldaps bool, tlsConfig *tls.Config, pagingSize uint32, rootDN string, proxyConn net.Conn) (*LDAPConn, error) {
-	var conn *ldap.Conn
-	var err error = nil
+// ============================================================================
+// adauth/ldapauth-backed connection setup. Every bind mode below builds an
+// *adauth.Credential and *adauth.Target and delegates to ldapauth.ConnectTo,
+// which performs dial+bind as one call and returns a *ldap.Conn - the same
+// type LDAPConn.Conn already holds, so every other ldaputils operation is
+// unaffected by how the connection was authenticated.
+// ============================================================================
 
-	if proxyConn == nil {
-		if ldaps {
-			conn, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort), tlsConfig)
-		} else {
-			conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", ldapServer, ldapPort))
-		}
-	} else {
-		if ldaps {
-			conn = ldap.NewConn(tls.Client(proxyConn, tlsConfig), true)
-		} else {
-			conn = ldap.NewConn(proxyConn, false)
-		}
-		conn.Start()
+// ConnectParams bundles the connection-level settings shared by every bind
+// mode (as opposed to the credential-specific parameters each mode's own
+// function takes).
+type ConnectParams struct {
+	Server     string
+	Port       int
+	Scheme     string // "ldap" or "ldaps"
+	Insecure   bool   // skip TLS certificate verification
+	Timeout    time.Duration
+	PagingSize uint32
+	RootDN     string
+	// KdcHost overrides which address the Kerberos config points the KDC at,
+	// when it differs from Server (godap's --kdc). Empty uses Server.
+	KdcHost string
+	// Dialer is used for both the LDAP TCP dial and Kerberos KDC traffic
+	// (e.g. a SOCKS5 dialer from adauth.DialerWithSOCKS5ProxyIfSet). Nil
+	// dials directly.
+	Dialer adauth.Dialer
+	// Resolver overrides DNS resolution (custom server / forced TCP / SOCKS
+	// proxied). Nil uses net.DefaultResolver.
+	Resolver adauth.Resolver
+}
+
+// buildTarget constructs the connection target from p. useKerberos must be
+// true for any Kerberos-based bind mode (password, NT hash, AES key, ccache,
+// PKINIT) - it controls SPN derivation and channel-binding behavior inside
+// ldapauth.
+func buildTarget(p ConnectParams, useKerberos bool) *adauth.Target {
+	addr := p.Server
+	if p.Port != 0 {
+		addr = fmt.Sprintf("%s:%d", p.Server, p.Port)
+	}
+	target := adauth.NewTarget(p.Scheme, addr)
+	target.UseKerberos = useKerberos
+	target.Resolver = p.Resolver
+	return target
+}
+
+// baseCredential builds the *adauth.Credential fields common to every mode:
+// the resolver (for consistent --dns/--dns-tcp/--no-proxy-dns behavior) and
+// the pinned DC/KDC address, which guarantees Credential.DC()/KerberosConfig()
+// never perform a domain-wide SRV lookup - godap always has an explicit
+// server (or a target discovered once via DC lookup, see the optional
+// positional target design), so this DNS lookup is never needed.
+func baseCredential(p ConnectParams) *adauth.Credential {
+	creds := &adauth.Credential{Resolver: p.Resolver}
+
+	dc := p.Server
+	if p.KdcHost != "" {
+		dc = p.KdcHost
+	}
+	creds.SetDC(dc)
+
+	return creds
+}
+
+// connectWithCredential performs the actual dial+bind via ldapauth.ConnectTo
+// and wraps the result in godap's own LDAPConn type.
+func connectWithCredential(
+	ctx context.Context, p ConnectParams, creds *adauth.Credential, target *adauth.Target, simpleBind bool,
+) (*LDAPConn, error) {
+	ldapOpts := &ldapauth.Options{
+		Scheme:         p.Scheme,
+		Verify:         !p.Insecure,
+		Timeout:        p.Timeout,
+		SimpleBind:     simpleBind,
+		KerberosDialer: p.Dialer,
+		LDAPDialer:     p.Dialer,
 	}
 
+	conn, err := ldapauth.ConnectTo(ctx, creds, target, ldapOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &LDAPConn{
 		Conn:          conn,
-		PagingSize:    pagingSize,
-		DefaultRootDN: rootDN,
+		PagingSize:    p.PagingSize,
+		DefaultRootDN: p.RootDN,
 	}, nil
 }
 
-func (lc *LDAPConn) ExternalBind() error {
-	err := lc.Conn.ExternalBind()
-	if err != nil {
-		return fmt.Errorf("External bind failed: %v", err)
-	}
+// LDAPBind performs a simple LDAP bind, or an unauthenticated bind when
+// password is empty (matches godap's pre-migration behavior, which never
+// distinguished "-p omitted" from "-p ''"). identity is used verbatim - it
+// may be a full bind DN, a UPN (user@domain), or a bare username; it is
+// intentionally NOT split into Credential.Username/Domain, since
+// Credential.UPN() reproduces Username unchanged when Domain is empty,
+// preserving godap's existing support for raw bind DNs.
+func LDAPBind(ctx context.Context, p ConnectParams, identity, password string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = identity
+	creds.Password = password
+	creds.PasswordIsEmtpyString = password == "" // sic - typo in adauth v0.5.3, fixed upstream but not yet released
 
-	return nil
+	target := buildTarget(p, false)
+	return connectWithCredential(ctx, p, creds, target, true)
 }
 
-func (lc *LDAPConn) LDAPBind(ldapUsername string, ldapPassword string) error {
-	var err error
+// NTLMBindWithHash performs an NTLM bind using an NT hash (pass-the-hash).
+// Gains TLS channel binding automatically via ldapauth when the connection
+// is over TLS.
+func NTLMBindWithHash(ctx context.Context, p ConnectParams, domain, username, ntHash string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.NTHash = ntHash
 
-	if ldapPassword == "" {
-		err = lc.Conn.UnauthenticatedBind(ldapUsername)
-	} else {
-		err = lc.Conn.Bind(ldapUsername, ldapPassword)
-	}
-	return err
+	target := buildTarget(p, false)
+	return connectWithCredential(ctx, p, creds, target, false)
 }
 
-func (lc *LDAPConn) NTLMBindWithHash(ntlmDomain string, ntlmUsername string, ntlmHash string) error {
-	err := lc.Conn.NTLMBindWithHash(ntlmDomain, ntlmUsername, ntlmHash)
-	return err
+// NTLMBindWithPassword performs an NTLM bind using a cleartext password -
+// the new default path for a bare password (see the CLI resolution design).
+func NTLMBindWithPassword(ctx context.Context, p ConnectParams, domain, username, password string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.Password = password
+
+	target := buildTarget(p, false)
+	return connectWithCredential(ctx, p, creds, target, false)
 }
 
-func (lc *LDAPConn) KerbBindWithCCache(ccachePath string, server string, krbDomain string, spnTarget string, etype string) error {
-	var err error
-	var etypeid int32
-
-	switch etype {
-	case "rc4":
-		etypeid = 23
-	case "aes":
-		etypeid = 18
+// KerbBindWithCCache performs a Kerberos bind using an existing ccache file
+// (no AS-REQ). The SPN is derived automatically by ldapauth from the target
+// (godap's prior --spn flag is removed - see the design doc). username/domain
+// are optional (the ticket itself comes from the ccache either way) but
+// threaded through for consistency with the other Kerberos modes.
+func KerbBindWithCCache(ctx context.Context, p ConnectParams, ccachePath, domain, username string) (*LDAPConn, error) {
+	if _, err := os.Stat(ccachePath); err != nil {
+		return nil, fmt.Errorf("ccache %q: %w", ccachePath, err)
 	}
 
-	ccache, err := credentials.LoadCCache(ccachePath)
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.CCache = ccachePath
+
+	target := buildTarget(p, true)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// KerbBindWithPassword performs a Kerberos bind by first obtaining a TGT via
+// AS-REQ with a cleartext password - a mode godap did not have prior to this
+// migration (Kerberos support was ccache-only).
+func KerbBindWithPassword(ctx context.Context, p ConnectParams, domain, username, password string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.Password = password
+
+	target := buildTarget(p, true)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// KerbBindWithNTHash performs a Kerberos bind by obtaining a TGT using an NT
+// hash in place of a password - new, no prior equivalent in godap.
+func KerbBindWithNTHash(ctx context.Context, p ConnectParams, domain, username, ntHash string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.NTHash = ntHash
+
+	target := buildTarget(p, true)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// KerbBindWithAESKey performs a Kerberos bind by obtaining a TGT using a raw
+// Kerberos AES128/AES256 key (hex-encoded) - new, no prior equivalent.
+func KerbBindWithAESKey(ctx context.Context, p ConnectParams, domain, username, aesKeyHex string) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.AESKey = aesKeyHex
+
+	target := buildTarget(p, true)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// KerbBindWithPKINIT performs a Kerberos bind by obtaining a TGT via PKINIT
+// (client certificate). Distinct from ExternalBind: this authenticates via
+// Kerberos using the certificate, not via a raw TLS/SASL EXTERNAL bind - new,
+// no prior equivalent (godap's --crt/--key/--pfx flags only ever did
+// ExternalBind before this migration).
+func KerbBindWithPKINIT(
+	ctx context.Context, p ConnectParams, domain, username string, cert *x509.Certificate, key any,
+) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.Username = username
+	creds.Domain = domain
+	creds.ClientCert = cert
+	creds.ClientCertKey = key
+
+	target := buildTarget(p, true)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// ExternalBind performs a TLS client-certificate bind (SASL EXTERNAL over
+// StartTLS, or a WhoAmI-verified bind over LDAPS) - godap's pre-migration
+// PEM/PFX modes, both now funneled through this one function since ldapauth
+// dispatches on scheme internally. cert/key are loaded by the caller via
+// LoadClientCertPEM/LoadClientCertPFX below.
+func ExternalBind(ctx context.Context, p ConnectParams, cert *x509.Certificate, key any) (*LDAPConn, error) {
+	creds := baseCredential(p)
+	creds.ClientCert = cert
+	creds.ClientCertKey = key
+
+	target := buildTarget(p, false)
+	return connectWithCredential(ctx, p, creds, target, false)
+}
+
+// LoadClientCertPEM loads a client certificate/private key pair from PEM
+// files, returning the parsed *x509.Certificate and private key adauth.Credential
+// expects (ClientCert/ClientCertKey).
+func LoadClientCertPEM(certFile, keyFile string) (*x509.Certificate, any, error) {
+	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	krbConf := config.New()
-	krbConf.LibDefaults.DefaultRealm = krbDomain
-	krbConf.LibDefaults.PermittedEnctypeIDs = []int32{etypeid}
-	krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeid}
-	krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeid}
-	krbConf.LibDefaults.UDPPreferenceLimit = 1
-
-	var realm config.Realm
-	realm.Realm = strings.ToUpper(krbDomain)
-	realm.KDC = []string{fmt.Sprintf("%s:88", server)}
-	realm.DefaultDomain = strings.ToUpper(krbDomain)
-
-	krbConf.Realms = []config.Realm{realm}
-
-	rawKrbClient, err := client.NewFromCCache(ccache, krbConf)
+	cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	wrappedClient := &gssapi.Client{
-		Client: rawKrbClient,
-	}
+	return cert, tlsCert.PrivateKey, nil
+}
 
-	err = wrappedClient.Login()
+// LoadClientCertPFX loads a client certificate/private key pair from a PFX
+// file (empty password, matching godap's pre-migration behavior), via
+// adauth's own PFX decoder.
+func LoadClientCertPFX(pfxFile string) (*x509.Certificate, any, error) {
+	data, err := os.ReadFile(pfxFile)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	_, err = lc.Conn.SPNEGOBind(wrappedClient.Client, spnTarget)
-	return err
+	key, cert, _, err := adauth.DecodePFX(data, "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, key, nil
+}
+
+// ResolveDCServer discovers a domain controller address for domain via a
+// Kerberos SRV lookup (reusing adauth.Credential.DC(), the same resolution
+// adauth itself uses for -dc-less invocations elsewhere). Used only when
+// godap's target argument is omitted on the command line - an explicit
+// server always takes precedence and never triggers this lookup.
+func ResolveDCServer(ctx context.Context, domain string, resolver adauth.Resolver) (string, error) {
+	creds := &adauth.Credential{Domain: domain, Resolver: resolver}
+
+	target, err := creds.DC(ctx, "ldap")
+	if err != nil {
+		return "", err
+	}
+
+	return target.AddressWithoutPort(), nil
 }
 
 // Search

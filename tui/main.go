@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -15,16 +16,15 @@ import (
 	"time"
 
 	"github.com/Macmod/godap/v2/pkg/ldaputils"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/gdamore/tcell/v2"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/rivo/tview"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
-	"h12.io/socks"
-	"software.sslmate.com/src/go-pkcs12"
 )
 
-var GodapVer = "Godap v2.11.1"
+var GodapVer = "Godap v2.12.0"
 var (
 	LdapServer       string
 	LdapPort         int
@@ -34,10 +34,11 @@ var (
 	LdapPasswordFile string
 	NtlmHash         string
 	NtlmHashFile     string
+	AESKey           string
 	DomainName       string
 	SocksServer      string
-	TargetSpn        string
 	KdcHost          string
+	CustomDNS        string
 	TimeFormat       string
 	CertFile         string
 	KeyFile          string
@@ -45,25 +46,28 @@ var (
 	CCachePath       string
 	BackendFlavor    string
 
-	Kerberos     bool
-	Emojis       bool
-	Colors       bool
-	FormatAttrs  bool
-	ExpandAttrs  bool
-	AttrSort     string
-	AttrLimit    int
-	CacheEntries bool
-	Deleted      bool
-	LoadSchema   bool
-	PagingSize   uint32
-	Timeout      int32
-	Insecure     bool
-	Ldaps        bool
-	SearchFilter string
-	RootDN       string
-	ShowHeader   bool
-	AuthType     int
-	ExportDir    string
+	Kerberos      bool
+	SimpleBind    bool
+	ForceDNSTCP   bool
+	NoProxyDNS    bool
+	Emojis        bool
+	Colors        bool
+	FormatAttrs   bool
+	ExpandAttrs   bool
+	AttrSort      string
+	AttrLimit     int
+	CacheEntries  bool
+	Deleted       bool
+	LoadSchema    bool
+	PagingSize    uint32
+	Timeout       int32
+	Insecure      bool
+	Ldaps         bool
+	SearchFilter  string
+	RootDN        string
+	ShowHeader    bool
+	AuthMechanism string
+	ExportDir     string
 
 	page int
 )
@@ -276,34 +280,6 @@ func reconnectLdap() {
 	})
 }
 
-func getCurrentAuthType() int {
-	if PfxFile != "" {
-		return 6 // Certificate (PKCS#12)
-	}
-
-	if CertFile != "" && KeyFile != "" {
-		return 5 // Certificate (PEM)
-	}
-
-	if Kerberos {
-		return 4 // Kerberos
-	}
-
-	if NtlmHashFile != "" {
-		return 3 // NTLM (file)
-	}
-
-	if NtlmHash != "" {
-		return 2 // NTLM
-	}
-
-	if LdapPasswordFile != "" {
-		return 1 // Password (file)
-	}
-
-	return 0 // Password (default)
-}
-
 func openConfigForm() {
 	currentFocus := app.GetFocus()
 
@@ -315,87 +291,35 @@ func openConfigForm() {
 		AddCheckbox("LDAPS", Ldaps, nil).
 		AddCheckbox("IgnoreCert", Insecure, nil).
 		AddInputField("SOCKSProxy", SocksServer, 20, nil, nil).
-		AddInputField("Domain", DomainName, 20, nil, nil).
-		AddDropDown("Auth Type", []string{
-			"Password",
-			"Password (file)",
-			"NTLM",
-			"NTLM (file)",
-			"Kerberos",
-			"Certificate (PEM)",
-			"Certificate (PKCS#12)",
-		}, 0, nil)
+		AddInputField("Domain", DomainName, 20, nil, nil)
 
-	// Credentials forms for each auth type
-	passwordForm := NewXForm()
-	passwordForm.
-		AddInputField("Username", LdapUsername, 20, nil, nil).
-		AddPasswordField("Password", LdapPassword, 20, '*', nil)
+	authTypeOptions := make([]string, len(authMechanisms))
+	for i, m := range authMechanisms {
+		authTypeOptions[i] = m.Label
+	}
+	configForm.AddDropDown("Auth Type", authTypeOptions, 0, nil)
 
-	passwordFileForm := NewXForm()
-	passwordFileForm.
-		AddInputField("Username", LdapUsername, 20, nil, nil).
-		AddInputField("Password File", LdapPasswordFile, 20, nil, nil)
-
-	ntlmForm := NewXForm()
-	ntlmForm.
-		AddInputField("Username", LdapUsername, 20, nil, nil).
-		AddPasswordField("NTLM Hash", NtlmHash, 20, '*', nil)
-
-	ntlmFileForm := NewXForm()
-	ntlmFileForm.
-		AddInputField("Username", LdapUsername, 20, nil, nil).
-		AddInputField("Hash File", NtlmHashFile, 20, nil, nil)
-
-	kerberosForm := NewXForm()
-	kerberosForm.
-		AddInputField("CCACHE Path", CCachePath, 20, nil, nil).
-		AddInputField("Target SPN", TargetSpn, 20, nil, nil).
-		AddInputField("KDC Address", KdcHost, 20, nil, nil)
-
-	pfxForm := NewXForm()
-	pfxForm.
-		AddInputField("PFX Path", PfxFile, 20, nil, nil)
-
-	pemForm := NewXForm()
-	pemForm.
-		AddInputField("Certificate Path", CertFile, 20, nil, nil).
-		AddInputField("Key Path", KeyFile, 20, nil, nil)
-
-	// Create pages to switch between auth forms
+	// One page per auth mechanism, built entirely from its Fields list -
+	// every mechanism in authMechanisms is automatically representable here,
+	// with no per-mechanism form to hand-maintain.
 	authPages := tview.NewPages()
-	authPages.
-		AddPage("password", passwordForm, true, true).
-		AddPage("passwordfile", passwordFileForm, true, false).
-		AddPage("ntlm", ntlmForm, true, false).
-		AddPage("ntlmfile", ntlmFileForm, true, false).
-		AddPage("kerberos", kerberosForm, true, false).
-		AddPage("pem", pemForm, true, false).
-		AddPage("pfx", pfxForm, true, false)
+	mechForms := make(map[string]*XForm, len(authMechanisms))
+	for i, m := range authMechanisms {
+		form := buildFieldsPage(m.Fields)
+		mechForms[m.ID] = form
+		authPages.AddPage(m.ID, form, true, i == 0)
+	}
 
 	// Handle auth type selection
 	configForm.GetFormItemByLabel("Auth Type").(*tview.DropDown).
 		SetSelectedFunc(func(text string, index int) {
-			switch index {
-			case 0:
-				authPages.SwitchToPage("password")
-			case 1:
-				authPages.SwitchToPage("passwordfile")
-			case 2:
-				authPages.SwitchToPage("ntlm")
-			case 3:
-				authPages.SwitchToPage("ntlmfile")
-			case 4:
-				authPages.SwitchToPage("kerberos")
-			case 5:
-				authPages.SwitchToPage("pem")
-			case 6:
-				authPages.SwitchToPage("pfx")
-			}
+			authPages.SwitchToPage(authMechanisms[index].ID)
 		})
 
+	currentMechanism := indexOfMechanism(AuthMechanism)
 	configForm.GetFormItemByLabel("Auth Type").(*tview.DropDown).
-		SetCurrentOption(AuthType)
+		SetCurrentOption(currentMechanism)
+	authPages.SwitchToPage(authMechanisms[currentMechanism].ID)
 
 	configForm.
 		AddButton("Go Back", func() {
@@ -410,33 +334,14 @@ func openConfigForm() {
 			SocksServer = configForm.GetFormItemByLabel("SOCKSProxy").(*tview.InputField).GetText()
 			DomainName = configForm.GetFormItemByLabel("Domain").(*tview.InputField).GetText()
 
-			// Update auth settings based on selected type
+			// Update auth settings from whichever mechanism page is active -
+			// only the fields that mechanism declares are read back, so
+			// switching mechanisms never clobbers a field it doesn't show.
 			authTypeField, _ := configForm.GetFormItemByLabel("Auth Type").(*tview.DropDown).GetCurrentOption()
-			switch authTypeField {
-			case 0: // Password
-				LdapUsername = passwordForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
-				LdapPassword = passwordForm.GetFormItemByLabel("Password").(*tview.InputField).GetText()
-			case 1: // Password file
-				LdapUsername = passwordFileForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
-				LdapPasswordFile = passwordFileForm.GetFormItemByLabel("Password File").(*tview.InputField).GetText()
-			case 2: // NTLM
-				LdapUsername = ntlmForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
-				NtlmHash = ntlmForm.GetFormItemByLabel("NTLM Hash").(*tview.InputField).GetText()
-			case 3: // NTLM file
-				LdapUsername = ntlmFileForm.GetFormItemByLabel("Username").(*tview.InputField).GetText()
-				NtlmHashFile = ntlmFileForm.GetFormItemByLabel("Hash File").(*tview.InputField).GetText()
-			case 4: // Kerberos
-				CCachePath = kerberosForm.GetFormItemByLabel("CCACHE Path").(*tview.InputField).GetText()
-				TargetSpn = kerberosForm.GetFormItemByLabel("Target SPN").(*tview.InputField).GetText()
-				KdcHost = kerberosForm.GetFormItemByLabel("KDC Address").(*tview.InputField).GetText()
-			case 5: // PEM
-				CertFile = pemForm.GetFormItemByLabel("Certificate Path").(*tview.InputField).GetText()
-				KeyFile = pemForm.GetFormItemByLabel("Key Path").(*tview.InputField).GetText()
-			case 6: // PFX
-				PfxFile = pfxForm.GetFormItemByLabel("PFX Path").(*tview.InputField).GetText()
-			}
+			mech := authMechanisms[authTypeField]
+			applyFieldsPage(mechForms[mech.ID], mech.Fields)
 
-			AuthType = authTypeField
+			AuthMechanism = mech.ID
 
 			app.SetRoot(appPanel, true).SetFocus(currentFocus)
 			reconnectLdap()
@@ -519,6 +424,82 @@ func readFileOrStdin(filename string, promptIfTerm string) (string, error) {
 	return string(content), err
 }
 
+// buildDialer returns the dialer used for LDAP TCP traffic and Kerberos KDC
+// traffic alike, uniformly covering SOCKS proxying for every auth mode
+// (godap's manual h12.io/socks dial previously only covered the initial LDAP
+// TCP connection, leaving Kerberos KDC traffic unproxied).
+func buildDialer(socksServer string) adauth.Dialer {
+	return adauth.DialerWithSOCKS5ProxyIfSet(socksServer, &net.Dialer{Timeout: 10 * time.Second})
+}
+
+// buildResolver constructs the custom DNS resolver for --dns/--dns-tcp, if
+// set. Deliberately built per-invocation and injected via adauth's Resolver
+// fields rather than mutating net.DefaultResolver globally. --no-proxy-dns
+// excludes the DNS traffic itself from the SOCKS proxy while everything else
+// (LDAP, Kerberos) still goes through it.
+func buildResolver() adauth.Resolver {
+	if CustomDNS == "" {
+		return nil
+	}
+
+	dnsAddr := CustomDNS
+	if _, _, splitErr := net.SplitHostPort(dnsAddr); splitErr != nil {
+		dnsAddr = net.JoinHostPort(dnsAddr, "53")
+	}
+
+	network := "udp"
+	if ForceDNSTCP {
+		network = "tcp"
+	}
+
+	dnsSocksServer := SocksServer
+	if NoProxyDNS {
+		dnsSocksServer = ""
+	}
+	dialer := adauth.AsContextDialer(buildDialer(dnsSocksServer))
+
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, dnsAddr)
+		},
+	}
+}
+
+// connectionParams assembles the connection-level settings shared by every
+// bind mode from the current flag values.
+func connectionParams() ldaputils.ConnectParams {
+	scheme := "ldap"
+	if Ldaps {
+		scheme = "ldaps"
+	}
+
+	return ldaputils.ConnectParams{
+		Server:     LdapServer,
+		Port:       LdapPort,
+		Scheme:     scheme,
+		Insecure:   Insecure,
+		Timeout:    time.Duration(Timeout) * time.Second,
+		PagingSize: PagingSize,
+		RootDN:     RootDN,
+		KdcHost:    KdcHost,
+		Dialer:     buildDialer(SocksServer),
+		Resolver:   buildResolver(),
+	}
+}
+
+// ldapIdentity builds the identity string used for a simple LDAP bind,
+// matching godap's pre-migration behavior: an already-qualified bind DN,
+// UPN, or bare username is passed through unchanged, and a plain username is
+// qualified with -d/--domain if one was given.
+func ldapIdentity() string {
+	identity := LdapUsername
+	if identity != "" && DomainName != "" && !strings.Contains(identity, "@") && !strings.Contains(identity, ",") {
+		identity += "@" + DomainName
+	}
+	return identity
+}
+
 func setupLDAPConn() error {
 	updateLog("Connecting to LDAP server...", "yellow")
 
@@ -526,173 +507,73 @@ func setupLDAPConn() error {
 		lc.Conn.Close()
 	}
 
+	// tlsConfig is also used by upgradeStartTLS (Ctrl+U), independent of the
+	// bind mode below.
 	tlsConfig = secureTlsConfig
 	if Insecure {
 		tlsConfig = insecureTlsConfig
 	}
 
-	var (
-		currentLdapUsername string
-		currentLdapPassword string
-		currentNtlmHash     string
-	)
+	ctx := context.Background()
 
-	// Read password or NTLM hash from file
-	var pw string
-	var hash string
-
-	if AuthType == 0 {
-		currentLdapPassword = strings.TrimSpace(LdapPassword)
-	} else if AuthType == 1 {
-		pw, err = readFileOrStdin(LdapPasswordFile, "Password: ")
-
-		if err != nil {
-			app.Stop()
-			log.Fatal(err)
-		}
-		currentLdapPassword = strings.TrimSpace(string(pw))
-	} else if AuthType == 2 {
-		currentNtlmHash = strings.TrimSpace(NtlmHash)
-	} else if AuthType == 3 {
-		hash, err = readFileOrStdin(NtlmHashFile, "NTLM hash: ")
-
-		if err != nil {
-			app.Stop()
-			log.Fatal(err)
-		}
-		currentNtlmHash = strings.TrimSpace(string(hash))
-	}
-
-	// If a certificate and key pair is provided, store it
-	// in the TLS config to be used for the connection
-	if AuthType == 6 {
-		pfxData, err := os.ReadFile(PfxFile)
-		if err != nil {
-			app.Stop()
-			log.Fatalf("Error reading PFX file: %v", err)
-		}
-
-		// Empty password for now - can be made configurable in the future
-		privateKey, cert, err := pkcs12.Decode(pfxData, "")
-		if err != nil {
-			app.Stop()
-			log.Fatalf("Error decoding PFX: %v", err)
-		}
-
-		tlsCert := tls.Certificate{
-			Certificate: [][]byte{cert.Raw},
-			PrivateKey:  privateKey,
-			Leaf:        cert,
-		}
-
-		tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	} else if AuthType == 5 {
-		cert, err := tls.LoadX509KeyPair(CertFile, KeyFile)
-		if err != nil {
-			app.Stop()
-			log.Fatalf("Error loading certificate / key: %v", err)
-		}
-
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	var proxyConn net.Conn = nil
-	var err error
-
-	if SocksServer != "" {
-		proxyDial := socks.Dial(SocksServer)
-		proxyConn, err = proxyDial("tcp", fmt.Sprintf("%s:%s", LdapServer, strconv.Itoa(LdapPort)))
-		if err != nil {
-			app.Stop()
-			log.Fatal(fmt.Sprint(err))
+	// A domain embedded in -u/--username (user@domain or DOMAIN\user) counts
+	// as -d/--domain when the latter wasn't given explicitly - both for DC
+	// discovery below and so NTLM/Kerberos binds get a bare Username with
+	// Domain set separately, as adauth's Credential expects, instead of a
+	// domain-qualified Username with an empty Domain.
+	if DomainName == "" {
+		if domain, user := splitDomainAndUsername(LdapUsername); domain != "" {
+			DomainName = domain
+			LdapUsername = user
 		}
 	}
 
-	ldap.DefaultTimeout = time.Duration(Timeout) * time.Second
+	if LdapServer == "" {
+		if DomainName == "" {
+			err = fmt.Errorf("no target server given and no -d/--domain to discover one from")
+			updateLog(fmt.Sprint(err), "red")
+			updateStateBox(statusPanel, false)
+			return err
+		}
 
-	var newLc *ldaputils.LDAPConn
-	newLc, err = ldaputils.NewLDAPConn(
-		LdapServer, LdapPort,
-		Ldaps, tlsConfig, PagingSize, RootDN,
-		proxyConn,
-	)
+		discovered, discErr := ldaputils.ResolveDCServer(ctx, DomainName, buildResolver())
+		if discErr != nil {
+			err = fmt.Errorf("discover domain controller for %q: %w", DomainName, discErr)
+			updateLog(fmt.Sprint(err), "red")
+			updateStateBox(statusPanel, false)
+			return err
+		}
+		LdapServer = discovered
+	}
+
+	params := connectionParams()
+
+	mech := mechanismByID(AuthMechanism)
+	newLc, bindType, secure, err := mech.Bind(ctx, params)
 
 	if err != nil {
 		updateLog(fmt.Sprint(err), "red")
-	} else {
-		lc = newLc
-		updateLog("Connection success", "green")
-		isSecure := Ldaps
-
-		switch strings.ToLower(BackendFlavor) {
-		case "msad":
-			lc.Flavor = ldaputils.MicrosoftADFlavor
-		case "basic":
-			lc.Flavor = ldaputils.BasicLDAPFlavor
-		default:
-			lc.GuessFlavor()
-		}
-
-		var bindType string
-		if AuthType == 5 || AuthType == 6 {
-			if !Ldaps {
-				// If the connection was not using LDAPS, upgrade it with StartTLS
-				// and then perform an ExternalBind
-				err = lc.UpgradeToTLS(tlsConfig)
-				if err != nil {
-					app.Stop()
-					log.Fatal(err)
-				}
-
-				err = lc.ExternalBind()
-				if err != nil {
-					app.Stop()
-					log.Fatal(err)
-				}
-			}
-
-			isSecure = true
-			bindType = "LDAP+ClientCertificate"
-		} else if AuthType == 4 {
-			if _, err := os.Stat(CCachePath); err != nil {
-				app.Stop()
-				log.Fatal(err)
-			}
-
-			var KdcAddr string
-			if KdcHost != "" {
-				KdcAddr = KdcHost
-			} else {
-				KdcAddr = LdapServer
-			}
-
-			err = lc.KerbBindWithCCache(CCachePath, KdcAddr, DomainName, TargetSpn, "aes")
-			bindType = "Kerberos"
-		} else if AuthType == 2 || AuthType == 3 {
-			err = lc.NTLMBindWithHash(DomainName, LdapUsername, currentNtlmHash)
-			bindType = "NTLM"
-		} else {
-			currentLdapUsername = LdapUsername
-			if !strings.Contains(LdapUsername, "@") && !strings.Contains(LdapUsername, ",") && LdapUsername != "" && DomainName != "" {
-				currentLdapUsername += "@" + DomainName
-			}
-
-			err = lc.LDAPBind(currentLdapUsername, currentLdapPassword)
-			bindType = "LDAP"
-		}
-
-		if err != nil {
-			// Bind failed
-			updateLog(fmt.Sprint(err), "red")
-		} else {
-			updateStateBox(tlsPanel, isSecure)
-			updateLog("Bind success ("+bindType+")", "green")
-		}
+		updateStateBox(statusPanel, false)
+		return err
 	}
 
-	updateStateBox(statusPanel, err == nil)
+	lc = newLc
+	updateLog("Connection success", "green")
 
-	return err
+	switch strings.ToLower(BackendFlavor) {
+	case "msad":
+		lc.Flavor = ldaputils.MicrosoftADFlavor
+	case "basic":
+		lc.Flavor = ldaputils.BasicLDAPFlavor
+	default:
+		lc.GuessFlavor()
+	}
+
+	updateStateBox(tlsPanel, Ldaps || secure)
+	updateLog("Bind success ("+bindType+")", "green")
+	updateStateBox(statusPanel, true)
+
+	return nil
 }
 
 func appKeyHandler(event *tcell.EventKey) *tcell.EventKey {
@@ -778,7 +659,7 @@ func SetupApp() {
 	// CCache path setup
 	CCachePath = os.Getenv("KRB5CCNAME")
 
-	AuthType = getCurrentAuthType()
+	AuthMechanism = resolveMechanismID()
 
 	err := setupLDAPConn()
 	if err != nil {
