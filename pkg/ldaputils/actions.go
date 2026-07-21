@@ -180,7 +180,7 @@ func LDAPBind(ctx context.Context, p ConnectParams, identity, password string) (
 	creds := baseCredential(p)
 	creds.Username = identity
 	creds.Password = password
-	creds.PasswordIsEmtpyString = password == "" // sic - typo in adauth v0.5.3, fixed upstream but not yet released
+	creds.PasswordIsEmptyString = password == "" // sic - typo in adauth v0.5.3, fixed upstream but not yet released
 
 	target := buildTarget(p, false)
 	return connectWithCredential(ctx, p, creds, target, true)
