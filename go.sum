@@ -2,6 +2,8 @@ github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 h1:mFRzDkZVAjdal+
 github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358/go.mod h1:chxPXzSsl7ZWRAuOIE23GDNzjWuZquvFlgA8xmpunjU=
 github.com/RedTeamPentesting/adauth v0.5.3 h1:+M887p9uWNR9gHsgaXOkFIVxCDjBUaEiAhbPYqUZmVM=
 github.com/RedTeamPentesting/adauth v0.5.3/go.mod h1:l6FRaC2TliS/JMNWskO3J1tmrcKJyOaMFhWC6hHeWno=
+github.com/RedTeamPentesting/adauth v0.5.4-0.20260512142417-54e2981767bb h1:m+tlBx5L5m7Urpa29cOpuYGA0bJqXdPRk3V0Pplpos4=
+github.com/RedTeamPentesting/adauth v0.5.4-0.20260512142417-54e2981767bb/go.mod h1:l6FRaC2TliS/JMNWskO3J1tmrcKJyOaMFhWC6hHeWno=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa h1:LHTHcTQiSGT7VVbI0o4wBRNQIgn917usHWOd6VAffYI=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa/go.mod h1:cEWa1LVoE5KvSD9ONXsZrj0z6KqySlCCNKHlLzbqAt4=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=

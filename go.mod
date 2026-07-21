@@ -3,7 +3,7 @@ module github.com/Macmod/godap/v2
 go 1.24.1
 
 require (
-	github.com/RedTeamPentesting/adauth v0.5.3
+	github.com/RedTeamPentesting/adauth v0.5.4-0.20260512142417-54e2981767bb
 	github.com/gdamore/tcell/v2 v2.7.1
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667
 	github.com/go-ldap/ldap/v3 v3.4.11
