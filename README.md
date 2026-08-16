@@ -29,7 +29,7 @@
 
 # Features
 
-* 🧩 Supports authentication with password, NTLM hash, Kerberos ticket or PEM/PKCS#12 certificate
+* 🧩 Supports authentication with password, NT hashes, Kerberos (CCACHE/password/NT hash/AES key/PKINIT) or PEM/PKCS#12 client certificate (SChannel)
 * 🗒️ Formats date/time, boolean and other categorical attributes into readable text
 * 😎 Pretty colors & cool emojis
 * 🔐 LDAPS & StartTLS support
@@ -79,16 +79,33 @@ or
 $ godap <hostname or IP> -u <username>@<domain> -p <password>
 ```
 
-**Bind with an NTLM hash**
+**Bind with an NTLM hash (pass-the-hash)**
 
 ```bash
 $ godap <hostname or IP> -u <username> -H <hash> [-d <domain>]
 ```
 
-**Bind with a Kerberos ticket**
+By default, `-u`/`-p` performs an NTLM bind; add `--simple` to force a simple LDAP bind instead.
+
+**Bind with Kerberos**
+
+Kerberos is selected with `-k`/`--kerberos`, and accepts any of the credential flags below (or none, to use an existing CCACHE via `KRB5CCNAME`):
 
 ```bash
-$ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain> -t ldap/<DC hostname>
+# CCACHE (no other credential flags)
+$ KRB5CCNAME=ticket.ccache godap <hostname or IP> -k -d <domain>
+
+# Password
+$ godap <hostname or IP> -k -u <username> -p <password> -d <domain>
+
+# NT hash
+$ godap <hostname or IP> -k -u <username> -H <hash> -d <domain>
+
+# AES128/AES256 key (hex-encoded)
+$ godap <hostname or IP> -k -u <username> --aes-key <key> -d <domain>
+
+# PKINIT (client certificate)
+$ godap <hostname or IP> -k -u <username> --crt <cert.pem> --key <cert.key> -d <domain>
 ```
 
 **Bind with a Certificate + Private Key**
@@ -110,6 +127,10 @@ Note. This method will either pass the certificate directly when connecting with
 ```bash
 $ godap <hostname or IP>
 ```
+
+**Changing authentication at runtime**
+
+Every bind method above can also be selected and edited from inside godap: open the connection settings panel with `l`, pick a mechanism (`Simple Bind`, `NTLM`, `Kerberos` or `Certificate`) from the `Auth Type` dropdown, fill in whichever credential fields you want to use, and reconnect with the `Update` button. Each mechanism's page shows every credential it can use at once (e.g. the `Kerberos` page has fields for CCACHE, password, NT hash, AES key and a client certificate together) - godap picks the strongest one you've filled in, using the same precedence as the CLI flags (AES key > NT hash > password > CCACHE, with a client certificate taking priority for PKINIT).
 
 **LDAPS/StartTLS**
 
@@ -153,14 +174,18 @@ For more usage information & examples check the [Wiki](https://github.com/Macmod
 * `-I`,`--insecure` - Skip TLS verification for LDAPS/StartTLS (default: `false`)
 * `-S`,`--ldaps` - Use LDAPS for initial connection (default: `false`)
 * `-G`,`--paging` - Paging size for regular queries (default: `800`)
-* `-d`,`--domain` - Domain name for NTLM / Kerberos authentication
-* `-H`,`--hash` - Hashes for NTLM bind
-* `-k`,`--kerberos` - Use Kerberos ticket for authentication (CCACHE specified via `KRB5CCNAME` environment variable)
-* `-t`,`--spn` - Target SPN to use for Kerberos bind (usually `ldap/dchostname`)
-* `--hashfile` - Path to a file containing the hashes for NTLM bind (or `-` for stdin)
-* `-x`,`--socks` - URI of SOCKS proxy to use for connection (supports `socks4://`, `socks4a://` or `socks5://` schemas)
+* `-d`,`--domain` - Domain for NTLM / Kerberos authentication, or for DC discovery when the target host is omitted (also inferred from `-u user@domain` or `-u DOMAIN\user`)
+* `--simple` - Force a simple LDAP bind for `-u`/`-p` instead of the default NTLM bind
+* `-H`,`--hash` - NTLM hash for pass-the-hash
+* `--hashfile` - Path to a file containing the NTLM hash (or `-` for stdin)
+* `-k`,`--kerberos` - Use Kerberos authentication - combine with `-p`/`-H`/`--aes-key` for an AS-REQ, `--crt`/`--key`/`--pfx` for PKINIT, or alone for an existing CCACHE (via the `KRB5CCNAME` environment variable)
+* `--aes-key` - Kerberos AES128/AES256 key (hex-encoded); requires `-k`/`--kerberos`
+* `-x`,`--socks` - URI of SOCKS proxy to use for the LDAP connection and all Kerberos KDC traffic (supports `socks4://`, `socks4a://` or `socks5://` schemas)
 * `-s`,`--schema` - Load GUIDs from schema on initialization (default: `false`)
 * `--kdc` - Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)
+* `--dns` - Custom DNS resolver `IP[:port]` for DC discovery and SPN/hostname lookups
+* `--dns-tcp` - Force DNS queries over TCP instead of UDP
+* `--no-proxy-dns` - Do not route DNS queries through the SOCKS5 proxy (only relevant with `-x`/`--socks`)
 * `--timefmt` - Time format for LDAP timestamps. Options: eu, us, [iso8601](https://en.wikipedia.org/wiki/ISO_8601), or define your own using [go time format](https://go.dev/src/time/format.go) (default: `eu`)
 * `--attrsort` - Sort attributes by name: `none` (default), `asc` (ascending), or `desc` (descending)
 * `--crt` - Path to a file containing the certificate to use for the bind

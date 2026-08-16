@@ -6,85 +6,94 @@ import (
 
 	"github.com/Macmod/godap/v2/tui"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
-var acceptableAuthFlagSets = []map[string]bool{
-	{"username": true, "password": true},
-	{"username": true, "passfile": true},
-	{"username": true, "hash": true},
-	{"username": true, "hashfile": true},
-	{"kerberos": true},
-	{"crt": true, "key": true},
-	{"pfx": true},
-}
-
+// validateFlagSet checks the auth-related flags for known-nonsensical
+// combinations. It intentionally does not try to enforce "exactly one
+// acceptable set" via a flat list of disjoint flag-name sets (the
+// pre-migration algorithm) - the new design has --kerberos legitimately
+// combine with --password/--hash/--aes-key, which are supersets of each
+// other in exactly the way that approach can't represent without producing
+// false "mixed flags" errors. See resolveAuthMode below for the actual
+// precedence resolution; this function only rejects combinations that can
+// never resolve to anything sensible, regardless of precedence.
 func validateFlagSet(cmd *cobra.Command) error {
-	used := make(map[string]bool)
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		used[f.Name] = true
-	})
+	changed := func(name string) bool { return cmd.Flags().Changed(name) }
 
-	matches := 0
-	partials := 0
+	hasCert := changed("crt") || changed("key") || changed("pfx")
+	if changed("crt") != changed("key") {
+		return fmt.Errorf("invalid authentication flags: --crt and --key must be given together")
+	}
+	if hasCert && changed("pfx") && (changed("crt") || changed("key")) {
+		return fmt.Errorf("invalid authentication flags: --crt/--key and --pfx are mutually exclusive")
+	}
 
-	for _, candidateSet := range acceptableAuthFlagSets {
-		if containsAll(used, candidateSet) {
-			if matches > 0 {
-				return fmt.Errorf("Invalid authentication flags: mixed flags from multiple acceptable sets\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
-			}
-			matches++
-		} else if intersects(used, candidateSet) {
-			partials++
+	if changed("password") && changed("passfile") {
+		return fmt.Errorf("invalid authentication flags: --password and --passfile are mutually exclusive")
+	}
+	if changed("hash") && changed("hashfile") {
+		return fmt.Errorf("invalid authentication flags: --hash and --hashfile are mutually exclusive")
+	}
+
+	if changed("simple") {
+		if changed("kerberos") || changed("hash") || changed("hashfile") || changed("aes-key") || hasCert {
+			return fmt.Errorf("invalid authentication flags: --simple only makes sense with " +
+				"-u/--username and -p/--password (or --passfile), not with --kerberos, --hash/--hashfile, " +
+				"--aes-key, or a client certificate")
 		}
 	}
 
-	if matches == 0 && partials > 0 {
-		return fmt.Errorf("Invalid authentication flags: missing required flags\nPlease use only one of {-u,-p},{-u,--passfile},{-u,-H},{-u,--hashfile},{-k},{--crt,--key},{--pfx}\nor none of these for anonymous binds.")
+	if changed("aes-key") && !changed("kerberos") {
+		return fmt.Errorf("invalid authentication flags: --aes-key requires -k/--kerberos")
+	}
+
+	credentialFlagsGiven := 0
+	for _, name := range []string{"password", "passfile", "hash", "hashfile", "aes-key"} {
+		if changed(name) {
+			credentialFlagsGiven++
+		}
+	}
+	if changed("kerberos") && credentialFlagsGiven > 1 {
+		fmt.Fprintf(log.Writer(),
+			"warning: multiple credential flags given with --kerberos; using precedence "+
+				"aes-key > hash/hashfile > password/passfile > ccache (see resolveAuthMode)\n")
+	}
+	if !changed("kerberos") && (changed("password") || changed("passfile")) && (changed("hash") || changed("hashfile")) {
+		fmt.Fprintf(log.Writer(),
+			"warning: both a password and a hash given; using precedence hash/hashfile > password/passfile (NTLM)\n")
+	}
+
+	if (changed("password") || changed("passfile")) && !changed("username") {
+		return fmt.Errorf("invalid authentication flags: -p/--password or --passfile requires -u/--username")
+	}
+	if (changed("hash") || changed("hashfile")) && !changed("username") {
+		return fmt.Errorf("invalid authentication flags: -H/--hash or --hashfile requires -u/--username")
+	}
+	if changed("aes-key") && !changed("username") {
+		return fmt.Errorf("invalid authentication flags: --aes-key requires -u/--username")
 	}
 
 	return nil
 }
 
-func keys(m map[string]bool) []string {
-	var out []string
-	for k := range m {
-		out = append(out, "--"+k)
-	}
-	return out
-}
-
-func containsAll(provided, required map[string]bool) bool {
-	for k := range required {
-		if !provided[k] {
-			return false
-		}
-	}
-	return true
-}
-
-func intersects(setA, setB map[string]bool) bool {
-	for k := range setA {
-		if setB[k] {
-			return true
-		}
-	}
-	return false
-}
-
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "godap <server address>",
+		Use:   "godap [server address]",
 		Short: "A complete TUI for LDAP.",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := validateFlagSet(cmd)
-
-			if err != nil {
-				log.Fatalf(fmt.Sprint(err))
+			if err := validateFlagSet(cmd); err != nil {
+				log.Fatal(err)
 			}
 
-			tui.LdapServer = args[0]
+			if len(args) > 0 {
+				tui.LdapServer = args[0]
+			}
+
+			if tui.LdapServer == "" && tui.DomainName == "" && !domainInUsername(tui.LdapUsername) {
+				log.Fatalf("target host is required (or -d/--domain / a domain-qualified -u/--username, " +
+					"to discover a domain controller automatically)")
+			}
 
 			if tui.LdapPort == 0 {
 				if tui.Ldaps {
@@ -102,10 +111,11 @@ func main() {
 	rootCmd.Flags().StringVarP(&tui.LdapUsername, "username", "u", "", "LDAP username")
 	rootCmd.Flags().StringVarP(&tui.LdapPassword, "password", "p", "", "LDAP password")
 	rootCmd.Flags().StringVarP(&tui.LdapPasswordFile, "passfile", "", "", "Path to a file containing the LDAP password (or - for stdin)")
-	rootCmd.Flags().StringVarP(&tui.DomainName, "domain", "d", "", "Domain for NTLM / Kerberos authentication")
+	rootCmd.Flags().StringVarP(&tui.DomainName, "domain", "d", "", "Domain for NTLM / Kerberos authentication, or for DC discovery when the target is omitted")
 	rootCmd.Flags().StringVarP(&tui.NtlmHash, "hash", "H", "", "NTLM hash")
-	rootCmd.Flags().BoolVarP(&tui.Kerberos, "kerberos", "k", false, "Use Kerberos ticket for authentication (CCACHE specified via KRB5CCNAME environment variable)")
-	rootCmd.Flags().StringVarP(&tui.TargetSpn, "spn", "t", "", "Target SPN to use for Kerberos bind (usually ldap/dchostname)")
+	rootCmd.Flags().StringVarP(&tui.AESKey, "aes-key", "", "", "Kerberos AES128/AES256 key (hex-encoded); requires --kerberos")
+	rootCmd.Flags().BoolVarP(&tui.SimpleBind, "simple", "", false, "Force a simple LDAP bind for -u/-p instead of the default NTLM")
+	rootCmd.Flags().BoolVarP(&tui.Kerberos, "kerberos", "k", false, "Use Kerberos authentication - combine with -p/-H/--aes-key for AS-REQ, --crt/--key/--pfx for PKINIT, or alone for CCACHE (via KRB5CCNAME)")
 	rootCmd.Flags().StringVarP(&tui.NtlmHashFile, "hashfile", "", "", "Path to a file containing the NTLM hash (or - for stdin)")
 	rootCmd.Flags().StringVarP(&tui.RootDN, "rootDN", "r", "", "Initial root DN")
 	rootCmd.Flags().StringVarP(&tui.SearchFilter, "filter", "f", "(objectClass=*)", "Initial LDAP search filter")
@@ -121,8 +131,11 @@ func main() {
 	rootCmd.Flags().Uint32VarP(&tui.PagingSize, "paging", "G", 800, "Default paging size for regular queries")
 	rootCmd.Flags().BoolVarP(&tui.Insecure, "insecure", "I", false, "Skip TLS verification for LDAPS/StartTLS")
 	rootCmd.Flags().BoolVarP(&tui.Ldaps, "ldaps", "S", false, "Use LDAPS for initial connection")
-	rootCmd.Flags().StringVarP(&tui.SocksServer, "socks", "x", "", "Use a SOCKS proxy for initial connection")
+	rootCmd.Flags().StringVarP(&tui.SocksServer, "socks", "x", "", "Use a SOCKS proxy for the LDAP connection and all Kerberos KDC traffic")
 	rootCmd.Flags().StringVarP(&tui.KdcHost, "kdc", "", "", "Address of the KDC to use with Kerberos authentication (optional: only if the KDC differs from the specified LDAP server)")
+	rootCmd.Flags().StringVarP(&tui.CustomDNS, "dns", "", "", "Custom DNS resolver IP[:port] for DC discovery and SPN/hostname lookups")
+	rootCmd.Flags().BoolVarP(&tui.ForceDNSTCP, "dns-tcp", "", false, "Force DNS queries over TCP instead of UDP")
+	rootCmd.Flags().BoolVarP(&tui.NoProxyDNS, "no-proxy-dns", "", false, "Do not route DNS queries through the SOCKS5 proxy (only relevant with -x/--socks)")
 	rootCmd.Flags().StringVarP(&tui.TimeFormat, "timefmt", "", "", "Time format for LDAP timestamps")
 	rootCmd.Flags().StringVarP(&tui.CertFile, "crt", "", "", "Path to a file containing the certificate to use for the bind")
 	rootCmd.Flags().StringVarP(&tui.KeyFile, "key", "", "", "Path to a file containing the private key to use for the bind")
@@ -146,4 +159,15 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 	}
+}
+
+// domainInUsername reports whether u already carries a domain (user@domain or
+// DOMAIN\user), which is enough to attempt DC discovery even without -d.
+func domainInUsername(u string) bool {
+	for _, r := range u {
+		if r == '@' || r == '\\' {
+			return true
+		}
+	}
+	return false
 }
