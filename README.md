@@ -7,7 +7,6 @@
     <img src="https://img.shields.io/github/languages/code-size/Macmod/godap" alt="">
     <img src="https://img.shields.io/github/license/Macmod/godap" alt="">
     <img src="https://img.shields.io/github/actions/workflow/status/Macmod/godap/release.yml" alt="">
-    <a href="https://goreportcard.com/report/github.com/Macmod/godap/v2"><img src="https://goreportcard.com/badge/github.com/Macmod/godap/v2" alt="Go Report Card"></a>
     <img src="https://img.shields.io/github/downloads/Macmod/godap/total" alt="GitHub Downloads">
     <a href="https://twitter.com/MacmodSec"><img src="https://img.shields.io/twitter/follow/MacmodSec?style=for-the-badge&logo=X&color=blue" alt="Twitter Follow"></a>
   </p>
