@@ -55,11 +55,13 @@ $ go install .
 
 ## Package Repositories
 
-Some members of the community have published `godap` in [package repositories](https://repology.org/project/godap/versions). The following packages are known to provide working releases of `godap`:
+Some members of the community have published `godap` in [package repositories](https://repology.org/project/godap/versions). The following packages provide working releases of `godap`:
 
-* *Homebrew*. [godap](https://formulae.brew.sh/formula/godap) by `harpchad`
-* *Alpine Linux (community)*. [godap](https://pkgs.alpinelinux.org/package/edge/community/x86_64/godap) by `omni+alpine@hack.org`
-* *Arch Linux (AUR)*. [godap-bin](https://aur.archlinux.org/packages/godap-bin) by `killab33z`
+| Repository | Package | Maintainer |
+| --- | --- | --- |
+| [Homebrew](https://formulae.brew.sh/formula/godap) | [godap](https://formulae.brew.sh/formula/godap) | `harpchad` |
+| [Alpine Linux (community)](https://pkgs.alpinelinux.org/package/edge/community/x86_64/godap) | [godap](https://pkgs.alpinelinux.org/package/edge/community/x86_64/godap) | `omni+alpine@hack.org` |
+| [Arch Linux (AUR)](https://aur.archlinux.org/packages/godap-bin) | [godap-bin](https://aur.archlinux.org/packages/godap-bin) | `killab33z` |
 
 Remember to check `godap`'s version before using these packages, as some of them might not always be up to date.
 In case you need the latest features, godap also provides [automated releases](https://github.com/Macmod/godap/releases) for several platforms.
@@ -78,13 +80,13 @@ or
 $ godap <hostname or IP> -u <username>@<domain> -p <password>
 ```
 
+By default, `-u`/`-p` performs an NTLM bind; add `--simple` to force a simple LDAP bind instead.
+
 **Bind with an NTLM hash (pass-the-hash)**
 
 ```bash
 $ godap <hostname or IP> -u <username> -H <hash> [-d <domain>]
 ```
-
-By default, `-u`/`-p` performs an NTLM bind; add `--simple` to force a simple LDAP bind instead.
 
 **Bind with Kerberos**
 
