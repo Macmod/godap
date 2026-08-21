@@ -24,7 +24,7 @@ import (
 	"golang.org/x/term"
 )
 
-var GodapVer = "Godap v2.12.0"
+var GodapVer = "Godap v2.12.1"
 var (
 	LdapServer       string
 	LdapPort         int
