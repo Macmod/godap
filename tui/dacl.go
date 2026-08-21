@@ -283,6 +283,10 @@ func updateDaclEntries() {
 
 	if err == nil {
 		sd = sdl.NewSD(hexSD)
+		if sd == nil {
+			updateLog("Failed to parse SD for '"+object+"'", "red")
+			return
+		}
 
 		numAces := strconv.Itoa(len(sd.DACL.Aces))
 
