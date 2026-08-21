@@ -1206,8 +1206,12 @@ func (c *ControlMicrosoftSDFlags) String() string {
 		"1.2.840.113556.1.4.801", c.Criticality, c.ControlValue)
 }
 
-func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, err error) {
+func (lc *LDAPConn) GetSecurityDescriptor(object string, showDeleted bool) (queryResult string, err error) {
 	var searchReq *ldap.SearchRequest
+	controls := []ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}}
+	if showDeleted {
+		controls = append(controls, ldap.NewControlMicrosoftShowDeleted())
+	}
 
 	samOrDn, isSamAccountName := SamOrDN(object)
 
@@ -1219,8 +1223,7 @@ func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, er
 			ldap.NeverDerefAliases, 0, 0, false,
 			samOrDn,
 			[]string{"nTSecurityDescriptor"},
-			// ControlValue=15 in order to get SACLs too
-			[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+			controls,
 		)
 	default:
 		searchReq = ldap.NewSearchRequest(
@@ -1229,8 +1232,7 @@ func (lc *LDAPConn) GetSecurityDescriptor(object string) (queryResult string, er
 			ldap.NeverDerefAliases, 0, 0, false,
 			"(&)",
 			[]string{"nTSecurityDescriptor"},
-			// ControlValue=15 in order to get SACLs too
-			[]ldap.Control{&ControlMicrosoftSDFlags{ControlValue: 7}},
+			controls,
 		)
 	}
 

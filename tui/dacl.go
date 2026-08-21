@@ -276,7 +276,7 @@ func updateDaclEntries() {
 	var aceNoPropagate string
 
 	object = objectNameInputDacl.GetText()
-	hexSD, err = lc.GetSecurityDescriptor(object)
+	hexSD, err = lc.GetSecurityDescriptor(object, Deleted)
 
 	sd = nil
 	parsedAces = nil

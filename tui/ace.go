@@ -351,7 +351,7 @@ func getValidatedWritePermsForm(validatedWriteRight int, selectedRight func(stri
 }
 
 func safetyCheck(object string, sd *sdl.SecurityDescriptor, doneFunc func(int, string)) bool {
-	currentSD, err := lc.GetSecurityDescriptor(object)
+	currentSD, err := lc.GetSecurityDescriptor(object, Deleted)
 
 	if err == nil && currentSD != sd.Encode() {
 		warningText := "Warning\n"
